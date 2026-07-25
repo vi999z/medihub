@@ -196,3 +196,6 @@ button { font-family: var(--font-body); cursor: pointer; }
 .btn-secondary:hover { background: #FAFBF9; }
 
 .error-text { color: var(--red); font-size: 13px; }
+
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

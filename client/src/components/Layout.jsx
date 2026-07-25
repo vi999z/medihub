@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Pill, Package, Receipt, Bell, LogOut } from 'lucide-react';
+import { LayoutDashboard, Pill, Package, Receipt, Bell, Brain, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const NAV_ITEMS = [
@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: '/batches', label: 'Batches', icon: Package },
   { to: '/transactions', label: 'Transactions', icon: Receipt },
   { to: '/notifications', label: 'Alerts', icon: Bell },
+  { to: '/ai-insights', label: 'AI Insights', icon: Brain },
 ];
 
 export default function Layout({ children }) {
