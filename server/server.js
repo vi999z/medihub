@@ -8,6 +8,7 @@ const batchRoutes = require('./routes/batchRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const { startExpiryMonitor } = require('./jobs/expiryMonitor');
+const reportRoutes = require('./routes/reportRoutes');
 
 const app = express();
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN }));
@@ -22,6 +23,7 @@ app.use('/api/medicines', medicineRoutes);
 app.use('/api/batches', batchRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/reports', reportRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {

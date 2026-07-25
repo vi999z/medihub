@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
 import Medicines from './pages/Medicines';
 
 export default function App() {
@@ -11,10 +12,13 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/dashboard" element={
+            <ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>
+          } />
           <Route path="/medicines" element={
             <ProtectedRoute><Layout><Medicines /></Layout></ProtectedRoute>
           } />
-          <Route path="*" element={<Navigate to="/medicines" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
