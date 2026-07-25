@@ -5,6 +5,9 @@ const { testConnection } = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const medicineRoutes = require('./routes/medicineRoutes');
 const batchRoutes = require('./routes/batchRoutes');
+const transactionRoutes = require('./routes/transactionRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const { startExpiryMonitor } = require('./jobs/expiryMonitor');
 
 const app = express();
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN }));
@@ -17,9 +20,12 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/medicines', medicineRoutes);
 app.use('/api/batches', batchRoutes);
+app.use('/api/transactions', transactionRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   await testConnection();
+  startExpiryMonitor();
 });
