@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Pill, Package, Receipt, Bell, Brain, LogOut } from 'lucide-react';
+import { LayoutDashboard, Pill, Package, Receipt, Bell, Brain, LogOut, Truck, Users as UsersIcon, ScrollText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const NAV_ITEMS = [
