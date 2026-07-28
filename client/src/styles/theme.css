@@ -199,3 +199,33 @@ button { font-family: var(--font-body); cursor: pointer; }
 
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.toast-stack {
+  position: fixed; bottom: 20px; right: 20px;
+  display: flex; flex-direction: column; gap: 8px; z-index: 999;
+}
+.toast {
+  padding: 12px 16px; border-radius: 6px; font-size: 13.5px;
+  box-shadow: var(--shadow); animation: slideIn 0.2s ease;
+  color: #fff;
+}
+.toast-success { background: var(--green); }
+.toast-error { background: var(--red); }
+.toast-info { background: var(--teal); }
+@keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.btn-icon {
+  background: none; border: none; padding: 6px; border-radius: 6px; color: var(--steel);
+}
+.btn-icon:hover { background: var(--red-tint); color: var(--red); }
+
+@media (max-width: 820px) {
+  .sidebar {
+    width: 72px;
+    padding: 16px 8px;
+  }
+  .sidebar-logo, .nav-link span, .sidebar-user, .logout-btn span { display: none; }
+  .nav-link { justify-content: center; }
+  .sidebar-footer { display: flex; justify-content: center; }
+  .main-content { padding: 20px; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+}

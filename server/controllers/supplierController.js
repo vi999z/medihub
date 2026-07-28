@@ -1,0 +1,19 @@
+const supplierModel = require('../models/supplierModel');
+
+async function getAll(req, res) {
+  res.json(await supplierModel.getAll());
+}
+
+async function create(req, res) {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'Supplier name is required' });
+  const id = await supplierModel.create(req.body);
+  res.status(201).json({ id, ...req.body });
+}
+
+async function remove(req, res) {
+  await supplierModel.remove(req.params.id);
+  res.status(204).send();
+}
+
+module.exports = { getAll, create, remove };

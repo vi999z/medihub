@@ -5,6 +5,8 @@ const { verifyToken, requireRole } = require('../middleware/auth');
 
 router.use(verifyToken);
 router.get('/expiry-risk', ctrl.getExpiryRisk);
+router.get('/reorder-suggestions', ctrl.getReorderSuggestionsHandler);
+router.get('/anomalies', ctrl.getAnomalies);
 router.post('/train', requireRole('admin'), ctrl.train);
 
 module.exports = router;

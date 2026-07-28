@@ -28,4 +28,8 @@ async function getAllUsers() {
   return rows;
 }
 
-module.exports = { findByEmail, findById, createUser, getAllUsers };
+async function setActive(id, isActive) {
+  await pool.query('UPDATE users SET is_active = ? WHERE id = ?', [isActive, id]);
+}
+
+module.exports = { findByEmail, findById, createUser, getAllUsers, setActive };

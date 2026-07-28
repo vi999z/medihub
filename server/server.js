@@ -26,6 +26,9 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/suppliers', require('./routes/supplierRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/audit-logs', require('./routes/auditRoutes'));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
