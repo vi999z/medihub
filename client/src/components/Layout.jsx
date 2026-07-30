@@ -26,7 +26,9 @@ export default function Layout({ children }) {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="sidebar-logo">MEDI<span>HUB</span></div>
+        <div className="sidebar-logo">
+  <span className="dot" />MEDI<span>HUB</span>
+</div>
         <nav>
           {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
