@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 function daysUntil(dateStr) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -18,6 +20,8 @@ function statusPillFor(batch) {
 }
 
 export default function Batches() {
+  const { user } = useAuth();
+  const { addToast } = useToast();
   const [batches, setBatches] = useState([]);
   const [medicines, setMedicines] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -50,6 +54,18 @@ export default function Batches() {
     }
   }
 
+  async function handleRemoveDepleted() {
+    if (!window.confirm('Remove all batches that are already depleted?')) return;
+    try {
+      const res = await api.delete('/batches/depleted');
+      api.invalidateCache('/batches');
+      await fetchAll();
+      addToast(res.data.message || 'Depleted batches removed', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'Could not remove depleted batches', 'error');
+    }
+  }
+
   return (
     <>
       <div className="page-header">
@@ -57,9 +73,16 @@ export default function Batches() {
           <h1>Batches</h1>
           <p>{batches.length} batches on record, sorted by nearest expiry</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-          <Plus size={15} /> Receive stock
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {user.role === 'admin' && (
+            <button className="btn btn-secondary" onClick={handleRemoveDepleted}>
+              <Trash2 size={15} /> Remove depleted
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+            <Plus size={15} /> Receive stock
+          </button>
+        </div>
       </div>
 
       {showForm && (

@@ -45,4 +45,16 @@ async function create(req, res) {
   res.status(201).json({ id, ...req.body });
 }
 
-module.exports = { getAll, getOne, getByMedicine, create };
+async function removeDepleted(req, res) {
+  const [rows] = await pool.query('SELECT id, batch_number FROM batches WHERE quantity_remaining <= 0');
+  if (!rows.length) {
+    return res.json({ message: 'No depleted batches to remove.' });
+  }
+
+  await pool.query('DELETE FROM batches WHERE quantity_remaining <= 0');
+  await logAudit(req.user.id, 'removed_depleted_batches', `Removed ${rows.length} depleted batch(es)`, req);
+
+  res.json({ message: `Removed ${rows.length} depleted batch(es).` });
+}
+
+module.exports = { getAll, getOne, getByMedicine, create, removeDepleted };
