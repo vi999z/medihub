@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 require('dotenv').config();
 const { testConnection } = require('./config/db');
@@ -12,7 +13,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 
 const app = express();
-app.use(cors({ origin: process.env.FRONTEND_ORIGIN }));
+app.use(cors({ origin: process.env.FRONTEND_ORIGIN || '*' }));
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
@@ -29,6 +30,16 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/suppliers', require('./routes/supplierRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/audit-logs', require('./routes/auditRoutes'));
+app.use('/api/maintenance', require('./routes/maintenanceRoutes'));
+
+const clientDist = path.join(__dirname, '../client/dist');
+if (require('fs').existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {

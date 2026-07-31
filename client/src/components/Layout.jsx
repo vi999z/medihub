@@ -3,7 +3,8 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
-  IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown
+  IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
+  IconTools
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
 const ADMIN_ITEMS = [
   { to: '/users', label: 'Users', icon: IconUsers },
   { to: '/audit-log', label: 'Audit Log', icon: IconFileText },
+  { to: '/maintenance', label: 'Maintenance', icon: IconTools },
 ];
 const ALL_ITEMS = [...NAV_ITEMS, ...ADMIN_ITEMS];
 

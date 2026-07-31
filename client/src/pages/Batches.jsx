@@ -28,7 +28,7 @@ export default function Batches() {
   const [error, setError] = useState('');
 
   async function fetchAll() {
-    const [b, m] = await Promise.all([api.get('/batches'), api.get('/medicines')]);
+    const [b, m] = await Promise.all([api.cachedGet('/batches'), api.cachedGet('/medicines')]);
     setBatches(b.data);
     setMedicines(m.data);
   }
@@ -40,6 +40,8 @@ export default function Batches() {
     setError('');
     try {
       await api.post('/batches', form);
+      api.invalidateCache('/batches');
+      api.invalidateCache('/medicines');
       setForm({ medicine_id: '', batch_number: '', quantity_received: '', cost_price: '', selling_price: '', manufacture_date: '', expiry_date: '' });
       setShowForm(false);
       fetchAll();

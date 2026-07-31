@@ -40,11 +40,21 @@ export default function Dashboard() {
   const loading = summary === null;
 
   useEffect(() => {
-    api.get('/reports/summary').then((r) => setSummary(r.data));
-    api.get('/batches').then((r) => setBatches(r.data));
-    api.get('/reports/expiring-soon').then((r) => setExpiring(r.data));
-    api.get('/reports/low-stock').then((r) => setLowStock(r.data));
-    api.get('/reports/sales-trend?days=30').then((r) => setTrend(r.data));
+    Promise.all([
+      api.cachedGet('/reports/summary'),
+      api.cachedGet('/batches'),
+      api.cachedGet('/reports/expiring-soon'),
+      api.cachedGet('/reports/low-stock'),
+      api.cachedGet('/reports/sales-trend?days=30')
+    ])
+      .then(([summaryRes, batchesRes, expiringRes, lowStockRes, trendRes]) => {
+        setSummary(summaryRes.data);
+        setBatches(batchesRes.data);
+        setExpiring(expiringRes.data);
+        setLowStock(lowStockRes.data);
+        setTrend(trendRes.data);
+      })
+      .catch(() => {});
   }, []);
 
   const activeBatches = batches.filter((b) => b.status === 'active');
