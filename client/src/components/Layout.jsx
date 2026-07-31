@@ -62,14 +62,16 @@ export default function Layout({ children }) {
           <button className="logout-btn" onClick={handleLogout}><IconLogout size={15} stroke={1.8} /> Log out</button>
         </div>
       </aside>
+
+      {/* Inserted here */}
       <main className="main-content">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
-            initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -8 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
+            initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 10, scale: 0.995 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -6, scale: 0.995 }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
           >
             {children}
           </motion.div>
