@@ -7,5 +7,6 @@ router.use(verifyToken);
 router.get('/summary', ctrl.summary);
 router.get('/expiring-soon', ctrl.expiringSoon);
 router.get('/low-stock', ctrl.lowStock);
+router.get('/sales-trend', ctrl.salesTrend);
 
 module.exports = router;

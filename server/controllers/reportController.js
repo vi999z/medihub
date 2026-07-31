@@ -15,4 +15,9 @@ async function lowStock(req, res) {
   res.json(data);
 }
 
-module.exports = { summary, expiringSoon, lowStock };
+async function salesTrend(req, res) {
+  const data = await reportModel.getSalesTrend(req.query.days || 30);
+  res.json(data);
+}
+
+module.exports = { summary, expiringSoon, lowStock, salesTrend };

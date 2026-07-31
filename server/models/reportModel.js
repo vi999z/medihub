@@ -60,4 +60,25 @@ async function getLowStock() {
   return rows;
 }
 
-module.exports = { getSummary, getExpiringSoon, getLowStock };
+async function getSalesTrend(days = 30) {
+  const [rows] = await pool.query(
+    `SELECT DATE(st.created_at) AS day, SUM(-st.quantity) AS units_sold
+     FROM stock_transactions st
+     WHERE st.transaction_type = 'sale' AND st.created_at >= (CURDATE() - INTERVAL ? DAY)
+     GROUP BY DATE(st.created_at) ORDER BY day ASC`,
+    [days]
+  );
+  const map = Object.fromEntries(rows.map((r) => [r.day.toISOString().slice(0, 10), Number(r.units_sold)]));
+  const series = [];
+  const start = new Date();
+  start.setDate(start.getDate() - (days - 1));
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    series.push({ date: key, units_sold: map[key] || 0 });
+  }
+  return series;
+}
+
+module.exports = { getSummary, getExpiringSoon, getLowStock, getSalesTrend };
