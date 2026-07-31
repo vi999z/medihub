@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, RefreshCw } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -12,7 +12,7 @@ export default function Suppliers() {
   const [form, setForm] = useState({ name: '', contact_person: '', phone: '', email: '', address: '' });
 
   async function fetchAll() {
-    const res = await api.get('/suppliers');
+    const res = await api.cachedGet('/suppliers');
     setSuppliers(res.data);
   }
 
@@ -22,9 +22,10 @@ export default function Suppliers() {
     e.preventDefault();
     try {
       await api.post('/suppliers', form);
+      api.invalidateCache('/suppliers');
       setForm({ name: '', contact_person: '', phone: '', email: '', address: '' });
       setShowForm(false);
-      fetchAll();
+      await fetchAll();
       addToast('Supplier added', 'success');
     } catch (err) {
       addToast(err.response?.data?.error || 'Failed to add supplier', 'error');
@@ -34,17 +35,27 @@ export default function Suppliers() {
   async function handleDelete(id) {
     if (!confirm('Remove this supplier?')) return;
     await api.delete(`/suppliers/${id}`);
-    fetchAll();
+    api.invalidateCache('/suppliers');
+    await fetchAll();
     addToast('Supplier removed', 'success');
+  }
+
+  async function handleRefresh() {
+    api.invalidateCache('/suppliers');
+    await fetchAll();
+    addToast('Supplier list refreshed', 'success');
   }
 
   return (
     <>
       <div className="page-header">
         <div><h1>Suppliers</h1><p>{suppliers.length} suppliers on file</p></div>
-        {user.role === 'admin' && (
-          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}><Plus size={15} /> Add supplier</button>
-        )}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary" onClick={handleRefresh}><RefreshCw size={15} /> Refresh</button>
+          {user.role === 'admin' && (
+            <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}><Plus size={15} /> Add supplier</button>
+          )}
+        </div>
       </div>
 
       {showForm && (

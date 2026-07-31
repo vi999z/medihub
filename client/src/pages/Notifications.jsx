@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCheck } from 'lucide-react';
+import { CheckCheck, RefreshCw, BellRing } from 'lucide-react';
 import api from '../api/axios';
 
 function severityPill(sev) {
@@ -12,7 +12,7 @@ export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
 
   async function fetchAll() {
-    const res = await api.get('/notifications');
+    const res = await api.cachedGet('/notifications');
     setNotifications(res.data);
   }
 
@@ -20,12 +20,19 @@ export default function Notifications() {
 
   async function markRead(id) {
     await api.patch(`/notifications/${id}/read`);
+    api.invalidateCache('/notifications');
     fetchAll();
   }
 
   async function markAllRead() {
     await api.patch('/notifications/read-all');
+    api.invalidateCache('/notifications');
     fetchAll();
+  }
+
+  async function handleRefresh() {
+    api.invalidateCache('/notifications');
+    await fetchAll();
   }
 
   return (
@@ -35,14 +42,21 @@ export default function Notifications() {
           <h1>Alerts</h1>
           <p>{notifications.filter((n) => !n.is_read).length} unread</p>
         </div>
-        <button className="btn btn-secondary" onClick={markAllRead}>
-          <CheckCheck size={15} /> Mark all read
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary" onClick={handleRefresh}>
+            <RefreshCw size={15} /> Refresh
+          </button>
+          <button className="btn btn-secondary" onClick={markAllRead}>
+            <CheckCheck size={15} /> Mark all read
+          </button>
+        </div>
       </div>
 
       <div className="card">
         {notifications.length === 0 && (
-          <p style={{ padding: 20, color: 'var(--steel)', fontSize: 13 }}>No alerts yet.</p>
+          <div style={{ padding: 20, color: 'var(--steel)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BellRing size={16} /> No alerts yet.
+          </div>
         )}
         {notifications.map((n) => (
           <div

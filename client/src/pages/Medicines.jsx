@@ -1,36 +1,91 @@
 import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+
+const emptyForm = {
+  name: '', generic_name: '', category: '', dosage_form: '',
+  strength: '', unit: '', reorder_level: 10, requires_prescription: false
+};
 
 export default function Medicines() {
   const { user } = useAuth();
+  const { addToast } = useToast();
   const [medicines, setMedicines] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    name: '', generic_name: '', category: '', dosage_form: '',
-    strength: '', unit: '', reorder_level: 10, requires_prescription: false
-  });
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
 
+  function resetForm() {
+    setForm(emptyForm);
+    setEditingId(null);
+    setShowForm(false);
+  }
+
   async function fetchMedicines() {
-    const res = await api.get('/medicines');
+    const res = await api.cachedGet('/medicines');
     setMedicines(res.data);
   }
 
   useEffect(() => { fetchMedicines(); }, []);
 
+  function openCreate() {
+    resetForm();
+    setShowForm(true);
+  }
+
+  function openEdit(medicine) {
+    setEditingId(medicine.id);
+    setForm({
+      name: medicine.name || '',
+      generic_name: medicine.generic_name || '',
+      category: medicine.category || '',
+      dosage_form: medicine.dosage_form || '',
+      strength: medicine.strength || '',
+      unit: medicine.unit || '',
+      reorder_level: medicine.reorder_level || 10,
+      requires_prescription: Boolean(medicine.requires_prescription)
+    });
+    setShowForm(true);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/medicines', form);
-      setForm({ name: '', generic_name: '', category: '', dosage_form: '', strength: '', unit: '', reorder_level: 10, requires_prescription: false });
-      setShowForm(false);
-      fetchMedicines();
+      if (editingId) {
+        await api.put(`/medicines/${editingId}`, form);
+        addToast('Medicine updated', 'success');
+      } else {
+        await api.post('/medicines', form);
+        addToast('Medicine added', 'success');
+      }
+      api.invalidateCache('/medicines');
+      resetForm();
+      await fetchMedicines();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create medicine');
+      setError(err.response?.data?.error || 'Failed to save medicine');
     }
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Delete this medicine from the catalog?')) return;
+    try {
+      await api.delete(`/medicines/${id}`);
+      api.invalidateCache('/medicines');
+      await fetchMedicines();
+      addToast('Medicine deleted', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'Failed to delete medicine', 'error');
+    }
+  }
+
+  async function handleRefresh() {
+    api.invalidateCache('/medicines');
+    await fetchMedicines();
+    addToast('Catalog refreshed', 'success');
   }
 
   return (
@@ -40,11 +95,16 @@ export default function Medicines() {
           <h1>Medicines</h1>
           <p>{medicines.length} products in the catalog</p>
         </div>
-        {user.role === 'admin' && (
-          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-            <Plus size={15} /> Add medicine
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary" onClick={handleRefresh}>
+            <RefreshCw size={15} /> Refresh
           </button>
-        )}
+          {user.role === 'admin' && (
+            <button className="btn btn-primary" onClick={openCreate}>
+              <Plus size={15} /> Add medicine
+            </button>
+          )}
+        </div>
       </div>
 
       {showForm && (
@@ -61,8 +121,8 @@ export default function Medicines() {
             Requires prescription
           </label>
           <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">Save medicine</button>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary">{editingId ? 'Update medicine' : 'Save medicine'}</button>
+            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
           </div>
           {error && <p className="error-text" style={{ gridColumn: 'span 2' }}>{error}</p>}
         </form>
@@ -71,7 +131,7 @@ export default function Medicines() {
       <div className="card">
         <table className="data-table">
           <thead>
-            <tr><th>Name</th><th>Category</th><th>Strength</th><th>Unit</th><th>Reorder level</th></tr>
+            <tr><th>Name</th><th>Category</th><th>Strength</th><th>Unit</th><th>Reorder level</th>{user.role === 'admin' && <th>Actions</th>}</tr>
           </thead>
           <tbody>
             {medicines.map((m) => (
@@ -81,6 +141,14 @@ export default function Medicines() {
                 <td><span className="stamp">{m.strength || '—'}</span></td>
                 <td>{m.unit}</td>
                 <td>{m.reorder_level}</td>
+                {user.role === 'admin' && (
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn-icon" onClick={() => openEdit(m)} title="Edit medicine"><Pencil size={14} /></button>
+                      <button className="btn-icon" onClick={() => handleDelete(m.id)} title="Delete medicine"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
