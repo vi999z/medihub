@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import AnimatedNumber from '../components/AnimatedNumber';
 
 function daysUntil(dateStr) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   return Math.ceil((new Date(dateStr) - today) / 86400000);
 }
-
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
@@ -15,30 +16,42 @@ function getGreeting() {
 }
 
 const Capsule = () => (
-  <svg className="bento-shape" width="46" height="46" viewBox="0 0 46 46" fill="none">
-    <rect x="6" y="18" width="34" height="14" rx="7" transform="rotate(-30 23 23)" stroke="var(--ink)" strokeWidth="2" />
-    <line x1="17" y1="12" x2="24" y2="24" stroke="var(--ink)" strokeWidth="2" />
-  </svg>
+  <div className="icon-badge">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="10" width="18" height="8" rx="4" transform="rotate(-35 12 12)" stroke="var(--ink)" strokeWidth="1.8" strokeLinecap="round" />
+      <line x1="9.5" y1="6" x2="14.5" y2="18" stroke="var(--ink)" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  </div>
 );
 const Cross = () => (
-  <svg className="bento-shape" width="40" height="40" viewBox="0 0 40 40" fill="none">
-    <path d="M16 4h8v12h12v8H24v12h-8V24H4v-8h12V4z" stroke="var(--ink)" strokeWidth="2" strokeLinejoin="round" />
-  </svg>
+  <div className="icon-badge">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7V3z" stroke="var(--ink)" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  </div>
 );
 const Blob = () => (
-  <svg className="bento-shape" width="44" height="44" viewBox="0 0 44 44" fill="none">
-    <path d="M22 4c9 0 16 6 16 15s-8 21-16 21S6 28 6 19 13 4 22 4z" stroke="var(--ink)" strokeWidth="2" />
-  </svg>
+  <div className="icon-badge">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M4 14c0-6 3-10 8-10s8 3 8 9-4 9-8 9-8-3-8-8z" stroke="var(--ink)" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  </div>
 );
-const Bell = () => (
-  <svg className="bento-shape" width="38" height="38" viewBox="0 0 38 38" fill="none">
-    <path d="M19 6c-5 0-8 4-8 9v6l-3 5h22l-3-5v-6c0-5-3-9-8-9z" stroke="var(--ink)" strokeWidth="2" strokeLinejoin="round" />
-    <path d="M16 30a3 3 0 006 0" stroke="var(--ink)" strokeWidth="2" />
-  </svg>
+const BellIcon = () => (
+  <div className="icon-badge">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M12 3c-3 0-5 2.5-5 5.5v4L5 16h14l-2-3.5v-4C17 5.5 15 3 12 3z" stroke="var(--ink)" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+      <path d="M10 19a2 2 0 004 0" stroke="var(--ink)" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  </div>
 );
+
+const gridVariants = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
+const cardVariants = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } };
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const prefersReducedMotion = useReducedMotion();
   const [summary, setSummary] = useState(null);
   const [medicines, setMedicines] = useState([]);
   const [batches, setBatches] = useState([]);
@@ -79,55 +92,53 @@ export default function Dashboard() {
         {summary?.expiring_soon ?? 0} batches need attention this month, and {summary?.low_stock ?? 0} medicines are approaching their reorder point.
       </p>
 
-      <div className="bento-grid">
-        <div className="bento-card butter">
+      <motion.div className="bento-grid" variants={prefersReducedMotion ? undefined : gridVariants} initial="hidden" animate="show">
+        <motion.div className="bento-card butter" variants={prefersReducedMotion ? undefined : cardVariants}>
           <Capsule />
           <div>
             <div className="bento-label">Catalog</div>
-            <div className="bento-value">{summary?.total_medicines ?? '—'}</div>
+            <div className="bento-value"><AnimatedNumber value={summary?.total_medicines ?? 0} /></div>
           </div>
           <div className="bento-breakdown">
             <div><strong>{categories}</strong>categories</div>
             <div><strong>{rxCount}</strong>Rx required</div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bento-card blush">
+        <motion.div className="bento-card blush" variants={prefersReducedMotion ? undefined : cardVariants}>
           <Cross />
           <div>
             <div className="bento-label">Inventory value</div>
-            <div className="bento-value">₱{summary ? Number(summary.inventory_value).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}</div>
+            <div className="bento-value"><AnimatedNumber value={summary ? Number(summary.inventory_value) : 0} prefix="₱" /></div>
           </div>
-          <div className="bento-breakdown">
-            <div><strong>{activeBatches.length}</strong>active batches</div>
-          </div>
-        </div>
+          <div className="bento-breakdown"><div><strong>{activeBatches.length}</strong>active batches</div></div>
+        </motion.div>
 
-        <div className="bento-card sage">
+        <motion.div className="bento-card sage" variants={prefersReducedMotion ? undefined : cardVariants}>
           <Blob />
           <div>
             <div className="bento-label">Stock health</div>
-            <div className="bento-value">{activeBatches.length}</div>
+            <div className="bento-value"><AnimatedNumber value={activeBatches.length} /></div>
           </div>
           <div className="bento-breakdown">
             <div><strong>{health.safe}</strong>safe</div>
             <div><strong>{health.warning}</strong>watch</div>
             <div><strong>{health.critical}</strong>critical</div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bento-card sky">
-          <Bell />
+        <motion.div className="bento-card sky" variants={prefersReducedMotion ? undefined : cardVariants}>
+          <BellIcon />
           <div>
             <div className="bento-label">Unread alerts</div>
-            <div className="bento-value">{notifications.length}</div>
+            <div className="bento-value"><AnimatedNumber value={notifications.length} /></div>
           </div>
           <div className="bento-breakdown">
             <div><strong>{alertCounts.critical || 0}</strong>critical</div>
             <div><strong>{alertCounts.warning || 0}</strong>warning</div>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 20 }}>
         <div className="card" style={{ padding: 20 }}>
@@ -139,9 +150,7 @@ export default function Dashboard() {
                 <div style={{ fontWeight: 500, fontSize: 13.5 }}>{b.medicine_name}</div>
                 <span className="stamp" style={{ marginTop: 4 }}>{b.batch_number}</span>
               </div>
-              <span className={`status-pill ${b.days_left <= 7 ? 'critical' : 'warning'}`}>
-                {b.days_left} day{b.days_left === 1 ? '' : 's'} left
-              </span>
+              <span className={`status-pill ${b.days_left <= 7 ? 'critical' : 'warning'}`}>{b.days_left} day{b.days_left === 1 ? '' : 's'} left</span>
             </div>
           ))}
         </div>
