@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { IconPill, IconWallet, IconAlertTriangle, IconPackageOff, IconArrowUpRight, IconArrowDownRight, IconMinus } from '@tabler/icons-react';
 import api from '../api/axios';
@@ -134,15 +133,14 @@ export default function Dashboard() {
           <h3 style={{ fontSize: 14.5, marginBottom: 14 }}>Expiring soon</h3>
           {loading && [1, 2, 3].map((i) => <Skeleton key={i} height={36} style={{ marginBottom: 8 }} />)}
           {!loading && expiring.length === 0 && <p style={{ color: 'var(--steel)', fontSize: 13 }}>Nothing expiring in the next 30 days.</p>}
-          {expiring.map((b, i) => (
-            <motion.div key={b.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
+          {expiring.map((b) => (
+            <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
               <div>
                 <div style={{ fontWeight: 500, fontSize: 13 }}>{b.medicine_name}</div>
                 <span className="stamp" style={{ marginTop: 4 }}>{b.batch_number}</span>
               </div>
               <span className={`status-pill ${b.days_left <= 7 ? 'critical' : 'warning'}`}>{b.days_left}d left</span>
-            </motion.div>
+            </div>
           ))}
         </div>
 
@@ -150,12 +148,11 @@ export default function Dashboard() {
           <h3 style={{ fontSize: 14.5, marginBottom: 14 }}>Low stock</h3>
           {loading && [1, 2, 3].map((i) => <Skeleton key={i} height={36} style={{ marginBottom: 8 }} />)}
           {!loading && lowStock.length === 0 && <p style={{ color: 'var(--steel)', fontSize: 13 }}>All medicines are above their reorder level.</p>}
-          {lowStock.map((m, i) => (
-            <motion.div key={m.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
+          {lowStock.map((m) => (
+            <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
               <div style={{ fontWeight: 500, fontSize: 13 }}>{m.name}</div>
               <span className="stamp">{m.total_remaining} / {m.reorder_level}</span>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

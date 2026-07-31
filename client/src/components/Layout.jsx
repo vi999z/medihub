@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
@@ -81,9 +81,9 @@ function TopBar({ pageTitle }) {
           {results.length > 0 && (
             <div className="search-results">
               {results.map((m) => (
-                <div key={m.id} className="search-result-item" onClick={goToMedicine}>
+                <button key={m.id} type="button" className="search-result-item" onClick={goToMedicine}>
                   {m.name} <span>{m.strength}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -100,25 +100,17 @@ function TopBar({ pageTitle }) {
             <span className="avatar-name">{user?.full_name?.split(' ')[0]}</span>
             <IconChevronDown size={14} stroke={1.8} color="var(--steel)" />
           </button>
-          <AnimatePresence>
-            {menuOpen && (
-              <motion.div
-                className="avatar-menu"
-                initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                transition={{ duration: 0.15 }}
-              >
-                <div className="avatar-menu-header">
-                  <strong>{user?.full_name}</strong>
-                  <span>{user?.role}</span>
-                </div>
-                <button className="avatar-menu-item" onClick={handleLogout}>
-                  <IconLogout size={15} stroke={1.8} /> Log out
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {menuOpen && (
+            <div className="avatar-menu">
+              <div className="avatar-menu-header">
+                <strong>{user?.full_name}</strong>
+                <span>{user?.role}</span>
+              </div>
+              <button className="avatar-menu-item" onClick={handleLogout}>
+                <IconLogout size={15} stroke={1.8} /> Log out
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>
