@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { IconPill, IconVaccine, IconChartDonut, IconBellRinging } from '@tabler/icons-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import AnimatedNumber from '../components/AnimatedNumber';
@@ -15,36 +16,13 @@ function getGreeting() {
   return 'Good evening';
 }
 
-const Capsule = () => (
-  <div className="icon-badge">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="10" width="18" height="8" rx="4" transform="rotate(-35 12 12)" stroke="var(--ink)" strokeWidth="1.8" strokeLinecap="round" />
-      <line x1="9.5" y1="6" x2="14.5" y2="18" stroke="var(--ink)" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  </div>
-);
-const Cross = () => (
-  <div className="icon-badge">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7V3z" stroke="var(--ink)" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  </div>
-);
-const Blob = () => (
-  <div className="icon-badge">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <path d="M4 14c0-6 3-10 8-10s8 3 8 9-4 9-8 9-8-3-8-8z" stroke="var(--ink)" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  </div>
-);
-const BellIcon = () => (
-  <div className="icon-badge">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <path d="M12 3c-3 0-5 2.5-5 5.5v4L5 16h14l-2-3.5v-4C17 5.5 15 3 12 3z" stroke="var(--ink)" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
-      <path d="M10 19a2 2 0 004 0" stroke="var(--ink)" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  </div>
-);
+function IconBadge({ icon: Icon }) {
+  return (
+    <div className="icon-badge">
+      <Icon size={20} color="var(--ink)" stroke={1.8} />
+    </div>
+  );
+}
 
 const gridVariants = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 const cardVariants = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } };
@@ -94,7 +72,7 @@ export default function Dashboard() {
 
       <motion.div className="bento-grid" variants={prefersReducedMotion ? undefined : gridVariants} initial="hidden" animate="show">
         <motion.div className="bento-card butter" variants={prefersReducedMotion ? undefined : cardVariants}>
-          <Capsule />
+          <IconBadge icon={IconPill} />
           <div>
             <div className="bento-label">Catalog</div>
             <div className="bento-value"><AnimatedNumber value={summary?.total_medicines ?? 0} /></div>
@@ -106,7 +84,7 @@ export default function Dashboard() {
         </motion.div>
 
         <motion.div className="bento-card blush" variants={prefersReducedMotion ? undefined : cardVariants}>
-          <Cross />
+          <IconBadge icon={IconVaccine} />
           <div>
             <div className="bento-label">Inventory value</div>
             <div className="bento-value"><AnimatedNumber value={summary ? Number(summary.inventory_value) : 0} prefix="₱" /></div>
@@ -115,7 +93,7 @@ export default function Dashboard() {
         </motion.div>
 
         <motion.div className="bento-card sage" variants={prefersReducedMotion ? undefined : cardVariants}>
-          <Blob />
+          <IconBadge icon={IconChartDonut} />
           <div>
             <div className="bento-label">Stock health</div>
             <div className="bento-value"><AnimatedNumber value={activeBatches.length} /></div>
@@ -128,7 +106,7 @@ export default function Dashboard() {
         </motion.div>
 
         <motion.div className="bento-card sky" variants={prefersReducedMotion ? undefined : cardVariants}>
-          <BellIcon />
+          <IconBadge icon={IconBellRinging} />
           <div>
             <div className="bento-label">Unread alerts</div>
             <div className="bento-value"><AnimatedNumber value={notifications.length} /></div>

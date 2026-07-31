@@ -1,21 +1,24 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { LayoutDashboard, Pill, Package, Receipt, Bell, Brain, Truck, Users as UsersIcon, ScrollText, LogOut } from 'lucide-react';
+import {
+  IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
+  IconBrain, IconTruck, IconUsers, IconFileText, IconLogout
+} from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/medicines', label: 'Medicines', icon: Pill },
-  { to: '/batches', label: 'Batches', icon: Package },
-  { to: '/transactions', label: 'Transactions', icon: Receipt },
-  { to: '/notifications', label: 'Alerts', icon: Bell },
-  { to: '/ai-insights', label: 'AI Insights', icon: Brain },
-  { to: '/suppliers', label: 'Suppliers', icon: Truck },
+  { to: '/dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
+  { to: '/medicines', label: 'Medicines', icon: IconPill },
+  { to: '/batches', label: 'Batches', icon: IconPackage },
+  { to: '/transactions', label: 'Transactions', icon: IconReceipt },
+  { to: '/notifications', label: 'Alerts', icon: IconBellRinging },
+  { to: '/ai-insights', label: 'AI Insights', icon: IconBrain },
+  { to: '/suppliers', label: 'Suppliers', icon: IconTruck },
 ];
 
 const ADMIN_ITEMS = [
-  { to: '/users', label: 'Users', icon: UsersIcon },
-  { to: '/audit-log', label: 'Audit Log', icon: ScrollText },
+  { to: '/users', label: 'Users', icon: IconUsers },
+  { to: '/audit-log', label: 'Audit Log', icon: IconFileText },
 ];
 
 function NavItem({ to, label, icon: Icon, isActive }) {
@@ -24,7 +27,7 @@ function NavItem({ to, label, icon: Icon, isActive }) {
       {isActive && (
         <motion.div layoutId="nav-pill" className="nav-pill-bg" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />
       )}
-      <span className="nav-link-content"><Icon size={16} /> {label}</span>
+      <span className="nav-link-content"><Icon size={16} stroke={1.8} /> {label}</span>
     </NavLink>
   );
 }
@@ -56,7 +59,7 @@ export default function Layout({ children }) {
         </nav>
         <div className="sidebar-footer">
           <div className="sidebar-user"><strong>{user?.full_name}</strong>{user?.role}</div>
-          <button className="logout-btn" onClick={handleLogout}><LogOut size={15} /> Log out</button>
+          <button className="logout-btn" onClick={handleLogout}><IconLogout size={15} stroke={1.8} /> Log out</button>
         </div>
       </aside>
       <main className="main-content">
