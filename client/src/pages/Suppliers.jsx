@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Pencil, Download } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { downloadCsv } from '../utils/csv';
 
 export default function Suppliers() {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ name: '', contact_person: '', phone: '', email: '', address: '' });
 
   async function fetchAll() {
@@ -18,17 +20,39 @@ export default function Suppliers() {
 
   useEffect(() => { fetchAll(); }, []);
 
+  function resetForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setForm({ name: '', contact_person: '', phone: '', email: '', address: '' });
+  }
+
+  function openEdit(supplier) {
+    setEditingId(supplier.id);
+    setForm({
+      name: supplier.name || '',
+      contact_person: supplier.contact_person || '',
+      phone: supplier.phone || '',
+      email: supplier.email || '',
+      address: supplier.address || ''
+    });
+    setShowForm(true);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     try {
-      await api.post('/suppliers', form);
+      if (editingId) {
+        await api.put(`/suppliers/${editingId}`, form);
+        addToast('Supplier updated', 'success');
+      } else {
+        await api.post('/suppliers', form);
+        addToast('Supplier added', 'success');
+      }
       api.invalidateCache('/suppliers');
-      setForm({ name: '', contact_person: '', phone: '', email: '', address: '' });
-      setShowForm(false);
+      resetForm();
       await fetchAll();
-      addToast('Supplier added', 'success');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to add supplier', 'error');
+      addToast(err.response?.data?.error || 'Failed to save supplier', 'error');
     }
   }
 
@@ -46,14 +70,27 @@ export default function Suppliers() {
     addToast('Supplier list refreshed', 'success');
   }
 
+  function handleExport() {
+    const rows = suppliers.map((supplier) => ({
+      id: supplier.id,
+      name: supplier.name,
+      contact_person: supplier.contact_person || '',
+      phone: supplier.phone || '',
+      email: supplier.email || '',
+      address: supplier.address || ''
+    }));
+    downloadCsv('suppliers.csv', rows, ['id', 'name', 'contact_person', 'phone', 'email', 'address']);
+  }
+
   return (
     <>
       <div className="page-header">
         <div><h1>Suppliers</h1><p>{suppliers.length} suppliers on file</p></div>
         <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary" onClick={handleExport}><Download size={15} /> Export CSV</button>
           <button className="btn btn-secondary" onClick={handleRefresh}><RefreshCw size={15} /> Refresh</button>
           {user.role === 'admin' && (
-            <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}><Plus size={15} /> Add supplier</button>
+            <button className="btn btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}><Plus size={15} /> {showForm ? 'Close form' : 'Add supplier'}</button>
           )}
         </div>
       </div>
@@ -66,15 +103,15 @@ export default function Suppliers() {
           <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
           <div className="field" style={{ gridColumn: 'span 2' }}><label>Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
           <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">Save supplier</button>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary">{editingId ? 'Update supplier' : 'Save supplier'}</button>
+            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
           </div>
         </form>
       )}
 
       <div className="card">
         <table className="data-table">
-          <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th>{user.role === 'admin' && <th></th>}</tr></thead>
+          <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
           <tbody>
             {suppliers.map((s) => (
               <tr key={s.id}>
@@ -83,7 +120,12 @@ export default function Suppliers() {
                 <td>{s.phone || '—'}</td>
                 <td>{s.email || '—'}</td>
                 {user.role === 'admin' && (
-                  <td><button className="btn-icon" onClick={() => handleDelete(s.id)}><Trash2 size={14} /></button></td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn-icon" onClick={() => openEdit(s)} title="Edit supplier"><Pencil size={14} /></button>
+                      <button className="btn-icon" onClick={() => handleDelete(s.id)} title="Delete supplier"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
                 )}
               </tr>
             ))}

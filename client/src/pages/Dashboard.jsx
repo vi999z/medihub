@@ -82,8 +82,12 @@ export default function Dashboard() {
 
   return (
     <>
-      <p style={{ fontSize: 13, color: 'var(--steel)', marginBottom: 2 }}>Megawide Drug Pharmacy</p>
-      <h1 style={{ fontSize: 24, marginBottom: 22 }}>{getGreeting()}, {user.full_name.split(' ')[0]}</h1>
+      <div className="page-shell">
+        <div className="hero-panel" style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 13, color: 'var(--steel)', marginBottom: 3 }}>Megawide Drug Pharmacy</p>
+          <h1 style={{ fontSize: 'clamp(1.25rem, 2.2vw, 1.7rem)', marginBottom: 6 }}>{getGreeting()}, {user.full_name.split(' ')[0]}</h1>
+          <p style={{ margin: 0, color: 'var(--ink-soft)', fontSize: 13 }}>Live inventory health, expiry risk, and procurement insights in one view.</p>
+        </div>
 
       <div className="kpi-grid">
         {kpis.map((k) => (
@@ -101,8 +105,8 @@ export default function Dashboard() {
       </div>
 
       <div className="card" style={{ padding: '20px 24px', marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <h3 style={{ fontSize: 14.5 }}>Units sold — last 30 days</h3>
+        <div className="section-title">
+          <h3>Units sold — last 30 days</h3>
           {salesTrendPct !== null && <TrendChip pct={salesTrendPct} />}
         </div>
         <div style={{ height: 200, marginTop: 8 }}>
@@ -130,7 +134,9 @@ export default function Dashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 16 }}>
         <div className="card" style={{ padding: 20 }}>
-          <h3 style={{ fontSize: 14.5, marginBottom: 14 }}>Expiring soon</h3>
+          <div className="section-title">
+            <h3>Expiring soon</h3>
+          </div>
           {loading && [1, 2, 3].map((i) => <Skeleton key={i} height={36} style={{ marginBottom: 8 }} />)}
           {!loading && expiring.length === 0 && <p style={{ color: 'var(--steel)', fontSize: 13 }}>Nothing expiring in the next 30 days.</p>}
           {expiring.map((b) => (
@@ -145,7 +151,9 @@ export default function Dashboard() {
         </div>
 
         <div className="card" style={{ padding: 20 }}>
-          <h3 style={{ fontSize: 14.5, marginBottom: 14 }}>Low stock</h3>
+          <div className="section-title">
+            <h3>Low stock</h3>
+          </div>
           {loading && [1, 2, 3].map((i) => <Skeleton key={i} height={36} style={{ marginBottom: 8 }} />)}
           {!loading && lowStock.length === 0 && <p style={{ color: 'var(--steel)', fontSize: 13 }}>All medicines are above their reorder level.</p>}
           {lowStock.map((m) => (
@@ -155,6 +163,7 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+      </div>
       </div>
     </>
   );

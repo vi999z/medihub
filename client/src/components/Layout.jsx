@@ -127,7 +127,7 @@ export default function Layout({ children }) {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-logo"><span className="dot" />MEDI<span>HUB</span></div>
-        <nav>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {NAV_ITEMS.map((item) => <NavItem key={item.to} {...item} isActive={location.pathname === item.to} />)}
           {user.role === 'admin' && (
             <>

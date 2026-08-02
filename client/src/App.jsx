@@ -22,7 +22,7 @@ export default function App() {
     <AuthProvider>
       <ToastProvider>
         <Router>
-          <Suspense fallback={<div className="page-loader">Loading…</div>}>
+          <Suspense fallback={<div className="page-loader">Loading your workspace…</div>}>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />

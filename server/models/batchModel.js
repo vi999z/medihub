@@ -39,6 +39,20 @@ async function create(data) {
   return result.insertId;
 }
 
+async function update(id, data) {
+  const {
+    medicine_id, supplier_id, batch_number, quantity_received,
+    quantity_remaining, cost_price, selling_price, manufacture_date, expiry_date, status
+  } = data;
+
+  await pool.query(
+    `UPDATE batches
+     SET medicine_id=?, supplier_id=?, batch_number=?, quantity_received=?, quantity_remaining=?, cost_price=?, selling_price=?, manufacture_date=?, expiry_date=?, status=?
+     WHERE id=?`,
+    [medicine_id, supplier_id ?? null, batch_number, quantity_received, quantity_remaining, cost_price ?? null, selling_price ?? null, manufacture_date || null, expiry_date, status || 'active', id]
+  );
+}
+
 async function updateQuantity(id, newQuantity) {
   await pool.query('UPDATE batches SET quantity_remaining = ? WHERE id = ?', [newQuantity, id]);
 }
@@ -47,4 +61,4 @@ async function updateStatus(id, status) {
   await pool.query('UPDATE batches SET status = ? WHERE id = ?', [status, id]);
 }
 
-module.exports = { getAll, getById, getByMedicine, create, updateQuantity, updateStatus };
+module.exports = { getAll, getById, getByMedicine, create, update, updateQuantity, updateStatus };

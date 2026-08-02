@@ -28,12 +28,11 @@ export default function Login() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--teal)' }}>
+    <div className="auth-shell">
       <AnimatePresence mode="wait">
         <motion.div
           key={loading ? 'auth' : 'form'}
-          className="card"
-          style={{ width: 380, padding: '36px 32px' }}
+          className="auth-card"
           initial={{ opacity: 0, y: 10, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -8, scale: 0.98 }}
@@ -51,13 +50,16 @@ export default function Login() {
             </div>
           ) : (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <Pill size={20} color="var(--amber)" />
-                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18 }}>
-                  MEDI<span style={{ color: 'var(--amber)' }}>HUB</span>
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                <div className="icon-badge" style={{ width: 42, height: 42, borderRadius: 12 }}><Pill size={20} color="var(--amber)" /></div>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18 }}>
+                    MEDI<span style={{ color: 'var(--amber)' }}>HUB</span>
+                  </div>
+                  <div style={{ color: 'var(--steel)', fontSize: 12, marginTop: 2 }}>Pharmacy operations platform</div>
+                </div>
               </div>
-              <p style={{ color: 'var(--steel)', fontSize: 13, margin: '0 0 24px' }}>Megawide Drug Pharmacy — inventory system</p>
+              <p style={{ color: 'var(--steel)', fontSize: 13, margin: '0 0 24px' }}>Secure access for inventory, procurement, and dispensing workflows.</p>
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div className="field"><label>Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
                 <div className="field"><label>Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>

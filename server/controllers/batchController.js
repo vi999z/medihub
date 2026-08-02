@@ -45,6 +45,48 @@ async function create(req, res) {
   res.status(201).json({ id, ...req.body });
 }
 
+async function update(req, res) {
+  const existing = await batchModel.getById(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Batch not found' });
+
+  const payload = { ...req.body };
+  if (payload.medicine_id) {
+    const medicine = await medicineModel.getById(payload.medicine_id);
+    if (!medicine) return res.status(404).json({ error: 'Medicine not found' });
+  }
+
+  if (payload.supplier_id === '') payload.supplier_id = null;
+  if (payload.expiry_date === '' || payload.expiry_date == null) {
+    return res.status(400).json({ error: 'expiry_date is required' });
+  }
+
+  if (payload.quantity_received === '' || payload.quantity_received == null) {
+    payload.quantity_received = existing.quantity_received;
+  }
+  if (payload.quantity_remaining === '' || payload.quantity_remaining == null) {
+    payload.quantity_remaining = existing.quantity_remaining;
+  }
+  if (payload.cost_price === '' || payload.cost_price == null) {
+    payload.cost_price = existing.cost_price;
+  }
+  if (payload.selling_price === '' || payload.selling_price == null) {
+    payload.selling_price = existing.selling_price;
+  }
+
+  if (payload.status === undefined || payload.status === null || payload.status === '') {
+    payload.status = existing.status;
+    if (Number(payload.quantity_remaining) <= 0 && payload.status === 'active') {
+      payload.status = 'depleted';
+    }
+  } else if (Number(payload.quantity_remaining) <= 0 && payload.status === 'active') {
+    payload.status = 'depleted';
+  }
+
+  await batchModel.update(req.params.id, payload);
+  await logAudit(req.user.id, 'updated_batch', `Updated batch ${existing.batch_number}`, req);
+  res.json({ id: req.params.id, ...existing, ...payload });
+}
+
 async function removeDepleted(req, res) {
   const [rows] = await pool.query('SELECT id, batch_number FROM batches WHERE quantity_remaining <= 0');
   if (!rows.length) {
@@ -57,4 +99,4 @@ async function removeDepleted(req, res) {
   res.json({ message: `Removed ${rows.length} depleted batch(es).` });
 }
 
-module.exports = { getAll, getOne, getByMedicine, create, removeDepleted };
+module.exports = { getAll, getOne, getByMedicine, create, update, removeDepleted };

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, RefreshCw, Download } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { downloadCsv } from '../utils/csv';
 
 const emptyForm = {
   name: '', generic_name: '', category: '', dosage_form: '',
@@ -88,6 +89,21 @@ export default function Medicines() {
     addToast('Catalog refreshed', 'success');
   }
 
+  function handleExport() {
+    const rows = medicines.map((medicine) => ({
+      id: medicine.id,
+      name: medicine.name,
+      generic_name: medicine.generic_name || '',
+      category: medicine.category || '',
+      dosage_form: medicine.dosage_form || '',
+      strength: medicine.strength || '',
+      unit: medicine.unit || '',
+      reorder_level: medicine.reorder_level || '',
+      requires_prescription: medicine.requires_prescription ? 'Yes' : 'No'
+    }));
+    downloadCsv('medicines.csv', rows, ['id', 'name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'reorder_level', 'requires_prescription']);
+  }
+
   return (
     <>
       <div className="page-header">
@@ -96,6 +112,9 @@ export default function Medicines() {
           <p>{medicines.length} products in the catalog</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary" onClick={handleExport}>
+            <Download size={15} /> Export CSV
+          </button>
           <button className="btn btn-secondary" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
