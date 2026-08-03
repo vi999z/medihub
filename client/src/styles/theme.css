@@ -181,6 +181,8 @@ input, select, textarea { font-family: var(--font-body); }
 .btn-primary:hover { box-shadow: 0 12px 26px rgba(23, 23, 15, 0.18); }
 .btn-secondary { background: #fff; border: 1px solid var(--border); color: var(--ink); }
 .btn-secondary:hover { background: var(--bg-subtle); }
+.btn-danger { background: var(--red); color: #fff; box-shadow: 0 10px 24px rgba(185, 47, 39, 0.18); }
+.btn-danger:hover { background: #a32922; }
 .btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
 .btn-icon { background: none; border: none; padding: 7px; border-radius: 8px; color: var(--steel); transition: background 0.16s ease, color 0.16s ease; }
 .btn-icon:hover { background: var(--amber-tint); color: var(--amber); }
