@@ -1,5 +1,6 @@
 const tf = require('@tensorflow/tfjs');
 const { pool } = require('../config/db');
+const { calculateExpiryRisk } = require('./expiryRiskUtils');
 
 const FEATURE_KEYS = ['days_until_expiry_at_receipt', 'quantity_received', 'daily_velocity', 'reorder_level'];
 
@@ -105,12 +106,13 @@ async function loadPersistedModel() {
   return { model, stats, samples: rows[0].training_samples };
 }
 
-function heuristicRisk({ quantity_remaining, daily_velocity, days_left }) {
-  if (daily_velocity <= 0) return quantity_remaining > 0 ? 0.75 : 0;
-  const projectedDaysToSellThrough = quantity_remaining / daily_velocity;
-  if (projectedDaysToSellThrough <= days_left) return Math.max(0, 0.3 - (days_left - projectedDaysToSellThrough) / 100);
-  const overshoot = (projectedDaysToSellThrough - days_left) / days_left;
-  return Math.min(1, 0.5 + overshoot);
+function heuristicRisk({ quantity_remaining, daily_velocity, days_left, reorder_level = 10 }) {
+  return calculateExpiryRisk({
+    quantityRemaining: quantity_remaining,
+    dailyVelocity: daily_velocity,
+    daysLeft: days_left,
+    reorderLevel: reorder_level,
+  });
 }
 
 function describeRisk(riskScore, daysLeft, dailyVelocity, quantityRemaining) {
@@ -167,7 +169,12 @@ async function scoreActiveBatches() {
       input.dispose(); prediction.dispose();
       method = 'model';
     } else {
-      risk = heuristicRisk({ quantity_remaining: batch.quantity_remaining, daily_velocity: velocity, days_left: daysLeft });
+      risk = heuristicRisk({
+        quantity_remaining: batch.quantity_remaining,
+        daily_velocity: velocity,
+        days_left: daysLeft,
+        reorder_level: batch.reorder_level ?? 10,
+      });
       method = 'heuristic';
     }
 

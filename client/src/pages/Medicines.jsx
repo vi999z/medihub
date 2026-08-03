@@ -1,12 +1,18 @@
-import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, RefreshCw, Download } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Pencil, Trash2, RefreshCw, Download, Layers3 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 
+const CATEGORY_OPTIONS = [
+  'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
+  'Antifungal', 'Antiviral', 'Cardiovascular', 'Respiratory', 'Dermatology', 'Gastrointestinal',
+  'Vitamins & Supplements', 'Hormonal', 'Diagnostic', 'Other'
+];
+
 const emptyForm = {
-  name: '', generic_name: '', category: '', dosage_form: '',
+  name: '', generic_name: '', category: 'Other', dosage_form: '',
   strength: '', unit: '', reorder_level: 10, requires_prescription: false
 };
 
@@ -18,6 +24,7 @@ export default function Medicines() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All');
 
   function resetForm() {
     setForm(emptyForm);
@@ -36,6 +43,16 @@ export default function Medicines() {
     resetForm();
     setShowForm(true);
   }
+
+  const groupedMedicines = useMemo(() => {
+    const normalized = medicines.filter((medicine) => activeCategory === 'All' || (medicine.category || 'Other') === activeCategory);
+    return normalized.reduce((acc, medicine) => {
+      const category = medicine.category || 'Other';
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(medicine);
+      return acc;
+    }, {});
+  }, [medicines, activeCategory]);
 
   function openEdit(medicine) {
     setEditingId(medicine.id);
@@ -130,7 +147,12 @@ export default function Medicines() {
         <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
           <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
           <div className="field"><label>Generic name</label><input value={form.generic_name} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} /></div>
-          <div className="field"><label>Category</label><input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
+          <div className="field">
+            <label>Category</label>
+            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+              {CATEGORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </div>
           <div className="field"><label>Dosage form</label><input value={form.dosage_form} onChange={(e) => setForm({ ...form, dosage_form: e.target.value })} /></div>
           <div className="field"><label>Strength</label><input value={form.strength} onChange={(e) => setForm({ ...form, strength: e.target.value })} /></div>
           <div className="field"><label>Unit</label><input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required /></div>
@@ -147,31 +169,46 @@ export default function Medicines() {
         </form>
       )}
 
-      <div className="card">
-        <table className="data-table">
-          <thead>
-            <tr><th>Name</th><th>Category</th><th>Strength</th><th>Unit</th><th>Reorder level</th>{user.role === 'admin' && <th>Actions</th>}</tr>
-          </thead>
-          <tbody>
-            {medicines.map((m) => (
-              <tr key={m.id}>
-                <td style={{ fontWeight: 500 }}>{m.name}</td>
-                <td>{m.category || '—'}</td>
-                <td><span className="stamp">{m.strength || '—'}</span></td>
-                <td>{m.unit}</td>
-                <td>{m.reorder_level}</td>
-                {user.role === 'admin' && (
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn-icon" onClick={() => openEdit(m)} title="Edit medicine"><Pencil size={14} /></button>
-                      <button className="btn-icon" onClick={() => handleDelete(m.id)} title="Delete medicine"><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="card" style={{ padding: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <Layers3 size={16} color="var(--amber)" />
+          <strong style={{ fontSize: 13 }}>Browse by category</strong>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+          <button className={`btn ${activeCategory === 'All' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveCategory('All')} type="button">All</button>
+          {CATEGORY_OPTIONS.map((category) => (
+            <button key={category} className={`btn ${activeCategory === category ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveCategory(category)} type="button">{category}</button>
+          ))}
+        </div>
+
+        {Object.entries(groupedMedicines).map(([category, items]) => (
+          <div key={category} style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{category}</div>
+            <table className="data-table">
+              <thead>
+                <tr><th>Name</th><th>Strength</th><th>Unit</th><th>Reorder level</th>{user.role === 'admin' && <th>Actions</th>}</tr>
+              </thead>
+              <tbody>
+                {items.map((m) => (
+                  <tr key={m.id}>
+                    <td style={{ fontWeight: 500 }}>{m.name}</td>
+                    <td><span className="stamp">{m.strength || '—'}</span></td>
+                    <td>{m.unit}</td>
+                    <td>{m.reorder_level}</td>
+                    {user.role === 'admin' && (
+                      <td>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn-icon" onClick={() => openEdit(m)} title="Edit medicine"><Pencil size={14} /></button>
+                          <button className="btn-icon" onClick={() => handleDelete(m.id)} title="Delete medicine"><Trash2 size={14} /></button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
       </div>
     </>
   );
