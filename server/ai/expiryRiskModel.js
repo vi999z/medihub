@@ -113,6 +113,31 @@ function heuristicRisk({ quantity_remaining, daily_velocity, days_left }) {
   return Math.min(1, 0.5 + overshoot);
 }
 
+function describeRisk(riskScore, daysLeft, dailyVelocity, quantityRemaining) {
+  if (riskScore >= 0.78) {
+    return {
+      label: 'Immediate action needed',
+      severity: 'critical',
+      message: `This batch is likely to expire before it sells through. The remaining stock of ${quantityRemaining} units may not last the ${daysLeft} days left at the current pace of ${dailyVelocity.toFixed(2)} units/day.`,
+      action: 'Prioritize a fast-moving promotion or split the batch across branches before expiry.'
+    };
+  }
+  if (riskScore >= 0.45) {
+    return {
+      label: 'Monitor closely',
+      severity: 'warning',
+      message: `This batch is trending toward expiry sooner than normal. Current demand is reducing the available shelf life window.`,
+      action: 'Review pricing, placement, or stock rotation this week.'
+    };
+  }
+  return {
+    label: 'Stable',
+    severity: 'safe',
+    message: `This batch is still within a manageable window and should be monitored normally.`,
+    action: 'Keep the batch visible and review again in a few days if demand changes.'
+  };
+}
+
 async function scoreActiveBatches() {
   const [batches] = await pool.query(
     `SELECT b.*, m.name AS medicine_name, m.reorder_level
@@ -146,6 +171,8 @@ async function scoreActiveBatches() {
       method = 'heuristic';
     }
 
+    const insight = describeRisk(risk, daysLeft, velocity, batch.quantity_remaining);
+
     results.push({
       batch_id: batch.id,
       medicine_name: batch.medicine_name,
@@ -155,6 +182,10 @@ async function scoreActiveBatches() {
       daily_velocity: Number(velocity.toFixed(2)),
       risk_score: Number(risk.toFixed(3)),
       method,
+      insight_label: insight.label,
+      insight_severity: insight.severity,
+      insight_message: insight.message,
+      action: insight.action,
     });
   }
 

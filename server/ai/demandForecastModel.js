@@ -37,6 +37,31 @@ function movingAverage(series, window = 7) {
   return result;
 }
 
+function describeTrend(trend, daysOfStockLeft, averageDemand) {
+  if (daysOfStockLeft <= 7) {
+    return {
+      label: 'Reorder now',
+      severity: 'critical',
+      message: `This item is projected to run out in ${daysOfStockLeft.toFixed(1)} days at the current pace of ${averageDemand.toFixed(2)} units/day.`,
+      action: 'Place an order immediately and review supplier lead time.'
+    };
+  }
+  if (daysOfStockLeft <= 14) {
+    return {
+      label: 'Reorder soon',
+      severity: 'warning',
+      message: `This medicine is approaching a stockout window and should be replenished soon.`,
+      action: 'Schedule a reorder this week to avoid a service interruption.'
+    };
+  }
+  return {
+    label: 'Healthy buffer',
+    severity: 'safe',
+    message: `Current stock still provides a reasonable buffer against demand.`,
+    action: 'Keep monitoring and reorder only if the trend starts rising.'
+  };
+}
+
 // Simple linear-trend projection using tf for the regression fit —
 // enough for genuinely small pharmacy SKU-level series, where a heavier model would just overfit noise.
 async function forecastDemand(medicineId, horizonDays = 14) {
@@ -88,17 +113,21 @@ async function getReorderSuggestions() {
     const daysOfStockLeft = med.current_stock / avg_daily_demand;
     const suggestedReorderQty = Math.ceil(avg_daily_demand * 30); // 30-day buffer
 
-    if (daysOfStockLeft <= 14) {
-      suggestions.push({
-        medicine_id: med.id,
-        medicine_name: med.name,
-        current_stock: med.current_stock,
-        avg_daily_demand,
-        days_of_stock_left: Number(daysOfStockLeft.toFixed(1)),
-        trend,
-        suggested_reorder_qty: suggestedReorderQty,
-      });
-    }
+    const insight = describeTrend(trend, daysOfStockLeft, avg_daily_demand);
+
+    suggestions.push({
+      medicine_id: med.id,
+      medicine_name: med.name,
+      current_stock: med.current_stock,
+      avg_daily_demand,
+      days_of_stock_left: Number(daysOfStockLeft.toFixed(1)),
+      trend,
+      suggested_reorder_qty: suggestedReorderQty,
+      insight_label: insight.label,
+      insight_severity: insight.severity,
+      insight_message: insight.message,
+      action: insight.action,
+    });
   }
 
   return suggestions.sort((a, b) => a.days_of_stock_left - b.days_of_stock_left);

@@ -41,9 +41,20 @@ if (require('fs').existsSync(clientDist)) {
   });
 }
 
+app.use((req, res) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  res.status(404).send('Not found');
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  await testConnection();
-  startExpiryMonitor();
+  try {
+    await testConnection();
+    startExpiryMonitor();
+  } catch (err) {
+    console.error('Startup check failed:', err.message);
+  }
 });

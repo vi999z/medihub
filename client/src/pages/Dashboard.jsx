@@ -88,7 +88,7 @@ export default function Dashboard() {
       <div className="page-shell">
         <div className="hero-panel" style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 13, color: 'var(--steel)', marginBottom: 3 }}>Megawide Drug Pharmacy</p>
-          <h1 style={{ fontSize: 'clamp(1.25rem, 2.2vw, 1.7rem)', marginBottom: 6 }}>{getGreeting()}, {user.full_name.split(' ')[0]}</h1>
+          <h1 style={{ fontSize: 'clamp(1.25rem, 2.2vw, 1.7rem)', marginBottom: 6 }}>{getGreeting()}, {user?.full_name?.split(' ')[0] || 'there'}</h1>
           <p style={{ margin: 0, color: 'var(--ink-soft)', fontSize: 13 }}>Live inventory health, expiry risk, and procurement insights in one view.</p>
         </div>
 
@@ -135,7 +135,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr)', gap: 16 }}>
         <div className="card" style={{ padding: 20 }}>
           <div className="section-title">
             <h3>Expiring soon</h3>

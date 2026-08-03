@@ -34,6 +34,12 @@ async function detectAnomalies(lookbackDays = 30) {
     for (const t of txns) {
       const z = (Math.abs(t.quantity) - mean) / std;
       if (z >= Z_SCORE_THRESHOLD) {
+        const severity = z >= 4 ? 'critical' : z >= 3 ? 'warning' : 'info';
+        const label = severity === 'critical' ? 'High-risk anomaly' : severity === 'warning' ? 'Unusual movement' : 'Notable deviation';
+        const message = severity === 'critical'
+          ? `This ${t.transaction_type} is far outside the normal range for ${t.medicine_name}.` 
+          : `This ${t.transaction_type} deviates meaningfully from recent activity for ${t.medicine_name}.`;
+
         anomalies.push({
           transaction_id: t.id,
           medicine_name: t.medicine_name,
@@ -45,6 +51,10 @@ async function detectAnomalies(lookbackDays = 30) {
           user_name: t.user_name,
           reason: t.reason,
           created_at: t.created_at,
+          severity,
+          insight_label: label,
+          insight_message: message,
+          action: severity === 'critical' ? 'Review the transaction immediately and verify the batch or dispensing record.' : 'Confirm the movement with the pharmacist or inventory lead.'
         });
       }
     }

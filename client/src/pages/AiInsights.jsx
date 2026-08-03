@@ -9,11 +9,33 @@ function riskPill(score) {
   return 'safe';
 }
 
+function severityPill(severity) {
+  if (severity === 'critical') return 'critical';
+  if (severity === 'warning') return 'warning';
+  return 'safe';
+}
+
 const TABS = [
   { key: 'risk', label: 'Expiry risk' },
   { key: 'reorder', label: 'Reorder suggestions' },
   { key: 'anomalies', label: 'Anomalies' },
 ];
+
+function TableSkeleton({ cols }) {
+  return (
+    <tbody>
+      {Array.from({ length: 4 }).map((_, index) => (
+        <tr key={index}>
+          {Array.from({ length: cols }).map((__, colIndex) => (
+            <td key={colIndex}>
+              <div className="skeleton" style={{ height: 13, width: colIndex === cols - 1 ? '68%' : '100%' }} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </tbody>
+  );
+}
 
 export default function AiInsights() {
   const { user } = useAuth();
@@ -24,16 +46,28 @@ export default function AiInsights() {
   const [loading, setLoading] = useState(true);
   const [training, setTraining] = useState(false);
   const [trainMsg, setTrainMsg] = useState('');
+  const [error, setError] = useState('');
 
   async function fetchAll() {
     setLoading(true);
-    const [r, ro, a] = await Promise.all([
-      api.get('/ai/expiry-risk'),
-      api.get('/ai/reorder-suggestions'),
-      api.get('/ai/anomalies'),
-    ]);
-    setRisk(r.data); setReorder(ro.data); setAnomalies(a.data);
-    setLoading(false);
+    setError('');
+    try {
+      const [r, ro, a] = await Promise.all([
+        api.get('/ai/expiry-risk'),
+        api.get('/ai/reorder-suggestions'),
+        api.get('/ai/anomalies'),
+      ]);
+      setRisk(r.data || []);
+      setReorder(ro.data || []);
+      setAnomalies(a.data || []);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Unable to load AI insights right now.');
+      setRisk([]);
+      setReorder([]);
+      setAnomalies([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { fetchAll(); }, []);
@@ -67,6 +101,13 @@ export default function AiInsights() {
 
       {trainMsg && <p style={{ fontSize: 13, color: 'var(--steel)', marginBottom: 16 }}>{trainMsg}</p>}
 
+      <div className="card" style={{ padding: 16, marginBottom: 16, background: 'linear-gradient(135deg, #fefcf8 0%, #f8ebdc 100%)' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--amber)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>How these insights work</div>
+        <p style={{ margin: '6px 0 0', color: 'var(--ink-soft)', fontSize: 13 }}>
+          These recommendations are based on real stock movement, expiry dates, and recent transaction patterns. They are meant to highlight what needs attention now, why it matters, and what action to take next.
+        </p>
+      </div>
+
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)' }}>
         {TABS.map((t) => (
           <button
@@ -87,64 +128,120 @@ export default function AiInsights() {
       {tab === 'risk' && (
         <div className="card">
           <table className="data-table">
-            <thead><tr><th>Medicine</th><th>Batch</th><th>Days left</th><th>Qty</th><th>Sales/day</th><th>Risk</th></tr></thead>
-            <tbody>
-              {!loading && risk.map((d) => (
-                <tr key={d.batch_id}>
-                  <td style={{ fontWeight: 500 }}>{d.medicine_name}</td>
-                  <td><span className="stamp">{d.batch_number}</span></td>
-                  <td>{d.days_left}</td>
-                  <td>{d.quantity_remaining}</td>
-                  <td>{d.daily_velocity}</td>
-                  <td><span className={`status-pill ${riskPill(d.risk_score)}`}>{(d.risk_score * 100).toFixed(0)}%</span></td>
-                </tr>
-              ))}
-            </tbody>
+            <thead><tr><th>Medicine</th><th>Batch</th><th>Days left</th><th>Qty</th><th>Signal</th><th>Action</th></tr></thead>
+            {loading ? <TableSkeleton cols={6} /> : (
+              <tbody>
+                {risk.map((d) => (
+                  <tr key={d.batch_id}>
+                    <td style={{ fontWeight: 500 }}>{d.medicine_name}</td>
+                    <td><span className="stamp">{d.batch_number}</span></td>
+                    <td>{d.days_left}</td>
+                    <td>{d.quantity_remaining}</td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span className={`status-pill ${riskPill(d.risk_score)}`}>{(d.risk_score * 100).toFixed(0)}% risk</span>
+                        <span style={{ fontSize: 12, color: 'var(--steel)' }}>{d.insight_label}</span>
+                      </div>
+                    </td>
+                    <td style={{ maxWidth: 280 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 12, color: 'var(--steel)' }}>{d.insight_message}</span>
+                        <span className={`status-pill ${severityPill(d.insight_severity)}`} style={{ width: 'fit-content' }}>{d.action}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            )}
           </table>
-          {!loading && risk.length === 0 && <p style={{ padding: 20, color: 'var(--steel)', fontSize: 13 }}>No active batches to score.</p>}
+          {!loading && risk.length === 0 && !error && <p style={{ padding: 20, color: 'var(--steel)', fontSize: 13 }}>No active batches to score.</p>}
+          {error && (
+            <div className="empty-state" style={{ margin: 16 }}>
+              <strong>Unable to load insights</strong>
+              <p style={{ margin: '6px 0 0' }}>{error}</p>
+              <button className="btn btn-secondary" onClick={fetchAll} style={{ marginTop: 10 }}>Retry</button>
+            </div>
+          )}
         </div>
       )}
 
       {tab === 'reorder' && (
         <div className="card">
           <table className="data-table">
-            <thead><tr><th>Medicine</th><th>Current stock</th><th>Avg demand/day</th><th>Days left</th><th>Trend</th><th>Suggested order</th></tr></thead>
-            <tbody>
-              {!loading && reorder.map((r) => (
-                <tr key={r.medicine_id}>
-                  <td style={{ fontWeight: 500 }}>{r.medicine_name}</td>
-                  <td>{r.current_stock}</td>
-                  <td>{r.avg_daily_demand}</td>
-                  <td><span className={`status-pill ${r.days_of_stock_left <= 7 ? 'critical' : 'warning'}`}>{r.days_of_stock_left}d</span></td>
-                  <td style={{ textTransform: 'capitalize' }}>{r.trend}</td>
-                  <td><span className="stamp">{r.suggested_reorder_qty} units</span></td>
-                </tr>
-              ))}
-            </tbody>
+            <thead><tr><th>Medicine</th><th>Current stock</th><th>Avg demand/day</th><th>Days left</th><th>Signal</th><th>Suggested order</th></tr></thead>
+            {loading ? <TableSkeleton cols={6} /> : (
+              <tbody>
+                {reorder.map((r) => (
+                  <tr key={r.medicine_id}>
+                    <td style={{ fontWeight: 500 }}>{r.medicine_name}</td>
+                    <td>{r.current_stock}</td>
+                    <td>{r.avg_daily_demand}</td>
+                    <td><span className={`status-pill ${r.days_of_stock_left <= 7 ? 'critical' : 'warning'}`}>{r.days_of_stock_left}d</span></td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span className={`status-pill ${severityPill(r.insight_severity)}`}>{r.insight_label}</span>
+                        <span style={{ fontSize: 12, color: 'var(--steel)' }}>{r.insight_message}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span className="stamp">{r.suggested_reorder_qty} units</span>
+                        <span style={{ fontSize: 12, color: 'var(--steel)' }}>{r.action}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            )}
           </table>
-          {!loading && reorder.length === 0 && <p style={{ padding: 20, color: 'var(--steel)', fontSize: 13 }}>No medicines need reordering soon.</p>}
+          {!loading && reorder.length === 0 && !error && <p style={{ padding: 20, color: 'var(--steel)', fontSize: 13 }}>No medicines need reordering soon.</p>}
+          {error && (
+            <div className="empty-state" style={{ margin: 16 }}>
+              <strong>Unable to load insights</strong>
+              <p style={{ margin: '6px 0 0' }}>{error}</p>
+              <button className="btn btn-secondary" onClick={fetchAll} style={{ marginTop: 10 }}>Retry</button>
+            </div>
+          )}
         </div>
       )}
 
       {tab === 'anomalies' && (
         <div className="card">
           <table className="data-table">
-            <thead><tr><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>Typical</th><th>Z-score</th><th>By</th></tr></thead>
-            <tbody>
-              {!loading && anomalies.map((a) => (
-                <tr key={a.transaction_id}>
-                  <td style={{ fontWeight: 500 }}>{a.medicine_name}</td>
-                  <td><span className="stamp">{a.batch_number}</span></td>
-                  <td style={{ textTransform: 'capitalize' }}>{a.transaction_type}</td>
-                  <td>{a.quantity}</td>
-                  <td>{a.typical_magnitude}</td>
-                  <td><span className="status-pill critical">{a.z_score}σ</span></td>
-                  <td>{a.user_name}</td>
-                </tr>
-              ))}
-            </tbody>
+            <thead><tr><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>Signal</th><th>Action</th></tr></thead>
+            {loading ? <TableSkeleton cols={6} /> : (
+              <tbody>
+                {anomalies.map((a) => (
+                  <tr key={a.transaction_id}>
+                    <td style={{ fontWeight: 500 }}>{a.medicine_name}</td>
+                    <td><span className="stamp">{a.batch_number}</span></td>
+                    <td style={{ textTransform: 'capitalize' }}>{a.transaction_type}</td>
+                    <td>{a.quantity}</td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span className={`status-pill ${severityPill(a.severity)}`}>{a.insight_label}</span>
+                        <span style={{ fontSize: 12, color: 'var(--steel)' }}>Z-score {a.z_score}σ vs typical {a.typical_magnitude}</span>
+                      </div>
+                    </td>
+                    <td style={{ maxWidth: 280 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 12, color: 'var(--steel)' }}>{a.insight_message}</span>
+                        <span className={`status-pill ${severityPill(a.severity)}`} style={{ width: 'fit-content' }}>{a.action}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            )}
           </table>
-          {!loading && anomalies.length === 0 && <p style={{ padding: 20, color: 'var(--steel)', fontSize: 13 }}>No anomalies detected in the last 30 days.</p>}
+          {!loading && anomalies.length === 0 && !error && <p style={{ padding: 20, color: 'var(--steel)', fontSize: 13 }}>No anomalies detected in the last 30 days.</p>}
+          {error && (
+            <div className="empty-state" style={{ margin: 16 }}>
+              <strong>Unable to load insights</strong>
+              <p style={{ margin: '6px 0 0' }}>{error}</p>
+              <button className="btn btn-secondary" onClick={fetchAll} style={{ marginTop: 10 }}>Retry</button>
+            </div>
+          )}
         </div>
       )}
     </>

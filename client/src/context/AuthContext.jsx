@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import api from '../api/axios';
 
 const AuthContext = createContext(null);
@@ -8,6 +8,33 @@ export function AuthProvider({ children }) {
     const stored = localStorage.getItem('medihub_user');
     return stored ? JSON.parse(stored) : null;
   });
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    async function hydrate() {
+      const token = localStorage.getItem('medihub_token');
+      if (!token) {
+        setUser(null);
+        setAuthReady(true);
+        return;
+      }
+
+      try {
+        const res = await api.get('/auth/me');
+        const nextUser = res.data;
+        localStorage.setItem('medihub_user', JSON.stringify(nextUser));
+        setUser(nextUser);
+      } catch {
+        localStorage.removeItem('medihub_token');
+        localStorage.removeItem('medihub_user');
+        setUser(null);
+      } finally {
+        setAuthReady(true);
+      }
+    }
+
+    hydrate();
+  }, []);
 
   async function login(email, password) {
     const res = await api.post('/auth/login', { email, password });
@@ -24,7 +51,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, authReady, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

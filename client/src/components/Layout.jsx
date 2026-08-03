@@ -132,6 +132,11 @@ export default function Layout({ children }) {
   const prefersReducedMotion = useReducedMotion();
   const pageTitle = useMemo(() => ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub', [location.pathname]);
 
+  useEffect(() => {
+    const title = pageTitle === 'MediHub' ? 'MediHub' : `${pageTitle} · MediHub`;
+    document.title = title;
+  }, [pageTitle]);
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
