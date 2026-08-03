@@ -39,6 +39,7 @@ export default function Dashboard() {
   const loading = summary === null;
 
   useEffect(() => {
+    let mounted = true;
     Promise.all([
       api.cachedGet('/reports/summary'),
       api.cachedGet('/batches'),
@@ -47,6 +48,7 @@ export default function Dashboard() {
       api.cachedGet('/reports/sales-trend?days=30')
     ])
       .then(([summaryRes, batchesRes, expiringRes, lowStockRes, trendRes]) => {
+        if (!mounted) return;
         setSummary(summaryRes.data);
         setBatches(batchesRes.data);
         setExpiring(expiringRes.data);
@@ -54,6 +56,7 @@ export default function Dashboard() {
         setTrend(trendRes.data);
       })
       .catch(() => {});
+    return () => { mounted = false; };
   }, []);
 
   const activeBatches = batches.filter((b) => b.status === 'active');

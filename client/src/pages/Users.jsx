@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -9,30 +9,61 @@ export default function Users() {
   const { addToast } = useToast();
   const [users, setUsers] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ full_name: '', email: '', password: '', role: 'pharmacist' });
 
   async function fetchAll() {
-    const res = await api.get('/users');
+    const res = await api.cachedGet('/users');
     setUsers(res.data);
   }
   useEffect(() => { fetchAll(); }, []);
 
+  function resetForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setForm({ full_name: '', email: '', password: '', role: 'pharmacist' });
+  }
+
+  function openEdit(user) {
+    setEditingId(user.id);
+    setForm({ full_name: user.full_name, email: user.email, password: '', role: user.role });
+    setShowForm(true);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     try {
-      await api.post('/users', form);
-      setForm({ full_name: '', email: '', password: '', role: 'pharmacist' });
-      setShowForm(false);
-      fetchAll();
-      addToast('Account created', 'success');
+      if (editingId) {
+        await api.put(`/users/${editingId}`, { full_name: form.full_name, email: form.email, role: form.role, is_active: true });
+        addToast('Account updated', 'success');
+      } else {
+        await api.post('/users', form);
+        addToast('Account created', 'success');
+      }
+      api.invalidateCache('/users');
+      resetForm();
+      await fetchAll();
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to create account', 'error');
+      addToast(err.response?.data?.error || 'Failed to save account', 'error');
+    }
+  }
+
+  async function handleDelete(u) {
+    if (!window.confirm(`Deactivate ${u.full_name}'s account?`)) return;
+    try {
+      await api.delete(`/users/${u.id}`);
+      api.invalidateCache('/users');
+      await fetchAll();
+      addToast('Account deactivated', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'Failed to deactivate account', 'error');
     }
   }
 
   async function toggleActive(u) {
     await api.patch(`/users/${u.id}/status`, { is_active: !u.is_active });
-    fetchAll();
+    api.invalidateCache('/users');
+    await fetchAll();
     addToast(`${u.full_name} ${u.is_active ? 'deactivated' : 'reactivated'}`, 'success');
   }
 
@@ -40,7 +71,7 @@ export default function Users() {
     <>
       <div className="page-header">
         <div><h1>Users</h1><p>{users.length} accounts</p></div>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}><Plus size={15} /> Add account</button>
+        <button className="btn btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}><Plus size={15} /> {showForm ? 'Close form' : 'Add account'}</button>
       </div>
 
       {showForm && (
@@ -56,8 +87,8 @@ export default function Users() {
             </select>
           </div>
           <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">Create account</button>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary">{editingId ? 'Update account' : 'Create account'}</button>
+            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
           </div>
         </form>
       )}
@@ -74,9 +105,13 @@ export default function Users() {
                 <td><span className={`status-pill ${u.is_active ? 'safe' : 'critical'}`}>{u.is_active ? 'Active' : 'Inactive'}</span></td>
                 <td>
                   {u.id !== me.id && (
-                    <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => toggleActive(u)}>
-                      {u.is_active ? 'Deactivate' : 'Reactivate'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn-icon" onClick={() => openEdit(u)} title="Edit account"><Pencil size={14} /></button>
+                      <button className="btn-icon" onClick={() => handleDelete(u)} title="Deactivate account"><Trash2 size={14} /></button>
+                      <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => toggleActive(u)}>
+                        {u.is_active ? 'Deactivate' : 'Reactivate'}
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>

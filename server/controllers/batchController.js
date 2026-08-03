@@ -87,6 +87,15 @@ async function update(req, res) {
   res.json({ id: req.params.id, ...existing, ...payload });
 }
 
+async function remove(req, res) {
+  const existing = await batchModel.getById(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Batch not found' });
+
+  await batchModel.remove(req.params.id);
+  await logAudit(req.user.id, 'deleted_batch', `Deleted batch ${existing.batch_number}`, req);
+  res.status(204).send();
+}
+
 async function removeDepleted(req, res) {
   const [rows] = await pool.query('SELECT id, batch_number FROM batches WHERE quantity_remaining <= 0');
   if (!rows.length) {
@@ -99,4 +108,4 @@ async function removeDepleted(req, res) {
   res.json({ message: `Removed ${rows.length} depleted batch(es).` });
 }
 
-module.exports = { getAll, getOne, getByMedicine, create, update, removeDepleted };
+module.exports = { getAll, getOne, getByMedicine, create, update, remove, removeDepleted };

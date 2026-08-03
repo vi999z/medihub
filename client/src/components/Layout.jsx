@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
+import { useMemo } from 'react';
 import {
   IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
@@ -48,8 +49,16 @@ function TopBar({ pageTitle }) {
   const menuRef = useRef(null);
 
   useEffect(() => {
-    api.get('/medicines').then((r) => setMedicines(r.data)).catch(() => {});
-    api.get('/notifications?unread=true').then((r) => setUnread(r.data.length)).catch(() => {});
+    let mounted = true;
+    Promise.all([
+      api.cachedGet('/medicines').catch(() => ({ data: [] })),
+      api.cachedGet('/notifications?unread=true').catch(() => ({ data: [] }))
+    ]).then(([medicinesRes, notificationsRes]) => {
+      if (!mounted) return;
+      setMedicines(medicinesRes.data || []);
+      setUnread(notificationsRes.data?.length || 0);
+    });
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
@@ -60,7 +69,7 @@ function TopBar({ pageTitle }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const results = query.length > 0
+  const results = query.trim().length > 0
     ? medicines.filter((m) => m.name.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
     : [];
 
@@ -121,7 +130,7 @@ export default function Layout({ children }) {
   const { user } = useAuth();
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
-  const pageTitle = ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub';
+  const pageTitle = useMemo(() => ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub', [location.pathname]);
 
   return (
     <div className="app-shell">
@@ -144,7 +153,7 @@ export default function Layout({ children }) {
             key={location.pathname}
             initial={false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.12, ease: 'easeOut' }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.14, ease: 'easeOut' }}
             style={{ minHeight: '100%' }}
           >
             {children}

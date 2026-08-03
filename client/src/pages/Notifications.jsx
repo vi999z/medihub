@@ -21,13 +21,13 @@ export default function Notifications() {
   async function markRead(id) {
     await api.patch(`/notifications/${id}/read`);
     api.invalidateCache('/notifications');
-    fetchAll();
+    await fetchAll();
   }
 
   async function markAllRead() {
     await api.patch('/notifications/read-all');
     api.invalidateCache('/notifications');
-    fetchAll();
+    await fetchAll();
   }
 
   async function handleRefresh() {

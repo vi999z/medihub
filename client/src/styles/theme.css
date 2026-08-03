@@ -47,7 +47,7 @@ input, select, textarea { font-family: var(--font-body); }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
-.app-shell { display: flex; min-height: 100vh; background: linear-gradient(135deg, #fbf8f1 0%, #f7f1e3 100%); }
+.app-shell { display: flex; min-height: 100vh; background: linear-gradient(135deg, #fbf8f1 0%, #f7f1e3 100%); overflow: hidden; }
 
 .sidebar {
   width: 232px;
@@ -116,7 +116,7 @@ input, select, textarea { font-family: var(--font-body); }
 .avatar-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none; text-align: left; padding: 8px 10px; font-size: 13px; border-radius: 8px; color: var(--ink); }
 .avatar-menu-item:hover { background: var(--red-tint); color: var(--red); }
 
-.main-content { flex: 1; padding: 28px min(32px, 3vw); overflow-y: auto; }
+.main-content { flex: 1; padding: 28px min(32px, 3vw); overflow-y: auto; overscroll-behavior: contain; }
 .main-content::-webkit-scrollbar { width: 8px; }
 .main-content::-webkit-scrollbar-thumb { background: rgba(163, 100, 23, 0.22); border-radius: 8px; }
 
@@ -200,10 +200,11 @@ input, select, textarea { font-family: var(--font-body); }
 @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 
 .toast-stack { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 999; width: min(320px, calc(100vw - 24px)); }
-.toast { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; font-size: 13px; box-shadow: var(--shadow); color: #fff; }
+.toast { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; font-size: 13px; box-shadow: var(--shadow); color: #fff; overflow: hidden; }
 .toast-success { background: var(--green); }
 .toast-error { background: var(--red); }
 .toast-info { background: var(--ink); }
+.toast-progress { position: absolute; inset: auto 0 0 0; height: 3px; background: rgba(255,255,255,0.35); transform-origin: left; }
 
 .auth-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 40%), linear-gradient(135deg, #f7f5ef 0%, #f2e6cf 100%); }
 .auth-card { width: min(420px, 100%); padding: 36px 32px; border-radius: 22px; background: rgba(255,255,255,0.94); border: 1px solid rgba(232,226,210,0.95); box-shadow: var(--shadow); }
@@ -242,4 +243,5 @@ input, select, textarea { font-family: var(--font-body); }
   .topbar-actions { gap: 8px; }
   .avatar-trigger { padding-right: 8px; }
   .btn { width: 100%; justify-content: center; }
+  .page-header { flex-direction: column; align-items: flex-start; }
 }

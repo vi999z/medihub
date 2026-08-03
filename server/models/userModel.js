@@ -32,4 +32,11 @@ async function setActive(id, isActive) {
   await pool.query('UPDATE users SET is_active = ? WHERE id = ?', [isActive, id]);
 }
 
-module.exports = { findByEmail, findById, createUser, getAllUsers, setActive };
+async function updateUser(id, { full_name, email, role, is_active }) {
+  await pool.query(
+    'UPDATE users SET full_name = ?, email = ?, role = ?, is_active = ? WHERE id = ?',
+    [full_name, email, role, is_active, id]
+  );
+}
+
+module.exports = { findByEmail, findById, createUser, getAllUsers, setActive, updateUser };

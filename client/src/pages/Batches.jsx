@@ -190,6 +190,17 @@ export default function Batches() {
                   <td><span className={`status-pill ${pill.cls}`}>{pill.label}</span></td>
                   <td>
                     <button className="btn-icon" onClick={() => openEdit(b)} title="Edit batch"><Pencil size={14} /></button>
+                    <button className="btn-icon" onClick={async () => {
+                      if (!window.confirm(`Delete batch ${b.batch_number}?`)) return;
+                      try {
+                        await api.delete(`/batches/${b.id}`);
+                        api.invalidateCache('/batches');
+                        await fetchAll();
+                        addToast('Batch deleted', 'success');
+                      } catch (err) {
+                        addToast(err.response?.data?.error || 'Could not delete batch', 'error');
+                      }
+                    }} title="Delete batch"><Trash2 size={14} /></button>
                   </td>
                 </tr>
               );

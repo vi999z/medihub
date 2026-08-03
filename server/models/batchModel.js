@@ -61,4 +61,8 @@ async function updateStatus(id, status) {
   await pool.query('UPDATE batches SET status = ? WHERE id = ?', [status, id]);
 }
 
-module.exports = { getAll, getById, getByMedicine, create, update, updateQuantity, updateStatus };
+async function remove(id) {
+  await pool.query('DELETE FROM batches WHERE id = ?', [id]);
+}
+
+module.exports = { getAll, getById, getByMedicine, create, update, updateQuantity, updateStatus, remove };
