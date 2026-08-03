@@ -46,7 +46,9 @@ function TopBar({ pageTitle }) {
   const [medicines, setMedicines] = useState([]);
   const [unread, setUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const menuRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -64,18 +66,40 @@ function TopBar({ pageTitle }) {
   useEffect(() => {
     function handleClick(e) {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false);
+    }
+    function handleKey(e) {
+      if (e.key !== 'Escape') return;
+      setMenuOpen(false);
+      setSearchOpen(false);
     }
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, []);
 
-  const results = query.trim().length > 0
-    ? medicines.filter((m) => m.name.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
+  const term = query.trim().toLowerCase();
+  const results = term
+    ? medicines
+        .filter((m) => [m.name, m.generic_name, m.category, m.dosage_form, m.strength]
+          .some((value) => String(value || '').toLowerCase().includes(term)))
+        .slice(0, 6)
     : [];
 
-  function goToMedicine() {
+  function goToMedicine(medicine) {
     setQuery('');
-    navigate('/medicines');
+    setSearchOpen(false);
+    navigate(`/medicines?q=${encodeURIComponent(medicine.name)}`);
+  }
+
+  function handleSearchSubmit(e) {
+    e.preventDefault();
+    if (!term) return;
+    setSearchOpen(false);
+    navigate(`/medicines?q=${encodeURIComponent(query.trim())}`);
   }
 
   function handleLogout() { logout(); navigate('/login'); }
@@ -84,19 +108,27 @@ function TopBar({ pageTitle }) {
     <header className="topbar">
       <div className="breadcrumb">{pageTitle}</div>
       <div className="topbar-actions" style={{ flex: 1, justifyContent: 'flex-end' }}>
-        <div className="search-bar">
+        <form className="search-bar" ref={searchRef} onSubmit={handleSearchSubmit} role="search">
           <IconSearch size={15} className="search-icon" stroke={1.8} />
-          <input placeholder="Search medicines…" value={query} onChange={(e) => setQuery(e.target.value)} />
-          {results.length > 0 && (
+          <input
+            placeholder="Search medicines…"
+            aria-label="Search medicines"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
+            onFocus={() => setSearchOpen(true)}
+          />
+          {searchOpen && term && (
             <div className="search-results">
-              {results.map((m) => (
-                <button key={m.id} type="button" className="search-result-item" onClick={goToMedicine}>
-                  {m.name} <span>{m.strength}</span>
-                </button>
-              ))}
+              {results.length === 0
+                ? <div className="search-result-item" style={{ color: 'var(--steel)', cursor: 'default' }}>No medicines match “{query.trim()}”</div>
+                : results.map((m) => (
+                  <button key={m.id} type="button" className="search-result-item" onClick={() => goToMedicine(m)}>
+                    {m.name} <span>{[m.strength, m.dosage_form].filter(Boolean).join(' · ')}</span>
+                  </button>
+                ))}
             </div>
           )}
-        </div>
+        </form>
 
         <button className="icon-btn" onClick={() => navigate('/notifications')}>
           <IconBellRinging size={18} stroke={1.8} />

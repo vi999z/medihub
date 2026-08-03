@@ -3,10 +3,12 @@ import {
   Plus, Pencil, Trash2, RefreshCw, Download, Search, X,
   ChevronDown, ChevronRight, LayoutGrid, List, ArrowUpDown, FileWarning
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
+import { daysUntil } from '../utils/date';
 
 const CATEGORY_OPTIONS = [
   'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
@@ -48,12 +50,6 @@ function stockStateOf(medicine) {
   return { key: 'healthy', cls: 'safe', label: 'In stock' };
 }
 
-function daysUntil(dateStr) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.ceil((new Date(dateStr) - today) / 86400000);
-}
-
 function expiryLabel(medicine) {
   if (!medicine.nearest_expiry) return null;
   const days = daysUntil(medicine.nearest_expiry);
@@ -71,7 +67,8 @@ export default function Medicines() {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
 
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get('q') || '';
   const [activeCategory, setActiveCategory] = useState('All');
   const [stockFilter, setStockFilter] = useState('all');
   const [prescriptionOnly, setPrescriptionOnly] = useState(false);
@@ -162,8 +159,12 @@ export default function Medicines() {
 
   const filtersActive = search || activeCategory !== 'All' || stockFilter !== 'all' || prescriptionOnly;
 
+  function updateSearch(value) {
+    setSearchParams(value ? { q: value } : {}, { replace: true });
+  }
+
   function clearFilters() {
-    setSearch('');
+    updateSearch('');
     setActiveCategory('All');
     setStockFilter('all');
     setPrescriptionOnly(false);
@@ -338,12 +339,12 @@ export default function Medicines() {
             <Search size={15} className="filter-search-icon" />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => updateSearch(e.target.value)}
               placeholder="Search name, generic name, dosage form…"
               aria-label="Search medicines"
             />
             {search && (
-              <button type="button" className="btn-icon filter-search-clear" onClick={() => setSearch('')} title="Clear search">
+              <button type="button" className="btn-icon filter-search-clear" onClick={() => updateSearch('')} title="Clear search">
                 <X size={14} />
               </button>
             )}

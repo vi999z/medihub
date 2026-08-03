@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react';
-import { Plus, Trash2, Pencil, Download } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Trash2, Pencil, Download, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
+import { daysUntil } from '../utils/date';
 
-function daysUntil(dateStr) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  return Math.ceil((new Date(dateStr) - today) / 86400000);
-}
+const STATUS_FILTERS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'expiring', label: 'Expiring in 30 days' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'depleted', label: 'Depleted' },
+  { value: 'recalled', label: 'Recalled' }
+];
 
 function statusPillFor(batch) {
   if (batch.status === 'expired') return { cls: 'critical', label: 'Expired' };
@@ -33,15 +38,43 @@ export default function Batches() {
     quantity_remaining: '', cost_price: '', selling_price: '', manufacture_date: '', expiry_date: '', status: 'active'
   });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   async function fetchAll() {
-    const [b, m, s] = await Promise.all([api.cachedGet('/batches'), api.cachedGet('/medicines'), api.cachedGet('/suppliers')]);
-    setBatches(b.data);
-    setMedicines(m.data);
-    setSuppliers(s.data);
+    try {
+      const [b, m, s] = await Promise.all([api.cachedGet('/batches'), api.cachedGet('/medicines'), api.cachedGet('/suppliers')]);
+      setBatches(b.data);
+      setMedicines(m.data);
+      setSuppliers(s.data);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { fetchAll(); }, []);
+
+  const visibleBatches = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return batches.filter((batch) => {
+      if (statusFilter === 'expiring') {
+        if (batch.status !== 'active' || daysUntil(batch.expiry_date) > 30) return false;
+      } else if (statusFilter !== 'all' && batch.status !== statusFilter) {
+        return false;
+      }
+      if (!term) return true;
+      return [batch.medicine_name, batch.batch_number, batch.supplier_name]
+        .some((value) => String(value || '').toLowerCase().includes(term));
+    });
+  }, [batches, search, statusFilter]);
+
+  const filtersActive = Boolean(search) || statusFilter !== 'all';
+
+  function clearFilters() {
+    setSearch('');
+    setStatusFilter('all');
+  }
 
   function resetForm() {
     setShowForm(false);
@@ -102,7 +135,7 @@ export default function Batches() {
   }
 
   function handleExport() {
-    const rows = batches.map((batch) => ({
+    const rows = visibleBatches.map((batch) => ({
       id: batch.id,
       medicine: batch.medicine_name,
       batch_number: batch.batch_number,
@@ -120,7 +153,7 @@ export default function Batches() {
       <div className="page-header">
         <div>
           <h1>Batches</h1>
-          <p>{batches.length} batches on record, sorted by nearest expiry</p>
+          <p>{loading ? 'Loading batches…' : `${visibleBatches.length} of ${batches.length} batches shown, sorted by nearest expiry`}</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-secondary" onClick={handleExport}>
@@ -173,13 +206,49 @@ export default function Batches() {
         </form>
       )}
 
-      <div className="card">
+      <div className="card" style={{ padding: 16 }}>
+        <div className="filter-bar">
+          <div className="filter-search">
+            <Search size={15} className="filter-search-icon" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search medicine, batch number, supplier…"
+              aria-label="Search batches"
+            />
+            {search && (
+              <button type="button" className="btn-icon filter-search-clear" onClick={() => setSearch('')} title="Clear search">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <div className="field filter-select">
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
+              {STATUS_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </div>
+          {filtersActive && (
+            <button type="button" className="btn btn-secondary" onClick={clearFilters}>
+              <X size={15} /> Clear filters
+            </button>
+          )}
+        </div>
+
+        {!loading && visibleBatches.length === 0 && (
+          <div className="empty-state">
+            <div>{batches.length === 0 ? 'No batches recorded yet.' : 'No batches match the current filters.'}</div>
+            {filtersActive && (
+              <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
+            )}
+          </div>
+        )}
+
         <table className="data-table">
           <thead>
             <tr><th>Medicine</th><th>Batch</th><th>Expiry</th><th>Remaining</th><th>Status</th><th>Actions</th></tr>
           </thead>
           <tbody>
-            {batches.map((b) => {
+            {visibleBatches.map((b) => {
               const pill = statusPillFor(b);
               return (
                 <tr key={b.id}>
@@ -189,6 +258,7 @@ export default function Batches() {
                   <td>{b.quantity_remaining}</td>
                   <td><span className={`status-pill ${pill.cls}`}>{pill.label}</span></td>
                   <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
                     <button className="btn-icon" onClick={() => openEdit(b)} title="Edit batch"><Pencil size={14} /></button>
                     <button className="btn-icon" onClick={async () => {
                       if (!window.confirm(`Delete batch ${b.batch_number}?`)) return;
@@ -201,6 +271,7 @@ export default function Batches() {
                         addToast(err.response?.data?.error || 'Could not delete batch', 'error');
                       }
                     }} title="Delete batch"><Trash2 size={14} /></button>
+                    </div>
                   </td>
                 </tr>
               );
