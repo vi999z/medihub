@@ -10,5 +10,6 @@ router.delete('/transactions', ctrl.clearTransactions);
 router.delete('/logs', ctrl.clearLogs);
 router.delete('/expired-batches', ctrl.removeExpiredBatches);
 router.delete('/reset', ctrl.resetSystem);
+router.delete('/wipe', ctrl.wipeAllData);
 
 module.exports = router;
