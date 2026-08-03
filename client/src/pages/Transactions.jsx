@@ -13,8 +13,8 @@ export default function Transactions() {
 
   async function fetchAll() {
     const [t, b] = await Promise.all([api.cachedGet('/transactions/recent'), api.cachedGet('/batches')]);
-    setTransactions(t.data);
-    setBatches(b.data.filter((batch) => batch.status === 'active'));
+    setTransactions(t.data || []);
+    setBatches((b.data || []).filter((batch) => batch.status === 'active'));
   }
 
   useEffect(() => { fetchAll(); }, []);
@@ -28,7 +28,7 @@ export default function Transactions() {
       api.invalidateCache('/batches');
       setForm({ batch_id: '', transaction_type: 'sale', quantity: '', reason: '' });
       setShowForm(false);
-      fetchAll();
+      await fetchAll();
     } catch (err) {
       setError(err.response?.data?.error || 'Transaction failed');
     }

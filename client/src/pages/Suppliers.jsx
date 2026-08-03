@@ -15,7 +15,7 @@ export default function Suppliers() {
 
   async function fetchAll() {
     const res = await api.cachedGet('/suppliers');
-    setSuppliers(res.data);
+    setSuppliers(res.data || []);
   }
 
   useEffect(() => { fetchAll(); }, []);
@@ -57,11 +57,15 @@ export default function Suppliers() {
   }
 
   async function handleDelete(id) {
-    if (!confirm('Remove this supplier?')) return;
-    await api.delete(`/suppliers/${id}`);
-    api.invalidateCache('/suppliers');
-    await fetchAll();
-    addToast('Supplier removed', 'success');
+    if (!window.confirm('Remove this supplier?')) return;
+    try {
+      await api.delete(`/suppliers/${id}`);
+      api.invalidateCache('/suppliers');
+      await fetchAll();
+      addToast('Supplier removed', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'Failed to remove supplier', 'error');
+    }
   }
 
   async function handleRefresh() {

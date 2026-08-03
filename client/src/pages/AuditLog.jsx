@@ -4,7 +4,13 @@ import api from '../api/axios';
 export default function AuditLog() {
   const [logs, setLogs] = useState([]);
 
-  useEffect(() => { api.get('/audit-logs').then((res) => setLogs(res.data)); }, []);
+  useEffect(() => {
+    let mounted = true;
+    api.get('/audit-logs').then((res) => {
+      if (mounted) setLogs(res.data || []);
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
 
   return (
     <>

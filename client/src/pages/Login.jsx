@@ -14,11 +14,15 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!email.trim() || !password) {
+      setError('Please enter your email and password');
+      return;
+    }
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
-      await new Promise((resolve) => setTimeout(resolve, 450));
+      await login(email.trim(), password);
+      await new Promise((resolve) => setTimeout(resolve, 350));
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');

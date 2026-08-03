@@ -36,7 +36,7 @@ export default function Maintenance() {
         </div>
       </div>
 
-      <div className="card" style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+      <div className="card" style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', padding: 18 }}>
         {ACTIONS.map((action) => (
           <button
             key={action.key}
@@ -44,7 +44,7 @@ export default function Maintenance() {
             type="button"
             onClick={() => runAction(action)}
             disabled={loading !== null}
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: 22, gap: 12, textAlign: 'left' }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: 22, gap: 12, textAlign: 'left', minHeight: 180 }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <action.icon size={20} stroke={1.8} />
