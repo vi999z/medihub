@@ -205,45 +205,6 @@ function validateRow(row, schema) {
   return errors;
 }
 
-// ─── CSV generation (export) ───────────────────────────────────────────────
-
-function escapeCsvValue(value) {
-  if (value === null || value === undefined) return '';
-  const stringValue = String(value).replace(/"/g, '""');
-  return /[",\n]/.test(stringValue) ? `"${stringValue}"` : stringValue;
-}
-
-/**
- * Generate CSV text from an array of row objects.
- * @param {Array<Object>} rows - Data rows
- * @param {string[]} headers - Column headers (keys into each row)
- * @returns {string} CSV-formatted string
- */
-function generateCsv(rows, headers) {
-  const lines = [headers.join(',')];
-  rows.forEach((row) => {
-    lines.push(headers.map((header) => escapeCsvValue(row[header])).join(','));
-  });
-  return lines.join('\n');
-}
-
-/**
- * Generate CSV text and trigger a browser download.
- * @param {string} filename - Download filename
- * @param {Array<Object>} rows - Data rows
- * @param {string[]} headers - Column headers
- */
-function downloadCsv(filename, rows, headers) {
-  const csvContent = generateCsv(rows, headers);
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 // ─── Analysis (preview without importing) ──────────────────────────────────
 
 /**
@@ -366,26 +327,4 @@ async function importCsv(csv, schema, userId, req) {
   return results;
 }
 
-module.exports = {
-  // Type converters
-  parseBoolean,
-  parseNumber,
-  parseDate,
-  convertValue,
-  // Parsing
-  parseCsvText,
-  // Column mapping
-  normalizeHeader,
-  fuzzyMatch,
-  detectColumnMapping,
-  buildNormalizedRow,
-  // Validation
-  validateRow,
-  // Analysis & import
-  analyzeCsv,
-  importCsv,
-  // Export
-  escapeCsvValue,
-  generateCsv,
-  downloadCsv,
-};
+module.exports = { analyzeCsv, importCsv };

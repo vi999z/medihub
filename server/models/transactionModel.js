@@ -1,14 +1,5 @@
 const { pool } = require('../config/db');
 
-async function create({ batch_id, user_id, transaction_type, quantity, reason }) {
-  const [result] = await pool.query(
-    `INSERT INTO stock_transactions (batch_id, user_id, transaction_type, quantity, reason)
-     VALUES (?, ?, ?, ?, ?)`,
-    [batch_id, user_id, transaction_type, quantity, reason]
-  );
-  return result.insertId;
-}
-
 async function getByBatch(batchId) {
   const [rows] = await pool.query(
     'SELECT * FROM stock_transactions WHERE batch_id = ? ORDER BY created_at DESC',
@@ -42,4 +33,4 @@ async function getRecent(limit = 50) {
   return rows;
 }
 
-module.exports = { create, getByBatch, getByMedicine, getRecent };
+module.exports = { getByBatch, getByMedicine, getRecent };

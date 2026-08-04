@@ -1,6 +1,5 @@
 const { pool } = require('../config/db');
 const transactionModel = require('../models/transactionModel');
-const batchModel = require('../models/batchModel');
 
 async function logAudit(userId, action, details, req) {
   await pool.query(

@@ -79,4 +79,4 @@ async function remove(id) {
   await pool.query('DELETE FROM medicines WHERE id = ?', [id]);
 }
 
-module.exports = { getAll, getById, create, update, remove, CATEGORY_OPTIONS, normalizeCategory };
+module.exports = { getAll, getById, create, update, remove };
