@@ -41,6 +41,9 @@ export function AuthProvider({ children }) {
     localStorage.setItem('medihub_token', res.data.token);
     localStorage.setItem('medihub_user', JSON.stringify(res.data.user));
     setUser(res.data.user);
+    // Ensure ProtectedRoute never hangs on "Loading your session…" after login,
+    // even if the initial /auth/me hydration is still in flight.
+    setAuthReady(true);
     return res.data.user;
   }
 

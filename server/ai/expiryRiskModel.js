@@ -3,7 +3,7 @@ const { pool } = require('../config/db');
 const { calculateExpiryRisk } = require('./expiryRiskUtils');
 
 const FEATURE_KEYS = ['days_until_expiry_at_receipt', 'quantity_received', 'daily_velocity', 'reorder_level'];
-const MIN_TRAINING_SAMPLES = 15;
+const MIN_TRAINING_SAMPLES = 5;
 const MODEL_NAME = 'expiry_risk';
 
 // ─── Ensure the ai_models table exists so training never fails on a missing table ───
@@ -81,9 +81,12 @@ async function trainAndPersist() {
   );
 
   if (resolved.length < MIN_TRAINING_SAMPLES) {
+    const hint = resolved.length === 0
+      ? 'No batches have expired or been depleted yet. Batches become "resolved" when they expire (past expiry date) or are fully sold out (quantity_remaining reaches 0). Import batches with past expiry dates or let stock deplete naturally, then retrain.'
+      : `Need ${MIN_TRAINING_SAMPLES - resolved.length} more resolved batches (expired or depleted) to train reliably.`;
     return {
       trained: false,
-      reason: `Only ${resolved.length} resolved batches so far — need at least ${MIN_TRAINING_SAMPLES} to train reliably. Using the heuristic fallback until then.`,
+      reason: `Only ${resolved.length} resolved batches so far — ${hint} Using the heuristic fallback until then.`,
       samples: resolved.length,
     };
   }
@@ -102,7 +105,7 @@ async function trainAndPersist() {
   if (expiredCount === 0 || depletedCount === 0) {
     return {
       trained: false,
-      reason: `All resolved batches have the same outcome (${expiredCount ? 'all expired' : 'all depleted'}). Need a mix of both outcomes to train. Using the heuristic fallback.`,
+      reason: `All ${resolved.length} resolved batches have the same outcome (${expiredCount ? 'all expired' : 'all depleted'}). Need a mix of both outcomes to train. Import batches with a mix of past-expiry and fully-sold-out outcomes, then retrain. Using the heuristic fallback.`,
       samples: resolved.length,
       expired_count: expiredCount,
       depleted_count: depletedCount,

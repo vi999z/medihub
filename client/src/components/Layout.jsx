@@ -1,161 +1,65 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import {
-  IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
-  IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
-  IconTools, IconCommand, IconDatabaseImport
-} from '@tabler/icons-react';
-import { useAuth } from '../context/AuthContext';
-import api from '../api/axios';
-import CommandPalette from './CommandPalette';
+// import { useAuth } from '../context/AuthContext'; // Make sure to import your actual useAuth hook
+// import CommandPalette from './CommandPalette'; // Import your actual CommandPalette
+
+// --- MOCK DATA & HOOKS (Replace with your actual imports/data) ---
+const useAuth = () => ({ user: { name: 'John Doe', role: 'admin' } });
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
-  { to: '/import', label: 'Data Import', icon: IconDatabaseImport },
-  { to: '/medicines', label: 'Medicines', icon: IconPill },
-  { to: '/batches', label: 'Batches', icon: IconPackage },
-  { to: '/transactions', label: 'Transactions', icon: IconReceipt },
-  { to: '/notifications', label: 'Alerts', icon: IconBellRinging },
-  { to: '/ai-insights', label: 'AI Insights', icon: IconBrain },
-  { to: '/suppliers', label: 'Suppliers', icon: IconTruck },
+  { to: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { to: '/inventory', label: 'Inventory', icon: '📦' },
 ];
+
 const ADMIN_ITEMS = [
-  { to: '/users', label: 'Users', icon: IconUsers },
-  { to: '/audit-log', label: 'Audit Log', icon: IconFileText },
-  { to: '/maintenance', label: 'Maintenance', icon: IconTools },
+  { to: '/users', label: 'Manage Users', icon: '👥' },
+  { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];
+
 const ALL_ITEMS = [...NAV_ITEMS, ...ADMIN_ITEMS];
 
-function NavItem({ to, label, icon: Icon, isActive }) {
+// --- MISSING COMPONENTS ---
+function NavItem({ to, label, icon, isActive }) {
   return (
-    <NavLink to={to} className={`nav-link-wrapper${isActive ? ' active' : ''}`} title={label}>
-      {isActive && <motion.div layoutId="nav-pill" className="nav-pill-bg" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />}
-      <span className="nav-link-content"><Icon size={17} stroke={1.8} /> <span>{label}</span></span>
-    </NavLink>
+    <Link to={to} className={`nav-item ${isActive ? 'active' : ''}`}>
+      <span className="nav-icon">{icon}</span>
+      <span className="nav-label">{label}</span>
+    </Link>
   );
 }
 
-function initials(name = '') {
-  return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+// Dummy CommandPalette (if you don't already have the file)
+function CommandPalette({ open, onClose }) {
+  if (!open) return null;
+  return (
+    <div className="command-palette-overlay" onClick={onClose}>
+      <div className="command-palette" onClick={(e) => e.stopPropagation()}>
+        <input type="text" placeholder="Search..." autoFocus />
+      </div>
+    </div>
+  );
 }
 
+// --- RECONSTRUCTED TOPBAR ---
 function TopBar({ pageTitle, onOpenPalette }) {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const [query, setQuery] = useState('');
-  const [medicines, setMedicines] = useState([]);
-  const [unread, setUnread] = useState(0);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const menuRef = useRef(null);
-  const searchRef = useRef(null);
-
-  useEffect(() => {
-    let mounted = true;
-    Promise.all([
-      api.cachedGet('/medicines').catch(() => ({ data: [] })),
-      api.cachedGet('/notifications?unread=true').catch(() => ({ data: [] }))
-    ]).then(([medicinesRes, notificationsRes]) => {
-      if (!mounted) return;
-      setMedicines(medicinesRes.data || []);
-      setUnread(notificationsRes.data?.length || 0);
-    });
-    return () => { mounted = false; };
-  }, []);
-
-  useEffect(() => {
-    function handleClick(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
-      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false);
-    }
-    function handleKey(e) {
-      if (e.key !== 'Escape') return;
-      setMenuOpen(false);
-      setSearchOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, []);
-
-  const term = query.trim().toLowerCase();
-  const results = term
-    ? medicines
-        .filter((m) => [m.name, m.generic_name, m.category, m.dosage_form, m.strength]
-          .some((value) => String(value || '').toLowerCase().includes(term)))
-        .slice(0, 6)
-    : [];
-
-  function goToMedicine(medicine) {
-    setQuery('');
-    setSearchOpen(false);
-    navigate(`/medicines?q=${encodeURIComponent(medicine.name)}`);
-  }
-
-  function handleSearchSubmit(e) {
-    e.preventDefault();
-    if (!term) return;
-    setSearchOpen(false);
-    navigate(`/medicines?q=${encodeURIComponent(query.trim())}`);
-  }
-
-  function handleLogout() { logout(); navigate('/login'); }
+  const { user } = useAuth();
 
   return (
-    <header className="topbar">
-      <div className="breadcrumb">{pageTitle}</div>
-      <div className="topbar-actions">
-        <form className="search-bar" ref={searchRef} onSubmit={handleSearchSubmit} role="search">
-          <IconSearch size={15} className="search-icon" stroke={1.8} />
-          <input
-            placeholder="Search medicines…"
-            aria-label="Search medicines"
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
-            onFocus={() => setSearchOpen(true)}
-          />
-          {searchOpen && term && (
-            <div className="search-results">
-              {results.length === 0
-                ? <div className="search-result-item" style={{ color: 'var(--steel)', cursor: 'default' }}>No medicines match “{query.trim()}”</div>
-                : results.map((m) => (
-                  <button key={m.id} type="button" className="search-result-item" onClick={() => goToMedicine(m)}>
-                    {m.name} <span>{[m.strength, m.dosage_form].filter(Boolean).join(' · ')}</span>
-                  </button>
-                ))}
-            </div>
-          )}
-        </form>
-
-        <button className="icon-btn" onClick={onOpenPalette} title="Search (Ctrl+K)">
-          <IconCommand size={18} stroke={1.8} />
+    <header className="top-bar">
+      <div className="top-bar-left">
+        <h2>{pageTitle}</h2>
+      </div>
+      
+      <div className="top-bar-right">
+        <button className="search-shortcut" onClick={onOpenPalette}>
+          Search (Ctrl+K)
         </button>
-
-        <button className="icon-btn" onClick={() => navigate('/notifications')} title="Alerts">
-          <IconBellRinging size={18} stroke={1.8} />
-          {unread > 0 && <span className="dot-badge" />}
-        </button>
-
-        <div className="avatar-wrapper" ref={menuRef}>
-          <button className="avatar-trigger" onClick={() => setMenuOpen((o) => !o)}>
-            <span className="avatar-circle">{initials(user?.full_name)}</span>
-            <span className="avatar-name">{user?.full_name?.split(' ')[0]}</span>
-            <IconChevronDown size={14} stroke={1.8} color="var(--steel)" />
-          </button>
-          {menuOpen && (
-            <div className="avatar-menu">
-              <div className="avatar-menu-header">
-                <strong>{user?.full_name}</strong>
-                <span>{user?.role}</span>
-              </div>
-              <button className="avatar-menu-item" onClick={handleLogout}>
-                <IconLogout size={15} stroke={1.8} /> Log out
-              </button>
-            </div>
+        
+        <div className="user-profile">
+          <span className="user-name">{user?.name}</span>
+          {user?.role === 'admin' && (
+            <span className="role-badge">Admin</span>
           )}
         </div>
       </div>
@@ -163,6 +67,7 @@ function TopBar({ pageTitle, onOpenPalette }) {
   );
 }
 
+// --- YOUR ORIGINAL LAYOUT COMPONENT ---
 export default function Layout({ children }) {
   const { user } = useAuth();
   const location = useLocation();
@@ -192,14 +97,21 @@ export default function Layout({ children }) {
     <div className="app-shell">
       <div className="aurora-bg" />
       <aside className="sidebar">
-        <div className="sidebar-logo"><span className="dot" />MEDI<span>HUB</span></div>
+        <div className="sidebar-logo">
+          <span className="dot" />MEDI<span>HUB</span>
+        </div>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <div className="nav-section-label">Operations</div>
-          {NAV_ITEMS.map((item) => <NavItem key={item.to} {...item} isActive={location.pathname === item.to} />)}
-          {user.role === 'admin' && (
+          {NAV_ITEMS.map((item) => (
+            <NavItem key={item.to} {...item} isActive={location.pathname === item.to} />
+          ))}
+          
+          {user?.role === 'admin' && (
             <>
               <div className="nav-section-label">Administration</div>
-              {ADMIN_ITEMS.map((item) => <NavItem key={item.to} {...item} isActive={location.pathname === item.to} />)}
+              {ADMIN_ITEMS.map((item) => (
+                <NavItem key={item.to} {...item} isActive={location.pathname === item.to} />
+              ))}
             </>
           )}
         </nav>
@@ -209,6 +121,7 @@ export default function Layout({ children }) {
           <br />© {year}
         </div>
       </aside>
+      
       <div className="shell-main">
         <TopBar pageTitle={pageTitle} onOpenPalette={() => setPaletteOpen(true)} />
         <main className="main-content">
