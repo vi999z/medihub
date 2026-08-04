@@ -12,6 +12,42 @@
 // ─── Schema definitions ────────────────────────────────────────────────────
 
 export const IMPORT_SCHEMAS = {
+  combined: {
+    label: 'Combined Import',
+    description: 'Medicines, suppliers, batches, and optional transactions in ONE CSV file — processed in a single go. Transactions are optional: leave transaction_type/transaction_quantity blank to skip them.',
+    required: ['name', 'batch_number', 'quantity_received', 'expiry_date'],
+    uniqueKey: 'batch_number',
+    fields: {
+      // ── Medicine columns ──
+      name: { type: 'string', required: true, label: 'Medicine Name' },
+      generic_name: { type: 'string', label: 'Generic Name' },
+      category: { type: 'string', label: 'Category' },
+      dosage_form: { type: 'string', label: 'Dosage Form' },
+      strength: { type: 'string', label: 'Strength' },
+      unit: { type: 'string', label: 'Unit', default: 'box' },
+      reorder_level: { type: 'number', label: 'Reorder Level', default: 10 },
+      requires_prescription: { type: 'boolean', label: 'Requires Rx' },
+      // ── Supplier columns ──
+      supplier_name: { type: 'string', label: 'Supplier Name' },
+      contact_person: { type: 'string', label: 'Contact Person' },
+      phone: { type: 'string', label: 'Phone' },
+      email: { type: 'string', label: 'Email' },
+      address: { type: 'string', label: 'Address' },
+      // ── Batch columns ──
+      batch_number: { type: 'string', required: true, label: 'Batch Number' },
+      quantity_received: { type: 'number', required: true, label: 'Quantity Received' },
+      cost_price: { type: 'number', label: 'Cost Price' },
+      selling_price: { type: 'number', label: 'Selling Price' },
+      manufacture_date: { type: 'date', label: 'Manufacture Date' },
+      expiry_date: { type: 'date', required: true, label: 'Expiry Date' },
+      // ── Transaction columns (ALL OPTIONAL) ──
+      transaction_type: { type: 'string', label: 'Transaction Type', options: ['sale', 'adjustment', 'disposal', 'return'] },
+      transaction_quantity: { type: 'number', label: 'Transaction Quantity' },
+      reason: { type: 'string', label: 'Reason' },
+      transaction_date: { type: 'date', label: 'Transaction Date' }
+    },
+    example: 'name,generic_name,category,dosage_form,strength,unit,reorder_level,requires_prescription,supplier_name,contact_person,phone,email,address,batch_number,quantity_received,cost_price,selling_price,manufacture_date,expiry_date,transaction_type,transaction_quantity,reason,transaction_date\nParacetamol,Acetaminophen,Analgesic,Tablet,500mg,box,10,No,MedSupply,John Doe,09171234567,john@medsupply.com,123 Main St,BATCH-001,100,5.00,12.00,2025-01-15,2027-01-15,sale,5,Walk-in customer,2025-06-01\nAmoxicillin,Amoxicillin,Antibiotic,Capsule,250mg,box,20,Yes,MedSupply,John Doe,09171234567,john@medsupply.com,123 Main St,BATCH-002,50,8.00,20.00,2025-02-01,2027-02-01,,,'
+  },
   medicines: {
     label: 'Medicines',
     description: 'Bulk-add medicines to the catalog.',

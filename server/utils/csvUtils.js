@@ -205,6 +205,349 @@ function validateRow(row, schema) {
   return errors;
 }
 
+// ─── Chunking helper (avoids MySQL max_allowed_packet for huge multi-row inserts) ──
+
+function chunkArray(arr, size = 500) {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+  return chunks;
+}
+
+// ─── Combined import (medicines + suppliers + batches + optional transactions) ──
+
+/**
+ * Import ALL entities (medicines, suppliers, batches, optional transactions)
+ * from ONE CSV file in a single go.
+ *
+ * Performance strategy:
+ *  - ONE database transaction (single connection, no per-row autocommit)
+ *  - Multi-row batched INSERTs
+ *  - In-memory maps for dedup + FK resolution (no per-row SELECTs)
+ *  - Supplier/medicine rows are inserted on-the-fly if they don't exist yet
+ *
+ * CSV columns (see `importSchemas.combined`):
+ *  Medicine: name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription
+ *  Supplier: supplier_name, contact_person, phone, email, address
+ *  Batch:    batch_number, quantity_received, cost_price, selling_price, manufacture_date, expiry_date
+ *  Transaction (ALL OPTIONAL): transaction_type, transaction_quantity, reason, transaction_date
+ */
+async function importCombinedCsv(csv, schema, userId, req, { pool }) {
+  const { headers, rows } = parseCsvText(csv);
+  const mapping = detectColumnMapping(headers, schema);
+  const results = {
+    total: rows.length,
+    medicines: { imported: 0, skipped: 0, errors: [] },
+    suppliers: { imported: 0, skipped: 0, errors: [] },
+    batches: { imported: 0, skipped: 0, errors: [] },
+    transactions: { imported: 0, skipped: 0, errors: [] },
+    errors: []
+  };
+
+  // ── 1. Validate + normalize all rows first ──
+  const batches = [];
+  for (let i = 0; i < rows.length; i++) {
+    const line = i + 2;
+    const normalized = buildNormalizedRow(rows[i], mapping, schema);
+    const fieldErrors = validateRow(normalized, schema);
+    const extraErrors = schema.validateRow ? (await schema.validateRow(normalized) || []) : [];
+    batches.push({ line, normalized, errors: [...fieldErrors, ...extraErrors] });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Existing lookups loaded once
+    const [existingMedRows] = await conn.query('SELECT id, name FROM medicines');
+    const [existingSupRows] = await conn.query('SELECT id, name FROM suppliers');
+    const [existingBatchRows] = await conn.query('SELECT id, batch_number, quantity_remaining FROM batches');
+    const medicineMap = new Map(existingMedRows.map((r) => [r.name.toLowerCase(), { id: r.id }]));
+    const supplierMap = new Map(existingSupRows.map((r) => [r.name.toLowerCase(), { id: r.id }]));
+    const batchIdByNumber = new Map(existingBatchRows.map((r) => [r.batch_number.toLowerCase(), r.id]));
+
+    // ── 2. Pass 1: validate every row (skip invalid ones early) ──
+    const validRows = [];
+    for (const item of batches) {
+      if (item.errors.length) {
+        results.batches.skipped++;
+        results.batches.errors.push({ line: item.line, row: item.normalized.batch_number, error: item.errors.join(', ') });
+        continue;
+      }
+      validRows.push(item);
+    }
+
+    // ── 3. Medicines (dedupe by name, insert only new) ──
+    const medicineByName = new Map(); // normalized name → { row, line }
+    for (const item of validRows) {
+      const key = String(item.normalized.name || '').toLowerCase();
+      if (!key) continue;
+      if (!medicineByName.has(key)) medicineByName.set(key, item);
+    }
+
+    const newMedicineRows = []; // { name, generic_name, category, ... }
+    for (const [nameKey, item] of medicineByName) {
+      if (medicineMap.has(nameKey)) continue; // already exists
+      const r = item.normalized;
+      const normalizedCategory = r.category && r.category.trim() ? r.category : 'Other';
+      newMedicineRows.push([
+        r.name,
+        r.generic_name || null,
+        normalizedCategory,
+        r.dosage_form || null,
+        r.strength || null,
+        r.unit || 'box',
+        r.reorder_level ?? 10,
+        !!r.requires_prescription
+      ]);
+    }
+
+    if (newMedicineRows.length) {
+      // Dedup within the file itself
+      const seenInFile = new Set();
+      const deduped = [];
+      for (const row of newMedicineRows) {
+        const key = String(row[0]).toLowerCase();
+        if (seenInFile.has(key)) continue;
+        seenInFile.add(key);
+        deduped.push(row);
+      }
+      // Multi-row batched INSERT IGNORE (chunked for very large files)
+      let insertedCount = 0;
+      for (const chunk of chunkArray(deduped)) {
+        const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(',');
+        const [insertResult] = await conn.query(
+          `INSERT IGNORE INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription)
+           VALUES ${placeholders}`,
+          chunk.flat()
+        );
+        insertedCount += insertResult.affectedRows;
+      }
+      results.medicines.imported = insertedCount;
+
+      // Refresh map with new medicine IDs — select only the ones we just inserted
+      const [freshRows] = await conn.query(
+        `SELECT id, name FROM medicines WHERE name IN (${deduped.map(() => '?').join(',')})`,
+        deduped.map((r) => r[0])
+      );
+      for (const fr of freshRows) medicineMap.set(fr.name.toLowerCase(), { id: fr.id });
+      results.medicines.skipped = deduped.length - insertedCount;
+    }
+
+    // ── 4. Suppliers (dedupe by name, insert only new) ──
+    const supplierByName = new Map();
+    for (const item of validRows) {
+      const r = item.normalized;
+      const key = r.supplier_name ? String(r.supplier_name).toLowerCase() : '';
+      if (!key) continue;
+      if (!supplierByName.has(key)) supplierByName.set(key, item);
+    }
+
+    const newSupplierRows = [];
+    for (const [nameKey, item] of supplierByName) {
+      if (supplierMap.has(nameKey)) continue;
+      const r = item.normalized;
+      newSupplierRows.push([
+        r.supplier_name,
+        r.contact_person || null,
+        r.phone || null,
+        r.email || null,
+        r.address || null
+      ]);
+    }
+
+    if (newSupplierRows.length) {
+      const seenInFile = new Set();
+      const deduped = [];
+      for (const row of newSupplierRows) {
+        const key = String(row[0]).toLowerCase();
+        if (seenInFile.has(key)) continue;
+        seenInFile.add(key);
+        deduped.push(row);
+      }
+      let insertedCount = 0;
+      for (const chunk of chunkArray(deduped)) {
+        const placeholders = chunk.map(() => '(?, ?, ?, ?, ?)').join(',');
+        const [insertResult] = await conn.query(
+          `INSERT IGNORE INTO suppliers (name, contact_person, phone, email, address)
+           VALUES ${placeholders}`,
+          chunk.flat()
+        );
+        insertedCount += insertResult.affectedRows;
+      }
+      results.suppliers.imported = insertedCount;
+      results.suppliers.skipped = deduped.length - insertedCount;
+
+      const [freshRows] = await conn.query(
+        `SELECT id, name FROM suppliers WHERE name IN (${deduped.map(() => '?').join(',')})`,
+        deduped.map((r) => r[0])
+      );
+      for (const fr of freshRows) supplierMap.set(fr.name.toLowerCase(), { id: fr.id });
+    }
+
+    // ── 5. Batches (dedupe by batch_number, insert only new) ──
+    const batchByNumber = new Map();
+    for (const item of validRows) {
+      const key = String(item.normalized.batch_number || '').toLowerCase();
+      if (batchByNumber.has(key)) {
+        results.batches.skipped++;
+        results.batches.errors.push({ line: item.line, row: item.normalized.batch_number, error: 'duplicate batch_number value' });
+        continue;
+      }
+      batchByNumber.set(key, item);
+    }
+
+    const newBatchRows = [];
+    for (const [batchKey, item] of batchByNumber) {
+      if (batchIdByNumber.has(batchKey)) {
+        results.batches.skipped++;
+        results.batches.errors.push({ line: item.line, row: item.normalized.batch_number, error: 'batch already exists in database' });
+        continue;
+      }
+      const r = item.normalized;
+      const medicineId = medicineMap.get(String(r.name).toLowerCase())?.id ?? null;
+      const supplierId = r.supplier_name ? supplierMap.get(String(r.supplier_name).toLowerCase())?.id ?? null : null;
+      if (!medicineId) {
+        results.batches.skipped++;
+        results.batches.errors.push({ line: item.line, row: r.batch_number, error: `medicine "${r.name}" could not be created/found` });
+        continue;
+      }
+      newBatchRows.push([
+        medicineId,
+        supplierId,
+        r.batch_number,
+        r.quantity_received,
+        r.quantity_received,
+        r.cost_price ?? null,
+        r.selling_price ?? null,
+        r.manufacture_date || null,
+        r.expiry_date
+      ]);
+    }
+
+    if (newBatchRows.length) {
+      // Multi-row batched INSERT (chunked for very large files)
+      let insertedCount = 0;
+      for (const chunk of chunkArray(newBatchRows)) {
+        const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(',');
+        const [insertResult] = await conn.query(
+          `INSERT INTO batches
+             (medicine_id, supplier_id, batch_number, quantity_received, quantity_remaining, cost_price, selling_price, manufacture_date, expiry_date)
+           VALUES ${placeholders}`,
+          chunk.flat()
+        );
+        insertedCount += insertResult.affectedRows;
+      }
+      results.batches.imported = insertedCount;
+
+      const batchKeys = newBatchRows.map((r) => r[2].toLowerCase());
+      const [freshBatchRows] = await conn.query(
+        `SELECT id, batch_number, quantity_remaining FROM batches WHERE batch_number IN (${batchKeys.map(() => '?').join(',')})`,
+        batchKeys
+      );
+      for (const fbr of freshBatchRows) {
+        batchIdByNumber.set(fbr.batch_number.toLowerCase(), fbr.id);
+      }
+    }
+
+    // ── 6. Transactions (OPTIONAL — only rows that have both type + quantity) ──
+    // In-memory quantity tracking: locks each batch ONCE (first encounter),
+    // then applies subsequent deltas to the in-memory value before one batched write.
+    let txCount = 0;
+    const txInserts = [];       // rows for batched stock_transactions INSERT
+    const qtyMap = new Map();   // batchId → { newQty, originalStatus }
+    for (const item of validRows) {
+      const r = item.normalized;
+      const txType = r.transaction_type;
+      const txQty = r.transaction_quantity;
+      if (!txType || txQty === null || txQty === undefined) continue; // optional — skip cleanly
+
+      const batchKey = String(r.batch_number).toLowerCase();
+      const batchId = batchIdByNumber.get(batchKey);
+      if (!batchId) {
+        results.transactions.skipped++;
+        results.transactions.errors.push({ line: item.line, row: r.batch_number, error: `batch "${r.batch_number}" not found` });
+        continue;
+      }
+
+      const isReduction = ['sale', 'disposal'].includes(txType);
+      const delta = isReduction ? -Math.abs(txQty) : txQty;
+
+      // First encounter: lock the batch row and read its current quantity + status.
+      // Subsequent rows for the same batch use the in-memory tracked value.
+      let current;
+      if (qtyMap.has(batchId)) {
+        current = qtyMap.get(batchId).newQty;
+      } else {
+        const [batchRow] = await conn.query(
+          'SELECT quantity_remaining, status FROM batches WHERE id = ? FOR UPDATE',
+          [batchId]
+        );
+        if (!batchRow.length) {
+          results.transactions.skipped++;
+          results.transactions.errors.push({ line: item.line, row: r.batch_number, error: 'batch not found' });
+          continue;
+        }
+        current = batchRow[0].quantity_remaining;
+        qtyMap.set(batchId, { newQty: current, originalStatus: batchRow[0].status || 'active' });
+      }
+
+      const newQty = current + delta;
+      if (newQty < 0) {
+        results.transactions.skipped++;
+        results.transactions.errors.push({ line: item.line, row: r.batch_number, error: `Insufficient stock. Only ${current} remaining in this batch.` });
+        continue;
+      }
+
+      qtyMap.set(batchId, { newQty, originalStatus: qtyMap.get(batchId).originalStatus });
+      txInserts.push([batchId, userId, txType, delta, r.reason || null, r.transaction_date || null]);
+      txCount++;
+    }
+    results.transactions.imported = txCount;
+
+    // Apply all quantity updates in one pass — preserve original status unless depleted
+    for (const [batchId, { newQty, originalStatus }] of qtyMap) {
+      await conn.query('UPDATE batches SET quantity_remaining = ?, status = ? WHERE id = ?', [
+        newQty,
+        newQty === 0 ? 'depleted' : (originalStatus || 'active'),
+        batchId
+      ]);
+    }
+
+    // Insert all transactions with one multi-row INSERT (chunked)
+    for (const chunk of chunkArray(txInserts)) {
+      const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))').join(',');
+      await conn.query(
+        `INSERT INTO stock_transactions (batch_id, user_id, transaction_type, quantity, reason, created_at)
+         VALUES ${placeholders}`,
+        chunk.flat()
+      );
+    }
+
+    await conn.commit();
+
+    // Aggregate top-level counts
+    results.imported = results.batches.imported;
+    results.skipped = results.total - results.batches.imported;
+    results.medicines.imported = results.medicines.imported || 0;
+    results.suppliers.imported = results.suppliers.imported || 0;
+
+    // Build combined error list with entity tags
+    const allErrors = [];
+    for (const e of results.batches.errors) allErrors.push({ line: e.line, row: e.row, error: `[batch] ${e.error}` });
+    for (const e of results.medicines.errors) allErrors.push({ line: e.line, row: e.row, error: `[medicine] ${e.error}` });
+    for (const e of results.suppliers.errors) allErrors.push({ line: e.line, row: e.row, error: `[supplier] ${e.error}` });
+    for (const e of results.transactions.errors) allErrors.push({ line: e.line, row: e.row, error: `[transaction] ${e.error}` });
+    results.errors = allErrors;
+
+    return results;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
 // ─── Analysis (preview without importing) ──────────────────────────────────
 
 /**
@@ -228,20 +571,21 @@ async function analyzeCsv(csv, schema) {
   }
 
   // Validate each row
-  const previewRows = rows.map((rawRow, index) => {
-    const normalized = buildNormalizedRow(rawRow, mapping, schema);
+  const previewRows = [];
+  for (let index = 0; index < rows.length; index++) {
+    const normalized = buildNormalizedRow(rows[index], mapping, schema);
     const errors = validateRow(normalized, schema);
     if (schema.validateRow) {
-      const extraErrors = schema.validateRow(normalized, lookups) || [];
+      const extraErrors = await schema.validateRow(normalized, lookups) || [];
       errors.push(...extraErrors);
     }
-    return {
+    previewRows.push({
       line: index + 2,
       data: normalized,
       valid: errors.length === 0,
       errors
-    };
-  });
+    });
+  }
 
   const validCount = previewRows.filter((r) => r.valid).length;
 
@@ -296,7 +640,7 @@ async function importCsv(csv, schema, userId, req) {
 
     // Schema-specific validation (FK lookups, business rules)
     if (schema.validateRow) {
-      const extraErrors = schema.validateRow(normalized, lookups) || [];
+      const extraErrors = await schema.validateRow(normalized, lookups) || [];
       if (extraErrors.length) {
         results.skipped++;
         results.errors.push({ line: lineNumber, row: normalized[schema.uniqueKey] || `Row ${lineNumber}`, error: extraErrors.join(', ') });
@@ -327,4 +671,4 @@ async function importCsv(csv, schema, userId, req) {
   return results;
 }
 
-module.exports = { analyzeCsv, importCsv };
+module.exports = { analyzeCsv, importCsv, importCombinedCsv };

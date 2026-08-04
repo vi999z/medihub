@@ -1,6 +1,6 @@
 const { pool } = require('../config/db');
 const { importSchemas } = require('../config/importSchemas');
-const { analyzeCsv, importCsv } = require('../utils/csvUtils');
+const { analyzeCsv, importCsv, importCombinedCsv } = require('../utils/csvUtils');
 
 async function logAudit(userId, action, details, req) {
   await pool.query(
@@ -57,8 +57,19 @@ async function importByType(req, res) {
   }
 
   try {
-    const results = await importCsv(csv, schema, req.user.id, req);
-    await logAudit(req.user.id, `imported_${type}`, `Imported ${results.imported} of ${results.total} ${type} from CSV`, req);
+    let results;
+    if (type === 'combined') {
+      results = await importCombinedCsv(csv, schema, req.user.id, req, { pool });
+      await logAudit(
+        req.user.id,
+        'imported_combined',
+        `Combined import: ${results.medicines.imported} medicines, ${results.suppliers.imported} suppliers, ${results.batches.imported} batches, ${results.transactions.imported} transactions (${results.total} rows)`,
+        req
+      );
+    } else {
+      results = await importCsv(csv, schema, req.user.id, req);
+      await logAudit(req.user.id, `imported_${type}`, `Imported ${results.imported} of ${results.total} ${type} from CSV`, req);
+    }
     res.json({ type, label: schema.label, ...results });
   } catch (err) {
     res.status(400).json({ error: err.message });

@@ -21,7 +21,7 @@ const STEPS = [
  */
 function getAllowedTypes(user) {
   if (user?.role === 'admin') return Object.keys(IMPORT_SCHEMAS);
-  if (user?.role === 'pharmacist') return ['batches', 'transactions'];
+  if (user?.role === 'pharmacist') return ['combined', 'batches', 'transactions'];
   return [];
 }
 
@@ -151,7 +151,7 @@ export default function DataImport() {
       }
       setResult(data);
       setStep('result');
-      addToast(`Imported ${data.imported} of ${data.total} ${schema.label.toLowerCase()}`, data.skipped > 0 ? 'info' : 'success');
+      addToast(getResultToastMessage(data), (data.skipped > 0 || data.errors?.length > 0) ? 'info' : 'success');
       // Invalidate caches so all pages reflect the new data
       api.invalidateCache('/reports/summary');
       api.invalidateCache('/reports/expiring-soon');
@@ -183,6 +183,20 @@ export default function DataImport() {
   const mappedCount = Object.keys(mapping).length;
   const missingRequired = (schema.required || []).filter((f) => !mapping[f]);
   const stepIndex = STEPS.findIndex((s) => s.key === step);
+  const isCombined = selectedType === 'combined';
+
+  function getResultToastMessage(data) {
+    if (isCombined) {
+      const parts = [
+        `${data.medicines?.imported || 0} medicines`,
+        `${data.suppliers?.imported || 0} suppliers`,
+        `${data.batches?.imported || 0} batches`,
+        `${data.transactions?.imported || 0} transactions`
+      ];
+      return `Combined import: ${parts.join(', ')}`;
+    }
+    return `Imported ${data.imported} of ${data.total} ${schema.label.toLowerCase()}`;
+  }
 
   if (availableTypes.length === 0) {
     return (
@@ -421,20 +435,41 @@ export default function DataImport() {
         {/* STEP 4: Result */}
         {step === 'result' && result && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
-              <div style={{ background: 'var(--green-tint)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--green-deep)' }}>{result.imported}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--green-deep)', fontWeight: 600 }}>Imported</div>
+            {isCombined && result.medicines ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+                <div style={{ background: 'var(--green-tint)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--green-deep)' }}>{result.medicines.imported || 0}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--green-deep)', fontWeight: 600 }}>Medicines</div>
+                </div>
+                <div style={{ background: 'var(--blue-tint)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--blue-deep)' }}>{result.suppliers.imported || 0}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--blue-deep)', fontWeight: 600 }}>Suppliers</div>
+                </div>
+                <div style={{ background: 'var(--gold-tint)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold-deep)' }}>{result.batches.imported || 0}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--gold-deep)', fontWeight: 600 }}>Batches</div>
+                </div>
+                <div style={{ background: 'var(--purple-tint)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--purple-deep)' }}>{result.transactions.imported || 0}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--purple-deep)', fontWeight: 600 }}>Transactions</div>
+                </div>
               </div>
-              <div style={{ background: 'var(--gold-tint)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold-deep)' }}>{result.skipped}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--gold-deep)', fontWeight: 600 }}>Skipped</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+                <div style={{ background: 'var(--green-tint)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--green-deep)' }}>{result.imported}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--green-deep)', fontWeight: 600 }}>Imported</div>
+                </div>
+                <div style={{ background: 'var(--gold-tint)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold-deep)' }}>{result.skipped}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--gold-deep)', fontWeight: 600 }}>Skipped</div>
+                </div>
+                <div style={{ background: 'var(--bg-subtle)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>{result.total}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--steel)', fontWeight: 600 }}>Total rows</div>
+                </div>
               </div>
-              <div style={{ background: 'var(--bg-subtle)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>{result.total}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--steel)', fontWeight: 600 }}>Total rows</div>
-              </div>
-            </div>
+            )}
 
             {result.errors?.length > 0 && (
               <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10 }}>
