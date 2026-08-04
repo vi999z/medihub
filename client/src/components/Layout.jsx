@@ -5,10 +5,11 @@ import { useMemo } from 'react';
 import {
   IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
-  IconTools
+  IconTools, IconCommand
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
+import CommandPalette from './CommandPalette';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
@@ -39,7 +40,7 @@ function initials(name = '') {
   return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 }
 
-function TopBar({ pageTitle }) {
+function TopBar({ pageTitle, onOpenPalette }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -130,6 +131,10 @@ function TopBar({ pageTitle }) {
           )}
         </form>
 
+        <button className="icon-btn" onClick={onOpenPalette} title="Search (Ctrl+K)">
+          <IconCommand size={18} stroke={1.8} />
+        </button>
+
         <button className="icon-btn" onClick={() => navigate('/notifications')} title="Alerts">
           <IconBellRinging size={18} stroke={1.8} />
           {unread > 0 && <span className="dot-badge" />}
@@ -162,6 +167,7 @@ export default function Layout({ children }) {
   const { user } = useAuth();
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const pageTitle = useMemo(() => ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub', [location.pathname]);
 
   useEffect(() => {
@@ -169,10 +175,22 @@ export default function Layout({ children }) {
     document.title = title;
   }, [pageTitle]);
 
+  useEffect(() => {
+    function handleKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, []);
+
   const year = new Date().getFullYear();
 
   return (
     <div className="app-shell">
+      <div className="aurora-bg" />
       <aside className="sidebar">
         <div className="sidebar-logo"><span className="dot" />MEDI<span>HUB</span></div>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -192,7 +210,7 @@ export default function Layout({ children }) {
         </div>
       </aside>
       <div className="shell-main">
-        <TopBar pageTitle={pageTitle} />
+        <TopBar pageTitle={pageTitle} onOpenPalette={() => setPaletteOpen(true)} />
         <main className="main-content">
           <motion.div
             key={location.pathname}
@@ -200,11 +218,13 @@ export default function Layout({ children }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: prefersReducedMotion ? 0 : 0.14, ease: 'easeOut' }}
             style={{ minHeight: '100%' }}
+            className="page-enter"
           >
             {children}
           </motion.div>
         </main>
       </div>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }

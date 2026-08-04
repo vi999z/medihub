@@ -86,6 +86,7 @@ export default function Users() {
       <Modal
         open={showForm}
         onClose={resetForm}
+        icon={Plus}
         title={editingId ? 'Edit account' : 'Add account'}
         subtitle={editingId ? 'Update this user’s details.' : 'Create a new user account.'}
         footer={

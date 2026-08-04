@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useEffect } from 'react';
 
-export default function Modal({ open, onClose, title, subtitle, children, footer }) {
+export default function Modal({ open, onClose, title, subtitle, children, footer, icon: HeaderIcon }) {
   useEffect(() => {
     if (!open) return;
     function handleKey(e) {
@@ -39,9 +39,12 @@ export default function Modal({ open, onClose, title, subtitle, children, footer
           >
             {(title || subtitle) && (
               <div className="modal-header">
-                <div>
-                  <h2>{title}</h2>
-                  {subtitle && <p>{subtitle}</p>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {HeaderIcon && <div className="icon-badge" style={{ width: 40, height: 40 }}><HeaderIcon size={19} stroke={1.8} /></div>}
+                  <div>
+                    <h2>{title}</h2>
+                    {subtitle && <p>{subtitle}</p>}
+                  </div>
                 </div>
                 <button className="modal-close" onClick={onClose} aria-label="Close dialog">
                   <X size={18} />

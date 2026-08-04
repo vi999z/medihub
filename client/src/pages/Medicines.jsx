@@ -314,6 +314,7 @@ export default function Medicines() {
       <Modal
         open={showForm}
         onClose={resetForm}
+        icon={Plus}
         title={editingId ? 'Edit medicine' : 'Add medicine'}
         subtitle={editingId ? 'Update the details of this medicine.' : 'Add a new medicine to the catalog.'}
         footer={

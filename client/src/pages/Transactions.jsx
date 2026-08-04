@@ -78,6 +78,7 @@ export default function Transactions() {
       <Modal
         open={showForm}
         onClose={() => setShowForm(false)}
+        icon={Plus}
         title="Record transaction"
         subtitle="Log a stock movement — sale, adjustment, disposal, or return."
         footer={

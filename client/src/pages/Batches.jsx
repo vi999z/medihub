@@ -176,6 +176,7 @@ export default function Batches() {
       <Modal
         open={showForm}
         onClose={resetForm}
+        icon={Plus}
         title={editingId ? 'Edit batch' : 'Receive stock'}
         subtitle={editingId ? 'Update the details of this stock batch.' : 'Record a new stock batch arrival.'}
         footer={

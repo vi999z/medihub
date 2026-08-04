@@ -119,6 +119,7 @@ export default function Suppliers() {
       <Modal
         open={showForm}
         onClose={resetForm}
+        icon={Plus}
         title={editingId ? 'Edit supplier' : 'Add supplier'}
         subtitle={editingId ? 'Update this supplier’s details.' : 'Add a new supplier to your network.'}
         footer={
