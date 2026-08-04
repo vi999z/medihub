@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { downloadCsv } from '../utils/csv';
+import { downloadCsv } from '../utils/csvUtils';
 import { daysUntil } from '../utils/date';
 import Modal from '../components/Modal';
 

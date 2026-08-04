@@ -3,7 +3,7 @@ import { Plus, Trash2, RefreshCw, Pencil, Download, Search, X } from 'lucide-rea
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { downloadCsv } from '../utils/csv';
+import { downloadCsv } from '../utils/csvUtils';
 import Modal from '../components/Modal';
 
 export default function Suppliers() {

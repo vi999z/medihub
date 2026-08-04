@@ -1,9 +1,14 @@
 /**
- * Generic CSV import engine — schema-driven analysis & import.
+ * Unified CSV utility module — the single source of truth for all CSV operations.
+ *
+ * Consolidates: parsing, type conversion, column mapping, validation,
+ * analysis (preview), import execution, and CSV generation (export).
+ *
  * Works with any entity defined in server/config/importSchemas.js.
  */
 
-// ─── Type converters ───
+// ─── Type converters ───────────────────────────────────────────────────────
+
 function parseBoolean(value) {
   if (value === undefined || value === null) return false;
   const str = String(value).trim().toLowerCase();
@@ -50,7 +55,8 @@ function convertValue(value, type) {
   }
 }
 
-// ─── CSV parsing (respects quoted fields) ───
+// ─── CSV parsing (respects quoted fields) ──────────────────────────────────
+
 function parseCsvText(text) {
   const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
   if (lines.length < 2) {
@@ -103,7 +109,8 @@ function parseCsvText(text) {
   return { headers, rows };
 }
 
-// ─── Column mapping / fuzzy matching ───
+// ─── Column mapping / fuzzy matching ───────────────────────────────────────
+
 function normalizeHeader(header) {
   return String(header || '')
     .trim()
@@ -198,6 +205,47 @@ function validateRow(row, schema) {
   return errors;
 }
 
+// ─── CSV generation (export) ───────────────────────────────────────────────
+
+function escapeCsvValue(value) {
+  if (value === null || value === undefined) return '';
+  const stringValue = String(value).replace(/"/g, '""');
+  return /[",\n]/.test(stringValue) ? `"${stringValue}"` : stringValue;
+}
+
+/**
+ * Generate CSV text from an array of row objects.
+ * @param {Array<Object>} rows - Data rows
+ * @param {string[]} headers - Column headers (keys into each row)
+ * @returns {string} CSV-formatted string
+ */
+function generateCsv(rows, headers) {
+  const lines = [headers.join(',')];
+  rows.forEach((row) => {
+    lines.push(headers.map((header) => escapeCsvValue(row[header])).join(','));
+  });
+  return lines.join('\n');
+}
+
+/**
+ * Generate CSV text and trigger a browser download.
+ * @param {string} filename - Download filename
+ * @param {Array<Object>} rows - Data rows
+ * @param {string[]} headers - Column headers
+ */
+function downloadCsv(filename, rows, headers) {
+  const csvContent = generateCsv(rows, headers);
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Analysis (preview without importing) ──────────────────────────────────
+
 /**
  * Analyze a CSV without importing — returns preview data, column mapping, and per-row validation.
  */
@@ -248,8 +296,16 @@ async function analyzeCsv(csv, schema) {
   };
 }
 
+// ─── Import execution ──────────────────────────────────────────────────────
+
 /**
  * Execute the import — writes data to the database.
+ *
+ * @param {string} csv - Raw CSV text
+ * @param {object} schema - Schema definition (from importSchemas)
+ * @param {number} userId - ID of the user performing the import
+ * @param {object} req - Express request object (for audit logging / IP)
+ * @returns {Promise<{total, imported, skipped, errors}>}
  */
 async function importCsv(csv, schema, userId, req) {
   const { headers, rows } = parseCsvText(csv);
@@ -311,14 +367,25 @@ async function importCsv(csv, schema, userId, req) {
 }
 
 module.exports = {
-  parseCsvText,
+  // Type converters
   parseBoolean,
   parseNumber,
   parseDate,
+  convertValue,
+  // Parsing
+  parseCsvText,
+  // Column mapping
   normalizeHeader,
+  fuzzyMatch,
   detectColumnMapping,
   buildNormalizedRow,
+  // Validation
   validateRow,
+  // Analysis & import
   analyzeCsv,
-  importCsv
+  importCsv,
+  // Export
+  escapeCsvValue,
+  generateCsv,
+  downloadCsv,
 };

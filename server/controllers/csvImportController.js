@@ -1,6 +1,6 @@
 const { pool } = require('../config/db');
 const { importSchemas } = require('../config/importSchemas');
-const { analyzeCsv, importCsv } = require('../utils/csvImport');
+const { analyzeCsv, importCsv } = require('../utils/csvUtils');
 
 async function logAudit(userId, action, details, req) {
   await pool.query(

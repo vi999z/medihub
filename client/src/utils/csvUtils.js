@@ -1,0 +1,343 @@
+/**
+ * Unified CSV utility module — the single source of truth for all CSV operations
+ * on the client side.
+ *
+ * Consolidates: CSV parsing, file reading, column mapping, schema definitions,
+ * and CSV generation (export/download).
+ *
+ * The schema definitions here mirror the server-side schemas in
+ * server/config/importSchemas.js (minus the database-dependent logic).
+ */
+
+// ─── Schema definitions ────────────────────────────────────────────────────
+
+export const IMPORT_SCHEMAS = {
+  medicines: {
+    label: 'Medicines',
+    description: 'Bulk-add medicines to the catalog.',
+    required: ['name', 'unit'],
+    uniqueKey: 'name',
+    fields: {
+      name: { type: 'string', required: true, label: 'Name' },
+      generic_name: { type: 'string', label: 'Generic Name' },
+      category: { type: 'string', label: 'Category' },
+      dosage_form: { type: 'string', label: 'Dosage Form' },
+      strength: { type: 'string', label: 'Strength' },
+      unit: { type: 'string', required: true, label: 'Unit' },
+      reorder_level: { type: 'number', label: 'Reorder Level', default: 10 },
+      requires_prescription: { type: 'boolean', label: 'Requires Rx' }
+    },
+    example: 'name,generic_name,category,dosage_form,strength,unit,reorder_level,requires_prescription\nParacetamol,Acetaminophen,Analgesic,Tablet,500mg,box,10,No\nAmoxicillin,Amoxicillin,Antibiotic,Capsule,250mg,box,20,Yes'
+  },
+  suppliers: {
+    label: 'Suppliers',
+    description: 'Bulk-add suppliers to your network.',
+    required: ['name'],
+    uniqueKey: 'name',
+    fields: {
+      name: { type: 'string', required: true, label: 'Name' },
+      contact_person: { type: 'string', label: 'Contact Person' },
+      phone: { type: 'string', label: 'Phone' },
+      email: { type: 'string', label: 'Email' },
+      address: { type: 'string', label: 'Address' }
+    },
+    example: 'name,contact_person,phone,email,address\nMedSupply,John Doe,09171234567,john@medsupply.com,123 Main St'
+  },
+  batches: {
+    label: 'Batches',
+    description: 'Bulk-record stock batches. Medicines and suppliers must already exist.',
+    required: ['medicine_name', 'batch_number', 'quantity_received', 'expiry_date'],
+    uniqueKey: 'batch_number',
+    fields: {
+      medicine_name: { type: 'string', required: true, label: 'Medicine Name' },
+      batch_number: { type: 'string', required: true, label: 'Batch Number' },
+      supplier_name: { type: 'string', label: 'Supplier Name' },
+      quantity_received: { type: 'number', required: true, label: 'Quantity Received' },
+      cost_price: { type: 'number', label: 'Cost Price' },
+      selling_price: { type: 'number', label: 'Selling Price' },
+      manufacture_date: { type: 'date', label: 'Manufacture Date' },
+      expiry_date: { type: 'date', required: true, label: 'Expiry Date' }
+    },
+    example: 'medicine_name,batch_number,supplier_name,quantity_received,cost_price,selling_price,manufacture_date,expiry_date\nParacetamol,BATCH-001,MedSupply,100,5.00,12.00,2025-01-15,2027-01-15'
+  },
+  transactions: {
+    label: 'Transactions',
+    description: 'Bulk-record stock movements (sales, adjustments, disposals, returns). Batches must already exist.',
+    required: ['batch_number', 'transaction_type', 'quantity'],
+    fields: {
+      batch_number: { type: 'string', required: true, label: 'Batch Number' },
+      transaction_type: { type: 'string', required: true, label: 'Type', options: ['sale', 'adjustment', 'disposal', 'return'] },
+      quantity: { type: 'number', required: true, label: 'Quantity' },
+      reason: { type: 'string', label: 'Reason' },
+      date: { type: 'date', label: 'Date' }
+    },
+    example: 'batch_number,transaction_type,quantity,reason,date\nBATCH-001,sale,5,Walk-in customer,2025-06-01\nBATCH-002,disposal,2,Expired stock,2025-06-02'
+  }
+};
+
+// ─── Type converters ───────────────────────────────────────────────────────
+
+function parseBoolean(value) {
+  if (value === undefined || value === null) return false;
+  const str = String(value).trim().toLowerCase();
+  return ['yes', 'true', '1', 'y', 'rx', 'prescription'].includes(str);
+}
+
+function parseNumber(value) {
+  if (value === undefined || value === null) return null;
+  const str = String(value).trim();
+  if (!str) return null;
+  const num = Number(str.replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(num) ? num : null;
+}
+
+function parseDate(value) {
+  if (value === undefined || value === null) return null;
+  const str = String(value).trim();
+  if (!str) return null;
+  // Accept YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, or M/D/YYYY
+  const match = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (match) {
+    const [, y, m, d] = match;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  const slashMatch = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (slashMatch) {
+    const [, a, b, y] = slashMatch;
+    const month = Number(a) <= 12 ? Number(a) : Number(b);
+    const day = Number(a) <= 12 ? Number(b) : Number(a);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+  return null;
+}
+
+function convertValue(value, type) {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  switch (type) {
+    case 'number': return parseNumber(value);
+    case 'boolean': return parseBoolean(value);
+    case 'date': return parseDate(value);
+    default: return String(value).trim();
+  }
+}
+
+// ─── CSV parsing (respects quoted fields) ──────────────────────────────────
+
+function parseCsvText(text) {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
+  if (lines.length < 2) {
+    throw new Error('CSV must contain a header row and at least one data row');
+  }
+
+  function parseLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (inQuotes) {
+        if (char === '"') {
+          if (line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          current += char;
+        }
+      } else if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        result.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current);
+    return result;
+  }
+
+  const headerLine = parseLine(lines[0]);
+  const headers = headerLine.map((h) => String(h || '').trim());
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseLine(lines[i]);
+    const row = {};
+    headers.forEach((header, index) => {
+      row[header] = (values[index] || '').trim();
+    });
+    rows.push(row);
+  }
+
+  return { headers, rows };
+}
+
+/**
+ * Read a File object and return its text content.
+ */
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
+}
+
+// ─── Column mapping / fuzzy matching ───────────────────────────────────────
+
+function normalizeHeader(header) {
+  return String(header || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+}
+
+function fuzzyMatch(header, fieldKey) {
+  const h = normalizeHeader(header);
+  const f = normalizeHeader(fieldKey);
+  if (h === f) return true;
+  if (h.replace(/_/g, '') === f.replace(/_/g, '')) return true;
+  if (f.startsWith(h) && h.length >= 3) return true;
+  if (h.endsWith('_name') && f === 'name') return true;
+  return false;
+}
+
+/**
+ * Auto-detect column mapping from CSV headers to schema fields.
+ * Returns { fieldKey: csvHeader } for each matched field.
+ */
+function detectColumnMapping(headers, schema) {
+  const mapping = {};
+  const usedHeaders = new Set();
+
+  // First pass: exact matches
+  for (const [fieldKey, fieldDef] of Object.entries(schema.fields)) {
+    const exact = headers.find((h) => normalizeHeader(h) === fieldKey && !usedHeaders.has(h));
+    if (exact) {
+      mapping[fieldKey] = exact;
+      usedHeaders.add(exact);
+    }
+  }
+
+  // Second pass: fuzzy matches for unmapped fields
+  for (const [fieldKey, fieldDef] of Object.entries(schema.fields)) {
+    if (mapping[fieldKey]) continue;
+    const fuzzy = headers.find((h) => !usedHeaders.has(h) && fuzzyMatch(h, fieldKey));
+    if (fuzzy) {
+      mapping[fieldKey] = fuzzy;
+      usedHeaders.add(fuzzy);
+    }
+  }
+
+  return mapping;
+}
+
+/**
+ * Build a normalized row object from a raw CSV row using the column mapping.
+ */
+function buildNormalizedRow(rawRow, mapping, schema) {
+  const row = {};
+  for (const [fieldKey, fieldDef] of Object.entries(schema.fields)) {
+    const csvHeader = mapping[fieldKey];
+    const rawValue = csvHeader ? rawRow[csvHeader] : undefined;
+    const converted = convertValue(rawValue, fieldDef.type);
+    row[fieldKey] = converted !== null ? converted : (fieldDef.default ?? null);
+  }
+  return row;
+}
+
+/**
+ * Validate a normalized row against the schema.
+ * Returns array of error strings (empty = valid).
+ */
+function validateRow(row, schema) {
+  const errors = [];
+  for (const fieldKey of schema.required || []) {
+    const value = row[fieldKey];
+    if (value === undefined || value === null || String(value).trim() === '') {
+      errors.push(`missing "${fieldKey}"`);
+    }
+  }
+  for (const [fieldKey, fieldDef] of Object.entries(schema.fields)) {
+    const value = row[fieldKey];
+    if (value === null || value === undefined || value === '') continue;
+    if (fieldDef.type === 'number' && typeof value === 'number' && !Number.isFinite(value)) {
+      errors.push(`invalid number for "${fieldKey}"`);
+    }
+    if (fieldDef.type === 'date' && typeof value === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      errors.push(`invalid date for "${fieldKey}"`);
+    }
+    if (fieldDef.options && !fieldDef.options.includes(value)) {
+      errors.push(`"${fieldKey}" must be one of: ${fieldDef.options.join(', ')}`);
+    }
+  }
+  return errors;
+}
+
+// ─── CSV generation (export) ───────────────────────────────────────────────
+
+function escapeCsvValue(value) {
+  if (value === null || value === undefined) return '';
+  const stringValue = String(value).replace(/"/g, '""');
+  return /[",\n]/.test(stringValue) ? `"${stringValue}"` : stringValue;
+}
+
+/**
+ * Generate CSV text from an array of row objects.
+ * @param {Array<Object>} rows - Data rows
+ * @param {string[]} headers - Column headers (keys into each row)
+ * @returns {string} CSV-formatted string
+ */
+function generateCsv(rows, headers) {
+  const lines = [headers.join(',')];
+  rows.forEach((row) => {
+    lines.push(headers.map((header) => escapeCsvValue(row[header])).join(','));
+  });
+  return lines.join('\n');
+}
+
+/**
+ * Generate CSV text and trigger a browser download.
+ * @param {string} filename - Download filename
+ * @param {Array<Object>} rows - Data rows
+ * @param {string[]} headers - Column headers
+ */
+function downloadCsv(filename, rows, headers) {
+  const csvContent = generateCsv(rows, headers);
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export {
+  // Type converters
+  parseBoolean,
+  parseNumber,
+  parseDate,
+  convertValue,
+  // Parsing & file reading
+  parseCsvText,
+  readFileAsText,
+  // Column mapping
+  normalizeHeader,
+  fuzzyMatch,
+  detectColumnMapping,
+  buildNormalizedRow,
+  // Validation
+  validateRow,
+  // Export
+  escapeCsvValue,
+  generateCsv,
+  downloadCsv,
+};

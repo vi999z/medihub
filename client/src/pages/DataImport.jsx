@@ -3,8 +3,7 @@ import {
   Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2,
   ArrowLeft, Table2, FileCheck2, Database, RefreshCw
 } from 'lucide-react';
-import { readFileAsText } from '../utils/csvParse';
-import { IMPORT_SCHEMAS, detectColumnMapping } from '../utils/importSchemas';
+import { readFileAsText, IMPORT_SCHEMAS, detectColumnMapping } from '../utils/csvUtils';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
