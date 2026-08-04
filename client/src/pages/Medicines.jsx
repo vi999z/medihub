@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Plus, Pencil, Trash2, RefreshCw, Download, Search, X, Upload,
+  Plus, Pencil, Trash2, RefreshCw, Download, Search, X,
   ChevronDown, ChevronRight, LayoutGrid, List, ArrowUpDown, FileWarning
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
@@ -10,7 +10,6 @@ import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
 import Modal from '../components/Modal';
-import CsvImportModal from '../components/CsvImportModal';
 
 const CATEGORY_OPTIONS = [
   'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
@@ -65,7 +64,6 @@ export default function Medicines() {
   const [medicines, setMedicines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [showImport, setShowImport] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
@@ -267,11 +265,6 @@ export default function Medicines() {
           <button className="btn btn-secondary" onClick={handleExport}>
             <Download size={15} /> Export CSV
           </button>
-          {user.role === 'admin' && (
-            <button className="btn btn-secondary" onClick={() => setShowImport(true)}>
-              <Upload size={15} /> Import CSV
-            </button>
-          )}
           <button className="btn btn-secondary" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
@@ -317,16 +310,6 @@ export default function Medicines() {
           <div className="label">Healthy stock</div>
         </button>
       </div>
-
-      <CsvImportModal
-        open={showImport}
-        onClose={() => setShowImport(false)}
-        type="medicines"
-        onImported={() => {
-          api.invalidateCache('/medicines');
-          fetchMedicines();
-        }}
-      />
 
       <Modal
         open={showForm}

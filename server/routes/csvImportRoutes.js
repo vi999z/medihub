@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/csvImportController');
-const { verifyToken, requireRole } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
 
 router.use(verifyToken);
 
-router.post('/medicines', requireRole('admin'), ctrl.importMedicines);
-router.post('/suppliers', requireRole('admin'), ctrl.importSuppliers);
-router.post('/batches', requireRole('admin', 'pharmacist'), ctrl.importBatches);
+router.get('/schemas', ctrl.getSchemas);
+router.post('/analyze', ctrl.analyze);
+router.post('/:type', ctrl.importByType);
 
 module.exports = router;

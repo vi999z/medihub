@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { IconPill, IconWallet, IconAlertTriangle, IconPackageOff, IconArrowUpRight, IconArrowDownRight, IconMinus } from '@tabler/icons-react';
+import { IconPill, IconWallet, IconAlertTriangle, IconPackageOff, IconArrowUpRight, IconArrowDownRight, IconMinus, IconUpload } from '@tabler/icons-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import AnimatedNumber from '../components/AnimatedNumber';
 import Skeleton from '../components/Skeleton';
+import CsvImportModal from '../components/CsvImportModal';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -30,6 +31,7 @@ export default function Dashboard() {
   const [expiring, setExpiring] = useState([]);
   const [lowStock, setLowStock] = useState([]);
   const [trend, setTrend] = useState([]);
+  const [showImport, setShowImport] = useState(false);
   const loading = summary === null;
 
   useEffect(() => {
@@ -69,13 +71,48 @@ export default function Dashboard() {
 
   return (
     <div className="page-shell">
-      <div className="hero-panel" style={{ marginBottom: 4 }}>
+      <div className="hero-panel" style={{ marginBottom: 4, position: 'relative' }}>
         <p style={{ fontSize: 13, color: 'var(--steel)', marginBottom: 4, fontWeight: 600 }}>Megawide Drug Pharmacy</p>
         <h1 style={{ fontSize: 'clamp(1.35rem, 2.4vw, 1.8rem)', marginBottom: 8 }}>{getGreeting()}, {user?.full_name?.split(' ')[0] || 'there'}</h1>
         <p style={{ margin: 0, color: 'var(--ink-soft)', fontSize: 13.5, position: 'relative', zIndex: 1 }}>
           Live inventory health, expiry risk, and procurement insights in one view.
         </p>
+        <button
+          className="btn btn-primary"
+          onClick={() => setShowImport(true)}
+          style={{ position: 'absolute', top: 20, right: 24, zIndex: 2 }}
+        >
+          <IconUpload size={15} /> Import CSV
+        </button>
       </div>
+
+      <CsvImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        types={['medicines', 'batches', 'transactions', 'suppliers']}
+        onImported={() => {
+          api.invalidateCache('/reports/summary');
+          api.invalidateCache('/reports/expiring-soon');
+          api.invalidateCache('/reports/low-stock');
+          api.invalidateCache('/reports/sales-trend?days=30');
+          api.invalidateCache('/medicines');
+          api.invalidateCache('/batches');
+          api.invalidateCache('/suppliers');
+          api.invalidateCache('/transactions/recent');
+          // Reload dashboard data
+          Promise.all([
+            api.cachedGet('/reports/summary'),
+            api.cachedGet('/reports/expiring-soon'),
+            api.cachedGet('/reports/low-stock'),
+            api.cachedGet('/reports/sales-trend?days=30')
+          ]).then(([summaryRes, expiringRes, lowStockRes, trendRes]) => {
+            setSummary(summaryRes.data);
+            setExpiring(expiringRes.data);
+            setLowStock(lowStockRes.data);
+            setTrend(trendRes.data);
+          }).catch(() => {});
+        }}
+      />
 
       <div className="kpi-grid">
         {kpis.map((k, index) => (
