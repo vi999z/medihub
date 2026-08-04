@@ -6,10 +6,6 @@ import { useAuth } from '../context/AuthContext';
 import AnimatedNumber from '../components/AnimatedNumber';
 import Skeleton from '../components/Skeleton';
 
-function daysUntil(dateStr) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  return Math.ceil((new Date(dateStr) - today) / 86400000);
-}
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
@@ -18,7 +14,6 @@ function getGreeting() {
 }
 
 function TrendChip({ pct }) {
-  if (pct === null) return <span className="kpi-trend flat"><IconMinus size={12} /> —</span>;
   if (Math.abs(pct) < 1) return <span className="kpi-trend flat"><IconMinus size={12} /> flat</span>;
   const up = pct > 0;
   return (
@@ -32,7 +27,6 @@ function TrendChip({ pct }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const [summary, setSummary] = useState(null);
-  const [batches, setBatches] = useState([]);
   const [expiring, setExpiring] = useState([]);
   const [lowStock, setLowStock] = useState([]);
   const [trend, setTrend] = useState([]);
@@ -42,15 +36,13 @@ export default function Dashboard() {
     let mounted = true;
     Promise.all([
       api.cachedGet('/reports/summary'),
-      api.cachedGet('/batches'),
       api.cachedGet('/reports/expiring-soon'),
       api.cachedGet('/reports/low-stock'),
       api.cachedGet('/reports/sales-trend?days=30')
     ])
-      .then(([summaryRes, batchesRes, expiringRes, lowStockRes, trendRes]) => {
+      .then(([summaryRes, expiringRes, lowStockRes, trendRes]) => {
         if (!mounted) return;
         setSummary(summaryRes.data);
-        setBatches(batchesRes.data);
         setExpiring(expiringRes.data);
         setLowStock(lowStockRes.data);
         setTrend(trendRes.data);
@@ -58,16 +50,6 @@ export default function Dashboard() {
       .catch(() => {});
     return () => { mounted = false; };
   }, []);
-
-  const activeBatches = batches.filter((b) => b.status === 'active');
-  const health = { safe: 0, warning: 0, critical: 0 };
-  for (const b of activeBatches) {
-    if (b.quantity_remaining <= 0) continue;
-    const d = daysUntil(b.expiry_date);
-    if (d <= 7) health.critical++;
-    else if (d <= 30) health.warning++;
-    else health.safe++;
-  }
 
   let salesTrendPct = null;
   if (trend.length >= 14) {
@@ -77,10 +59,10 @@ export default function Dashboard() {
   }
 
   const kpis = [
-    { icon: IconPill, label: 'Medicines tracked', value: summary?.total_medicines ?? 0, prefix: '', trend: null },
-    { icon: IconWallet, label: 'Inventory value', value: summary ? Number(summary.inventory_value) : 0, prefix: '₱', trend: salesTrendPct !== null ? -salesTrendPct * 0.3 : null },
-    { icon: IconAlertTriangle, label: 'Expiring in 30 days', value: summary?.expiring_soon ?? 0, prefix: '', trend: null },
-    { icon: IconPackageOff, label: 'Low stock items', value: summary?.low_stock ?? 0, prefix: '', trend: null },
+    { icon: IconPill, label: 'Medicines tracked', value: summary?.total_medicines ?? 0, prefix: '' },
+    { icon: IconWallet, label: 'Inventory value', value: summary ? Number(summary.inventory_value) : 0, prefix: '₱' },
+    { icon: IconAlertTriangle, label: 'Expiring in 30 days', value: summary?.expiring_soon ?? 0, prefix: '' },
+    { icon: IconPackageOff, label: 'Low stock items', value: summary?.low_stock ?? 0, prefix: '' },
   ];
 
   return (
@@ -102,7 +84,7 @@ export default function Dashboard() {
             <div className="kpi-value">
               {loading ? <Skeleton width={60} height={26} /> : <AnimatedNumber value={k.value} prefix={k.prefix} />}
             </div>
-            {!loading && <TrendChip pct={k.trend} />}
+            {!loading && k.trend !== undefined && <TrendChip pct={k.trend} />}
           </div>
         ))}
       </div>

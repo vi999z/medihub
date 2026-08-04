@@ -1,23 +1,50 @@
-import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Search, X } from 'lucide-react';
 import api from '../api/axios';
+import { useToast } from '../context/ToastContext';
 
 const TYPES = ['sale', 'adjustment', 'disposal', 'return'];
+const TYPE_FILTERS = [{ value: 'all', label: 'All types' }, ...TYPES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))];
 
 export default function Transactions() {
+  const { addToast } = useToast();
   const [transactions, setTransactions] = useState([]);
   const [batches, setBatches] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ batch_id: '', transaction_type: 'sale', quantity: '', reason: '' });
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
 
   async function fetchAll() {
-    const [t, b] = await Promise.all([api.cachedGet('/transactions/recent'), api.cachedGet('/batches')]);
-    setTransactions(t.data || []);
-    setBatches((b.data || []).filter((batch) => batch.status === 'active'));
+    try {
+      const [t, b] = await Promise.all([api.cachedGet('/transactions/recent'), api.cachedGet('/batches')]);
+      setTransactions(t.data || []);
+      setBatches((b.data || []).filter((batch) => batch.status === 'active'));
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { fetchAll(); }, []);
+
+  const visibleTransactions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return transactions.filter((t) => {
+      if (typeFilter !== 'all' && t.transaction_type !== typeFilter) return false;
+      if (!term) return true;
+      return [t.medicine_name, t.batch_number, t.user_name, t.reason]
+        .some((value) => String(value || '').toLowerCase().includes(term));
+    });
+  }, [transactions, search, typeFilter]);
+
+  const filtersActive = Boolean(search) || typeFilter !== 'all';
+
+  function clearFilters() {
+    setSearch('');
+    setTypeFilter('all');
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -29,6 +56,7 @@ export default function Transactions() {
       setForm({ batch_id: '', transaction_type: 'sale', quantity: '', reason: '' });
       setShowForm(false);
       await fetchAll();
+      addToast('Transaction recorded', 'success');
     } catch (err) {
       setError(err.response?.data?.error || 'Transaction failed');
     }
@@ -39,10 +67,10 @@ export default function Transactions() {
       <div className="page-header">
         <div>
           <h1>Transactions</h1>
-          <p>Stock movement log — sales, adjustments, disposals, returns</p>
+          <p>{loading ? 'Loading movements…' : `${visibleTransactions.length} of ${transactions.length} movements shown`}</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-          <Plus size={15} /> Record transaction
+          <Plus size={15} /> {showForm ? 'Close form' : 'Record transaction'}
         </button>
       </div>
 
@@ -60,7 +88,7 @@ export default function Transactions() {
           <div className="field">
             <label>Type</label>
             <select value={form.transaction_type} onChange={(e) => setForm({ ...form, transaction_type: e.target.value })}>
-              {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {TYPES.map((t) => <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>)}
             </select>
           </div>
           <div className="field"><label>Quantity</label><input type="number" min="1" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required /></div>
@@ -73,13 +101,49 @@ export default function Transactions() {
         </form>
       )}
 
-      <div className="card">
+      <div className="card" style={{ padding: 16 }}>
+        <div className="filter-bar">
+          <div className="filter-search">
+            <Search size={15} className="filter-search-icon" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search medicine, batch, user, reason…"
+              aria-label="Search transactions"
+            />
+            {search && (
+              <button type="button" className="btn-icon filter-search-clear" onClick={() => setSearch('')} title="Clear search">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <div className="field filter-select">
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Filter by type">
+              {TYPE_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </div>
+          {filtersActive && (
+            <button type="button" className="btn btn-secondary" onClick={clearFilters}>
+              <X size={15} /> Clear filters
+            </button>
+          )}
+        </div>
+
+        {!loading && visibleTransactions.length === 0 && (
+          <div className="empty-state">
+            <div>{transactions.length === 0 ? 'No stock movements recorded yet.' : 'No movements match the current filters.'}</div>
+            {filtersActive && (
+              <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
+            )}
+          </div>
+        )}
+
         <table className="data-table">
           <thead>
             <tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr>
           </thead>
           <tbody>
-            {transactions.map((t) => (
+            {visibleTransactions.map((t) => (
               <tr key={t.id}>
                 <td>{new Date(t.created_at).toLocaleString()}</td>
                 <td style={{ fontWeight: 500 }}>{t.medicine_name}</td>

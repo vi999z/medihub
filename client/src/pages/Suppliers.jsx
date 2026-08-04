@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Trash2, RefreshCw, Pencil, Download } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Trash2, RefreshCw, Pencil, Download, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -9,16 +9,29 @@ export default function Suppliers() {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [search, setSearch] = useState('');
   const [form, setForm] = useState({ name: '', contact_person: '', phone: '', email: '', address: '' });
 
   async function fetchAll() {
-    const res = await api.cachedGet('/suppliers');
-    setSuppliers(res.data || []);
+    try {
+      const res = await api.cachedGet('/suppliers');
+      setSuppliers(res.data || []);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { fetchAll(); }, []);
+
+  const visibleSuppliers = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return suppliers;
+    return suppliers.filter((supplier) => [supplier.name, supplier.contact_person, supplier.phone, supplier.email, supplier.address]
+      .some((value) => String(value || '').toLowerCase().includes(term)));
+  }, [suppliers, search]);
 
   function resetForm() {
     setShowForm(false);
@@ -75,7 +88,7 @@ export default function Suppliers() {
   }
 
   function handleExport() {
-    const rows = suppliers.map((supplier) => ({
+    const rows = visibleSuppliers.map((supplier) => ({
       id: supplier.id,
       name: supplier.name,
       contact_person: supplier.contact_person || '',
@@ -89,7 +102,10 @@ export default function Suppliers() {
   return (
     <>
       <div className="page-header">
-        <div><h1>Suppliers</h1><p>{suppliers.length} suppliers on file</p></div>
+        <div>
+          <h1>Suppliers</h1>
+          <p>{loading ? 'Loading suppliers…' : `${visibleSuppliers.length} of ${suppliers.length} suppliers shown`}</p>
+        </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-secondary" onClick={handleExport}><Download size={15} /> Export CSV</button>
           <button className="btn btn-secondary" onClick={handleRefresh}><RefreshCw size={15} /> Refresh</button>
@@ -113,11 +129,28 @@ export default function Suppliers() {
         </form>
       )}
 
-      <div className="card">
+      <div className="card" style={{ padding: 16 }}>
+        <div className="filter-bar">
+          <div className="filter-search">
+            <Search size={15} className="filter-search-icon" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name, contact, phone, email…"
+              aria-label="Search suppliers"
+            />
+            {search && (
+              <button type="button" className="btn-icon filter-search-clear" onClick={() => setSearch('')} title="Clear search">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+
         <table className="data-table">
           <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
           <tbody>
-            {suppliers.map((s) => (
+            {visibleSuppliers.map((s) => (
               <tr key={s.id}>
                 <td style={{ fontWeight: 500 }}>{s.name}</td>
                 <td>{s.contact_person || '—'}</td>
@@ -135,7 +168,11 @@ export default function Suppliers() {
             ))}
           </tbody>
         </table>
-        {suppliers.length === 0 && <p style={{ padding: 20, color: 'var(--steel)', fontSize: 13 }}>No suppliers yet. Add your first one above.</p>}
+        {!loading && visibleSuppliers.length === 0 && (
+          <div className="empty-state">
+            {suppliers.length === 0 ? 'No suppliers yet. Add your first one above.' : `No suppliers match “${search}”.`}
+          </div>
+        )}
       </div>
     </>
   );
