@@ -8,6 +8,7 @@ import ScrollToTop from './components/ScrollToTop';
 
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const DataImport = lazy(() => import('./pages/DataImport'));
 const Medicines = lazy(() => import('./pages/Medicines'));
 const Batches = lazy(() => import('./pages/Batches'));
 const Transactions = lazy(() => import('./pages/Transactions'));
@@ -28,6 +29,7 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+              <Route path="/import" element={<ProtectedRoute><Layout><DataImport /></Layout></ProtectedRoute>} />
               <Route path="/medicines" element={<ProtectedRoute><Layout><Medicines /></Layout></ProtectedRoute>} />
               <Route path="/batches" element={<ProtectedRoute><Layout><Batches /></Layout></ProtectedRoute>} />
               <Route path="/transactions" element={<ProtectedRoute><Layout><Transactions /></Layout></ProtectedRoute>} />

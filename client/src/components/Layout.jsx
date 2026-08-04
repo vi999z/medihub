@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import {
   IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
-  IconTools, IconCommand
+  IconTools, IconCommand, IconDatabaseImport
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
@@ -13,6 +13,7 @@ import CommandPalette from './CommandPalette';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
+  { to: '/import', label: 'Data Import', icon: IconDatabaseImport },
   { to: '/medicines', label: 'Medicines', icon: IconPill },
   { to: '/batches', label: 'Batches', icon: IconPackage },
   { to: '/transactions', label: 'Transactions', icon: IconReceipt },

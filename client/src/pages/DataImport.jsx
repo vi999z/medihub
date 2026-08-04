@@ -1,12 +1,13 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import {
   Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2,
-  ArrowLeft, Table2, FileCheck2
+  ArrowLeft, Table2, FileCheck2, Database, RefreshCw
 } from 'lucide-react';
-import Modal from './Modal';
 import { readFileAsText } from '../utils/csvParse';
 import { IMPORT_SCHEMAS, detectColumnMapping } from '../utils/importSchemas';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import api from '../api/axios';
 
 const STEPS = [
   { key: 'upload', label: 'Upload' },
@@ -15,37 +16,34 @@ const STEPS = [
   { key: 'result', label: 'Result' }
 ];
 
-export default function CsvImportModal({ open, onClose, type, types, onImported }) {
+/**
+ * Filter import types by user role (mirrors server-side role checks).
+ * Admin: all types. Pharmacist: batches + transactions.
+ */
+function getAllowedTypes(user) {
+  if (user?.role === 'admin') return Object.keys(IMPORT_SCHEMAS);
+  if (user?.role === 'pharmacist') return ['batches', 'transactions'];
+  return [];
+}
+
+export default function DataImport() {
+  const { user } = useAuth();
   const { addToast } = useToast();
   const fileInputRef = useRef(null);
+
+  const availableTypes = getAllowedTypes(user);
+  const [selectedType, setSelectedType] = useState(availableTypes[0] || 'medicines');
+  const schema = IMPORT_SCHEMAS[selectedType] || IMPORT_SCHEMAS.medicines;
+
   const [step, setStep] = useState('upload');
   const [fileName, setFileName] = useState('');
   const [fileContent, setFileContent] = useState('');
-  const [selectedType, setSelectedType] = useState(type || 'medicines');
   const [headers, setHeaders] = useState([]);
   const [mapping, setMapping] = useState({});
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
-
-  const schema = IMPORT_SCHEMAS[selectedType] || IMPORT_SCHEMAS.medicines;
-  const availableTypes = types || (type ? [type] : Object.keys(IMPORT_SCHEMAS));
-
-  // Reset when modal opens or type changes
-  useEffect(() => {
-    if (open) {
-      setStep('upload');
-      setFileName('');
-      setFileContent('');
-      setHeaders([]);
-      setMapping({});
-      setAnalysis(null);
-      setError('');
-      setResult(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }, [open, selectedType]);
 
   function reset() {
     setStep('upload');
@@ -59,9 +57,9 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
-  function handleClose() {
+  function handleTypeChange(type) {
+    setSelectedType(type);
     reset();
-    onClose();
   }
 
   async function handleFileChange(e) {
@@ -155,7 +153,15 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
       setResult(data);
       setStep('result');
       addToast(`Imported ${data.imported} of ${data.total} ${schema.label.toLowerCase()}`, data.skipped > 0 ? 'info' : 'success');
-      if (onImported) onImported();
+      // Invalidate caches so all pages reflect the new data
+      api.invalidateCache('/reports/summary');
+      api.invalidateCache('/reports/expiring-soon');
+      api.invalidateCache('/reports/low-stock');
+      api.invalidateCache('/reports/sales-trend?days=30');
+      api.invalidateCache('/medicines');
+      api.invalidateCache('/batches');
+      api.invalidateCache('/suppliers');
+      api.invalidateCache('/transactions/recent');
     } catch (err) {
       setError(err.message || 'Import failed');
     } finally {
@@ -177,61 +183,55 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
 
   const mappedCount = Object.keys(mapping).length;
   const missingRequired = (schema.required || []).filter((f) => !mapping[f]);
-
   const stepIndex = STEPS.findIndex((s) => s.key === step);
 
+  if (availableTypes.length === 0) {
+    return (
+      <div className="page-shell">
+        <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+          <Database size={32} color="var(--steel)" style={{ marginBottom: 12 }} />
+          <h3>No import access</h3>
+          <p style={{ color: 'var(--steel)', fontSize: 13.5, margin: 0 }}>
+            Your role does not have permission to import data.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      icon={Upload}
-      title={`Import ${schema.label}`}
-      subtitle={schema.description}
-      footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 10 }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {stepIndex > 0 && step !== 'result' && (
-              <button type="button" className="btn btn-secondary" onClick={() => setStep(STEPS[stepIndex - 1].key)}>
-                <ArrowLeft size={14} /> Back
-              </button>
-            )}
-            {step === 'map' && (
-              <button type="button" className="btn btn-secondary" onClick={() => setStep('upload')}>
-                <ArrowLeft size={14} /> Change file
-              </button>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn btn-secondary" onClick={handleClose}>Close</button>
-            {step === 'upload' && (
-              <button type="button" className="btn btn-primary" onClick={() => fileInputRef.current?.click()} disabled={loading}>
-                <Upload size={15} /> Select CSV
-              </button>
-            )}
-            {step === 'map' && (
-              <button type="button" className="btn btn-primary" onClick={handleAnalyze} disabled={loading || missingRequired.length > 0}>
-                {loading ? <Loader2 size={15} className="spin" /> : <Table2 size={15} />}
-                {loading ? 'Analyzing…' : 'Analyze & preview'}
-              </button>
-            )}
-            {step === 'preview' && (
-              <button type="button" className="btn btn-primary" onClick={handleImport} disabled={loading || (analysis && analysis.valid === 0)}>
-                {loading ? <Loader2 size={15} className="spin" /> : <FileCheck2 size={15} />}
-                {loading ? 'Importing…' : `Import ${analysis?.valid || 0} rows`}
-              </button>
-            )}
-            {step === 'result' && (
-              <button type="button" className="btn btn-primary" onClick={handleClose}>
-                <CheckCircle2 size={15} /> Done
-              </button>
-            )}
+    <div className="page-shell">
+      <div className="page-header">
+        <div>
+          <h1>Data Import</h1>
+          <p>Bulk-import medicines, batches, transactions, and suppliers from CSV.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate}>
+            <FileSpreadsheet size={15} /> Download template
+          </button>
+          <button type="button" className="btn btn-primary" onClick={reset}>
+            <RefreshCw size={15} /> Start over
+          </button>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 24 }}>
+        {/* Import type selector */}
+        <div className="field">
+          <label>What are you importing?</label>
+          <select value={selectedType} onChange={(e) => handleTypeChange(e.target.value)}>
+            {availableTypes.map((t) => (
+              <option key={t} value={t}>{IMPORT_SCHEMAS[t]?.label || t}</option>
+            ))}
+          </select>
+          <div style={{ fontSize: 12, color: 'var(--steel)', marginTop: 4 }}>
+            {schema.description}
           </div>
         </div>
-      }
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
         {/* Step indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, marginTop: 16 }}>
           {STEPS.map((s, i) => (
             <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
               <div
@@ -247,34 +247,19 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
             </div>
           ))}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--steel)', fontWeight: 600 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--steel)', fontWeight: 600, marginBottom: 20 }}>
           {STEPS.map((s, i) => (
             <span key={s.key} style={{ color: i <= stepIndex ? 'var(--green-deep)' : 'var(--steel)' }}>{s.label}</span>
           ))}
         </div>
 
-        {/* Type selector (only when multiple types available) */}
-        {availableTypes.length > 1 && step === 'upload' && (
-          <div className="field">
-            <label>Import type</label>
-            <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)}>
-              {availableTypes.map((t) => (
-                <option key={t} value={t}>{IMPORT_SCHEMAS[t]?.label || t}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
         {/* STEP 1: Upload */}
         {step === 'upload' && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <div style={{ fontSize: 13, color: 'var(--steel)' }}>
                 Required columns: <strong>{schema.required.join(', ')}</strong>
               </div>
-              <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate} style={{ padding: '6px 12px', fontSize: 12 }}>
-                <FileSpreadsheet size={14} /> Download template
-              </button>
             </div>
 
             <div
@@ -297,7 +282,7 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
               style={{
                 border: '2px dashed var(--border-strong)',
                 borderRadius: 12,
-                padding: '28px 20px',
+                padding: '40px 20px',
                 textAlign: 'center',
                 cursor: 'pointer',
                 transition: 'border-color 0.2s, background 0.2s',
@@ -313,14 +298,14 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
               />
               {fileName ? (
                 <>
-                  <CheckCircle2 size={28} color="var(--green)" style={{ marginBottom: 8 }} />
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{fileName}</div>
+                  <CheckCircle2 size={32} color="var(--green)" style={{ marginBottom: 8 }} />
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>{fileName}</div>
                   <div style={{ fontSize: 12, color: 'var(--steel)', marginTop: 4 }}>Click to choose a different file</div>
                 </>
               ) : (
                 <>
-                  <Upload size={28} color="var(--amber)" style={{ marginBottom: 8 }} />
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>Click to select or drag & drop a CSV file</div>
+                  <Upload size={32} color="var(--amber)" style={{ marginBottom: 8 }} />
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>Click to select or drag & drop a CSV file</div>
                   <div style={{ fontSize: 12, color: 'var(--steel)', marginTop: 4 }}>.csv files only</div>
                 </>
               )}
@@ -331,17 +316,17 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
         {/* STEP 2: Column mapping */}
         {step === 'map' && (
           <>
-            <div style={{ fontSize: 13, color: 'var(--steel)' }}>
+            <div style={{ fontSize: 13, color: 'var(--steel)', marginBottom: 12 }}>
               Map your CSV columns to the {schema.label.toLowerCase()} fields. Auto-detected where possible.
             </div>
 
             {missingRequired.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--red-deep)', fontSize: 13, background: 'var(--red-tint)', padding: '10px 14px', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--red-deep)', fontSize: 13, background: 'var(--red-tint)', padding: '10px 14px', borderRadius: 10, marginBottom: 12 }}>
                 <AlertCircle size={16} /> Missing required columns: <strong>{missingRequired.join(', ')}</strong>
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto', paddingRight: 4 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
               {Object.entries(schema.fields).map(([fieldKey, fieldDef]) => (
                 <div key={fieldKey} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'center' }}>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>
@@ -362,7 +347,7 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
               ))}
             </div>
 
-            <div style={{ fontSize: 12, color: 'var(--steel)' }}>
+            <div style={{ fontSize: 12, color: 'var(--steel)', marginTop: 10 }}>
               {mappedCount} of {Object.keys(schema.fields).length} columns mapped
             </div>
           </>
@@ -371,7 +356,7 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
         {/* STEP 3: Preview & analysis */}
         {step === 'preview' && analysis && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
               <div style={{ background: 'var(--green-tint)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
                 <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--green-deep)' }}>{analysis.valid}</div>
                 <div style={{ fontSize: 11.5, color: 'var(--green-deep)', fontWeight: 600 }}>Valid rows</div>
@@ -387,18 +372,18 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
             </div>
 
             {analysis.missingRequired?.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--red-deep)', fontSize: 13, background: 'var(--red-tint)', padding: '10px 14px', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--red-deep)', fontSize: 13, background: 'var(--red-tint)', padding: '10px 14px', borderRadius: 10, marginBottom: 12 }}>
                 <AlertCircle size={16} /> Missing required columns: <strong>{analysis.missingRequired.join(', ')}</strong>
               </div>
             )}
 
             {analysis.unknownColumns?.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--amber)', fontSize: 13, background: 'var(--amber-tint)', padding: '10px 14px', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--amber)', fontSize: 13, background: 'var(--amber-tint)', padding: '10px 14px', borderRadius: 10, marginBottom: 12 }}>
                 <AlertCircle size={16} /> Unrecognized columns: <strong>{analysis.unknownColumns.join(', ')}</strong>
               </div>
             )}
 
-            <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10 }}>
+            <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10 }}>
               <table style={{ width: '100%', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-subtle)' }}>
@@ -437,7 +422,7 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
         {/* STEP 4: Result */}
         {step === 'result' && result && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
               <div style={{ background: 'var(--green-tint)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
                 <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--green-deep)' }}>{result.imported}</div>
                 <div style={{ fontSize: 11.5, color: 'var(--green-deep)', fontWeight: 600 }}>Imported</div>
@@ -470,11 +455,51 @@ export default function CsvImportModal({ open, onClose, type, types, onImported 
         )}
 
         {error && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--red-deep)', fontSize: 13, background: 'var(--red-tint)', padding: '10px 14px', borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--red-deep)', fontSize: 13, background: 'var(--red-tint)', padding: '10px 14px', borderRadius: 10, marginTop: 12 }}>
             <AlertCircle size={16} /> {error}
           </div>
         )}
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 20 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {stepIndex > 0 && step !== 'result' && (
+              <button type="button" className="btn btn-secondary" onClick={() => setStep(STEPS[stepIndex - 1].key)}>
+                <ArrowLeft size={14} /> Back
+              </button>
+            )}
+            {step === 'map' && (
+              <button type="button" className="btn btn-secondary" onClick={() => setStep('upload')}>
+                <ArrowLeft size={14} /> Change file
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {step === 'upload' && (
+              <button type="button" className="btn btn-primary" onClick={() => fileInputRef.current?.click()} disabled={loading}>
+                <Upload size={15} /> Select CSV
+              </button>
+            )}
+            {step === 'map' && (
+              <button type="button" className="btn btn-primary" onClick={handleAnalyze} disabled={loading || missingRequired.length > 0}>
+                {loading ? <Loader2 size={15} className="spin" /> : <Table2 size={15} />}
+                {loading ? 'Analyzing…' : 'Analyze & preview'}
+              </button>
+            )}
+            {step === 'preview' && (
+              <button type="button" className="btn btn-primary" onClick={handleImport} disabled={loading || (analysis && analysis.valid === 0)}>
+                {loading ? <Loader2 size={15} className="spin" /> : <FileCheck2 size={15} />}
+                {loading ? 'Importing…' : `Import ${analysis?.valid || 0} rows`}
+              </button>
+            )}
+            {step === 'result' && (
+              <button type="button" className="btn btn-primary" onClick={reset}>
+                <CheckCircle2 size={15} /> Import another file
+              </button>
+            )}
+          </div>
+        </div>
       </div>
-    </Modal>
+    </div>
   );
 }

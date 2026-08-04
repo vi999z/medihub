@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { IconPill, IconWallet, IconAlertTriangle, IconPackageOff, IconArrowUpRight, IconArrowDownRight, IconMinus, IconUpload } from '@tabler/icons-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import AnimatedNumber from '../components/AnimatedNumber';
 import Skeleton from '../components/Skeleton';
-import CsvImportModal from '../components/CsvImportModal';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -27,11 +27,11 @@ function TrendChip({ pct }) {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [summary, setSummary] = useState(null);
   const [expiring, setExpiring] = useState([]);
   const [lowStock, setLowStock] = useState([]);
   const [trend, setTrend] = useState([]);
-  const [showImport, setShowImport] = useState(false);
   const loading = summary === null;
 
   useEffect(() => {
@@ -79,40 +79,12 @@ export default function Dashboard() {
         </p>
         <button
           className="btn btn-primary"
-          onClick={() => setShowImport(true)}
+          onClick={() => navigate('/import')}
           style={{ position: 'absolute', top: 20, right: 24, zIndex: 2 }}
         >
           <IconUpload size={15} /> Import CSV
         </button>
       </div>
-
-      <CsvImportModal
-        open={showImport}
-        onClose={() => setShowImport(false)}
-        types={['medicines', 'batches', 'transactions', 'suppliers']}
-        onImported={() => {
-          api.invalidateCache('/reports/summary');
-          api.invalidateCache('/reports/expiring-soon');
-          api.invalidateCache('/reports/low-stock');
-          api.invalidateCache('/reports/sales-trend?days=30');
-          api.invalidateCache('/medicines');
-          api.invalidateCache('/batches');
-          api.invalidateCache('/suppliers');
-          api.invalidateCache('/transactions/recent');
-          // Reload dashboard data
-          Promise.all([
-            api.cachedGet('/reports/summary'),
-            api.cachedGet('/reports/expiring-soon'),
-            api.cachedGet('/reports/low-stock'),
-            api.cachedGet('/reports/sales-trend?days=30')
-          ]).then(([summaryRes, expiringRes, lowStockRes, trendRes]) => {
-            setSummary(summaryRes.data);
-            setExpiring(expiringRes.data);
-            setLowStock(lowStockRes.data);
-            setTrend(trendRes.data);
-          }).catch(() => {});
-        }}
-      />
 
       <div className="kpi-grid">
         {kpis.map((k, index) => (

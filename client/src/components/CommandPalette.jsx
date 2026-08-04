@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
-  IconBrain, IconTruck, IconUsers, IconFileText, IconTools, IconSearch
+  IconBrain, IconTruck, IconUsers, IconFileText, IconTools, IconSearch, IconDatabaseImport
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 
 const NAV_ACTIONS = [
   { to: '/dashboard', label: 'Dashboard', desc: 'Overview and KPIs', icon: IconLayoutDashboard },
+  { to: '/import', label: 'Data Import', desc: 'Bulk-import CSV data', icon: IconDatabaseImport },
   { to: '/medicines', label: 'Medicines', desc: 'Manage medicine catalog', icon: IconPill },
   { to: '/batches', label: 'Batches', desc: 'Stock batches and expiry', icon: IconPackage },
   { to: '/transactions', label: 'Transactions', desc: 'Stock movements', icon: IconReceipt },
