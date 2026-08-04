@@ -94,6 +94,8 @@ export default function Batches() {
     try {
       const res = await api.delete('/batches/depleted');
       api.invalidateCache('/batches');
+      api.invalidateCache('/notifications');
+      api.invalidateCache('/notifications?unread=true');
       await fetchAll();
       addToast(res.data.message || 'Depleted batches removed', 'success');
     } catch (err) {
@@ -195,6 +197,8 @@ export default function Batches() {
                       try {
                         await api.delete(`/batches/${b.id}`);
                         api.invalidateCache('/batches');
+                        api.invalidateCache('/notifications');
+                        api.invalidateCache('/notifications?unread=true');
                         await fetchAll();
                         addToast('Batch deleted', 'success');
                       } catch (err) {

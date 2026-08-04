@@ -93,6 +93,9 @@ export default function Medicines() {
     try {
       await api.delete(`/medicines/${id}`);
       api.invalidateCache('/medicines');
+      api.invalidateCache('/notifications');
+      api.invalidateCache('/notifications?unread=true');
+      api.invalidateCache('/batches');
       await fetchMedicines();
       addToast('Medicine deleted', 'success');
     } catch (err) {

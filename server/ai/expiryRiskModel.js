@@ -3,6 +3,22 @@ const { pool } = require('../config/db');
 const { calculateExpiryRisk } = require('./expiryRiskUtils');
 
 const FEATURE_KEYS = ['days_until_expiry_at_receipt', 'quantity_received', 'daily_velocity', 'reorder_level'];
+const MIN_TRAINING_SAMPLES = 15;
+const MODEL_NAME = 'expiry_risk';
+
+// ─── Ensure the ai_models table exists so training never fails on a missing table ───
+async function ensureAiModelsTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_models (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      model_name VARCHAR(50) NOT NULL UNIQUE,
+      weights_json LONGTEXT NOT NULL,
+      feature_stats_json TEXT NOT NULL,
+      training_samples INT DEFAULT 0,
+      trained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+}
 
 async function getVelocity(medicineId, days = 60) {
   const [rows] = await pool.query(
@@ -53,17 +69,26 @@ function buildModel() {
   return model;
 }
 
+// ─── Training ───
+// Handles: insufficient data, single-class labels, class imbalance, table creation, tensor cleanup
 async function trainAndPersist() {
+  await ensureAiModelsTable();
+
   const [resolved] = await pool.query(
     `SELECT b.*, m.reorder_level FROM batches b
      JOIN medicines m ON b.medicine_id = m.id
      WHERE b.status IN ('expired', 'depleted')`
   );
 
-  if (resolved.length < 15) {
-    return { trained: false, reason: `Only ${resolved.length} resolved batches so far — need at least 15 to train reliably. Using the heuristic fallback until then.` };
+  if (resolved.length < MIN_TRAINING_SAMPLES) {
+    return {
+      trained: false,
+      reason: `Only ${resolved.length} resolved batches so far — need at least ${MIN_TRAINING_SAMPLES} to train reliably. Using the heuristic fallback until then.`,
+      samples: resolved.length,
+    };
   }
 
+  // Build feature rows
   const featureRows = [];
   const labels = [];
   for (const batch of resolved) {
@@ -71,39 +96,114 @@ async function trainAndPersist() {
     labels.push(batch.status === 'expired' ? 1 : 0);
   }
 
+  // ─── Guard: if all labels are the same class, the model can't learn anything useful ───
+  const expiredCount = labels.filter((l) => l === 1).length;
+  const depletedCount = labels.length - expiredCount;
+  if (expiredCount === 0 || depletedCount === 0) {
+    return {
+      trained: false,
+      reason: `All resolved batches have the same outcome (${expiredCount ? 'all expired' : 'all depleted'}). Need a mix of both outcomes to train. Using the heuristic fallback.`,
+      samples: resolved.length,
+      expired_count: expiredCount,
+      depleted_count: depletedCount,
+    };
+  }
+
   const stats = computeStats(featureRows);
-  const xs = tf.tensor2d(normalize(featureRows, stats));
+  const normalized = normalize(featureRows, stats);
+
+  // ─── Class weighting: counteract imbalance so the minority class isn't ignored ───
+  // Weight = total / (2 * class_count) — standard balanced formula
+  const total = labels.length;
+  const weightExpired = total / (2 * expiredCount);
+  const weightDepleted = total / (2 * depletedCount);
+  const sampleWeights = labels.map((l) => (l === 1 ? weightExpired : weightDepleted));
+
+  const xs = tf.tensor2d(normalized);
   const ys = tf.tensor2d(labels, [labels.length, 1]);
+  const sw = tf.tensor1d(sampleWeights);
 
   const model = buildModel();
-  await model.fit(xs, ys, { epochs: 60, batchSize: 8, shuffle: true, verbose: 0 });
 
-  const weights = await Promise.all(model.getWeights().map((w) => w.array()));
+  try {
+    await model.fit(xs, ys, {
+      epochs: 60,
+      batchSize: Math.min(8, labels.length),
+      shuffle: true,
+      verbose: 0,
+      sampleWeight: sw,
+    });
 
-  await pool.query(
-    `INSERT INTO ai_models (model_name, weights_json, feature_stats_json, training_samples)
-     VALUES ('expiry_risk', ?, ?, ?)
-     ON DUPLICATE KEY UPDATE weights_json = VALUES(weights_json), feature_stats_json = VALUES(feature_stats_json),
-       training_samples = VALUES(training_samples), trained_at = CURRENT_TIMESTAMP`,
-    [JSON.stringify(weights), JSON.stringify(stats), resolved.length]
-  );
+    const weights = await Promise.all(model.getWeights().map((w) => w.array()));
 
-  xs.dispose(); ys.dispose();
-  return { trained: true, samples: resolved.length };
+    await pool.query(
+      `INSERT INTO ai_models (model_name, weights_json, feature_stats_json, training_samples)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE weights_json = VALUES(weights_json), feature_stats_json = VALUES(feature_stats_json),
+         training_samples = VALUES(training_samples), trained_at = CURRENT_TIMESTAMP`,
+      [MODEL_NAME, JSON.stringify(weights), JSON.stringify(stats), resolved.length]
+    );
+
+    return {
+      trained: true,
+      samples: resolved.length,
+      expired_count: expiredCount,
+      depleted_count: depletedCount,
+    };
+  } finally {
+    xs.dispose();
+    ys.dispose();
+    sw.dispose();
+    model.dispose();
+  }
 }
 
+// ─── Load persisted model with full error handling ───
+// Returns null if table missing, no rows, or weights are corrupted — caller falls back to heuristic
 async function loadPersistedModel() {
-  const [rows] = await pool.query(`SELECT * FROM ai_models WHERE model_name = 'expiry_risk' ORDER BY trained_at DESC LIMIT 1`);
-  if (!rows.length) return null;
+  try {
+    await ensureAiModelsTable();
 
-  const weightsArrays = JSON.parse(rows[0].weights_json);
-  const stats = JSON.parse(rows[0].feature_stats_json);
+    const [rows] = await pool.query(
+      `SELECT * FROM ai_models WHERE model_name = ? ORDER BY trained_at DESC LIMIT 1`,
+      [MODEL_NAME]
+    );
+    if (!rows.length) return null;
 
-  const model = buildModel();
-  const tensors = model.getWeights().map((w, i) => tf.tensor(weightsArrays[i], w.shape));
-  model.setWeights(tensors);
+    let weightsArrays, stats;
+    try {
+      weightsArrays = JSON.parse(rows[0].weights_json);
+      stats = JSON.parse(rows[0].feature_stats_json);
+    } catch {
+      console.warn('⚠️  Persisted AI model weights are corrupted — falling back to heuristic.');
+      return null;
+    }
 
-  return { model, stats, samples: rows[0].training_samples };
+    if (!Array.isArray(weightsArrays) || weightsArrays.length === 0) return null;
+
+    const model = buildModel();
+    try {
+      const modelWeights = model.getWeights();
+      // Validate that the stored weights match the model's expected shapes
+      if (weightsArrays.length !== modelWeights.length) {
+        console.warn('⚠️  Persisted AI model weights shape mismatch — falling back to heuristic.');
+        model.dispose();
+        return null;
+      }
+      const tensors = modelWeights.map((w, i) => tf.tensor(weightsArrays[i], w.shape));
+      model.setWeights(tensors);
+      tensors.forEach((t) => t.dispose());
+    } catch (err) {
+      console.warn('⚠️  Failed to load persisted AI model weights:', err.message);
+      model.dispose();
+      return null;
+    }
+
+    return { model, stats, samples: rows[0].training_samples };
+  } catch (err) {
+    console.warn('⚠️  Could not load persisted AI model:', err.message);
+    return null;
+  }
 }
 
 function heuristicRisk({ quantity_remaining, daily_velocity, days_left, reorder_level = 10 }) {
@@ -140,6 +240,8 @@ function describeRisk(riskScore, daysLeft, dailyVelocity, quantityRemaining) {
   };
 }
 
+// ─── Score all active batches ───
+// Falls back to heuristic per-batch if the model can't be loaded or crashes on a specific batch
 async function scoreActiveBatches() {
   const [batches] = await pool.query(
     `SELECT b.*, m.name AS medicine_name, m.reorder_level
@@ -147,53 +249,75 @@ async function scoreActiveBatches() {
      WHERE b.status = 'active' AND b.quantity_remaining > 0`
   );
 
+  if (!batches.length) return [];
+
   const persisted = await loadPersistedModel();
   const results = [];
 
-  for (const batch of batches) {
-    const velocity = await getVelocity(batch.medicine_id);
-    const daysLeft = Math.ceil((new Date(batch.expiry_date) - new Date()) / 86400000);
-    let risk, method;
+  try {
+    for (const batch of batches) {
+      const velocity = await getVelocity(batch.medicine_id);
+      const daysLeft = Math.ceil((new Date(batch.expiry_date) - new Date()) / 86400000);
+      let risk, method;
 
-    if (persisted) {
-      const daysUntilExpiryAtReceipt = Math.round((new Date(batch.expiry_date) - new Date(batch.date_received)) / 86400000);
-      const featureRow = {
-        days_until_expiry_at_receipt: daysUntilExpiryAtReceipt,
-        quantity_received: batch.quantity_received,
-        daily_velocity: velocity,
-        reorder_level: batch.reorder_level ?? 10,
-      };
-      const input = tf.tensor2d(normalize([featureRow], persisted.stats));
-      const prediction = persisted.model.predict(input);
-      risk = (await prediction.data())[0];
-      input.dispose(); prediction.dispose();
-      method = 'model';
-    } else {
-      risk = heuristicRisk({
+      if (persisted) {
+        try {
+          const daysUntilExpiryAtReceipt = Math.round((new Date(batch.expiry_date) - new Date(batch.date_received)) / 86400000);
+          const featureRow = {
+            days_until_expiry_at_receipt: daysUntilExpiryAtReceipt,
+            quantity_received: batch.quantity_received,
+            daily_velocity: velocity,
+            reorder_level: batch.reorder_level ?? 10,
+          };
+          const input = tf.tensor2d(normalize([featureRow], persisted.stats));
+          const prediction = persisted.model.predict(input);
+          risk = (await prediction.data())[0];
+          input.dispose();
+          prediction.dispose();
+          method = 'model';
+        } catch (err) {
+          // If the model fails on a specific batch, fall back to heuristic for this batch
+          console.warn(`⚠️  Model prediction failed for batch ${batch.id}, using heuristic:`, err.message);
+          risk = heuristicRisk({
+            quantity_remaining: batch.quantity_remaining,
+            daily_velocity: velocity,
+            days_left: daysLeft,
+            reorder_level: batch.reorder_level ?? 10,
+          });
+          method = 'heuristic';
+        }
+      } else {
+        risk = heuristicRisk({
+          quantity_remaining: batch.quantity_remaining,
+          daily_velocity: velocity,
+          days_left: daysLeft,
+          reorder_level: batch.reorder_level ?? 10,
+        });
+        method = 'heuristic';
+      }
+
+      const insight = describeRisk(risk, daysLeft, velocity, batch.quantity_remaining);
+
+      results.push({
+        batch_id: batch.id,
+        medicine_name: batch.medicine_name,
+        batch_number: batch.batch_number,
         quantity_remaining: batch.quantity_remaining,
-        daily_velocity: velocity,
         days_left: daysLeft,
-        reorder_level: batch.reorder_level ?? 10,
+        daily_velocity: Number(velocity.toFixed(2)),
+        risk_score: Number(risk.toFixed(3)),
+        method,
+        insight_label: insight.label,
+        insight_severity: insight.severity,
+        insight_message: insight.message,
+        action: insight.action,
       });
-      method = 'heuristic';
     }
-
-    const insight = describeRisk(risk, daysLeft, velocity, batch.quantity_remaining);
-
-    results.push({
-      batch_id: batch.id,
-      medicine_name: batch.medicine_name,
-      batch_number: batch.batch_number,
-      quantity_remaining: batch.quantity_remaining,
-      days_left: daysLeft,
-      daily_velocity: Number(velocity.toFixed(2)),
-      risk_score: Number(risk.toFixed(3)),
-      method,
-      insight_label: insight.label,
-      insight_severity: insight.severity,
-      insight_message: insight.message,
-      action: insight.action,
-    });
+  } finally {
+    // Always clean up the loaded model, even if scoring fails mid-loop
+    if (persisted) {
+      persisted.model.dispose();
+    }
   }
 
   return results.sort((a, b) => b.risk_score - a.risk_score);

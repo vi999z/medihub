@@ -12,6 +12,13 @@ async function clearLogs(req, res) {
 }
 
 async function removeExpiredBatches(req, res) {
+  // Get the IDs of expired batches so we can clean up their notifications too
+  const [batches] = await pool.query('SELECT id FROM batches WHERE status = ? OR expiry_date < CURDATE()', ['expired']);
+  if (batches.length) {
+    const batchIdList = batches.map((b) => b.id);
+    await pool.query('DELETE FROM notifications WHERE type IN (?, ?, ?) AND reference_id IN (?)', ['near_expiry', 'expired', 'ai_risk_flag', batchIdList]);
+  }
+
   const [result] = await pool.query('DELETE FROM batches WHERE status = ? OR expiry_date < CURDATE()', ['expired']);
   res.json({ message: `Removed ${result.affectedRows} expired batch(es).` });
 }

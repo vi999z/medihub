@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 
@@ -37,6 +37,37 @@ function TableSkeleton({ cols }) {
   );
 }
 
+function TrainBanner({ trainMsg, trainStatus }) {
+  if (!trainMsg) return null;
+
+  const config = {
+    success: { icon: CheckCircle2, color: 'var(--green)', bg: 'var(--green-tint)' },
+    error: { icon: AlertCircle, color: 'var(--red)', bg: 'var(--red-tint)' },
+    info: { icon: Info, color: 'var(--amber)', bg: 'var(--amber-tint)' },
+  };
+  const { icon: Icon, color, bg } = config[trainStatus] || config.info;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        padding: '12px 16px',
+        marginBottom: 16,
+        borderRadius: 12,
+        background: bg,
+        color,
+        fontSize: 13,
+        border: `1px solid ${color}33`,
+      }}
+    >
+      <Icon size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+      <span>{trainMsg}</span>
+    </div>
+  );
+}
+
 export default function AiInsights() {
   const { user } = useAuth();
   const [tab, setTab] = useState('risk');
@@ -46,6 +77,7 @@ export default function AiInsights() {
   const [loading, setLoading] = useState(true);
   const [training, setTraining] = useState(false);
   const [trainMsg, setTrainMsg] = useState('');
+  const [trainStatus, setTrainStatus] = useState('info'); // 'success' | 'error' | 'info'
   const [error, setError] = useState('');
 
   async function fetchAll() {
@@ -73,13 +105,37 @@ export default function AiInsights() {
   useEffect(() => { fetchAll(); }, []);
 
   async function handleTrain() {
-    setTraining(true); setTrainMsg('');
+    setTraining(true);
+    setTrainMsg('');
+    setTrainStatus('info');
     try {
       const res = await api.post('/ai/train');
-      setTrainMsg(res.data.trained ? `Model retrained on ${res.data.samples} resolved batches.` : res.data.reason);
-      fetchAll();
+      const data = res.data;
+
+      if (data.trained) {
+        setTrainStatus('success');
+        setTrainMsg(
+          `Model retrained successfully on ${data.samples} resolved batches ` +
+          `(${data.expired_count} expired, ${data.depleted_count} depleted). ` +
+          `Expiry risk scores now use the trained model instead of the heuristic fallback.`
+        );
+        // Refresh risk data so the new model's predictions are shown immediately
+        try {
+          const riskRes = await api.get('/ai/expiry-risk');
+          setRisk(riskRes.data || []);
+        } catch {
+          // Risk refresh is best-effort — the banner already confirms success
+        }
+      } else {
+        // Training was attempted but skipped — show the reason clearly
+        setTrainStatus('info');
+        setTrainMsg(data.reason || 'Training was skipped. The heuristic fallback is still in use.');
+      }
     } catch (err) {
-      setTrainMsg(err.response?.data?.error || 'Training failed');
+      setTrainStatus('error');
+      const serverError = err.response?.data?.error || 'Training failed';
+      const serverDetail = err.response?.data?.detail || err.message;
+      setTrainMsg(`${serverError}: ${serverDetail}`);
     } finally {
       setTraining(false);
     }
@@ -99,7 +155,7 @@ export default function AiInsights() {
         )}
       </div>
 
-      {trainMsg && <p style={{ fontSize: 13, color: 'var(--steel)', marginBottom: 16 }}>{trainMsg}</p>}
+      <TrainBanner trainMsg={trainMsg} trainStatus={trainStatus} />
 
       <div className="card" style={{ padding: 16, marginBottom: 16, background: 'linear-gradient(135deg, #fefcf8 0%, #f8ebdc 100%)' }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--amber)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>How these insights work</div>

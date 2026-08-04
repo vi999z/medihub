@@ -93,3 +93,13 @@ CREATE TABLE audit_logs (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
+
+-- 8. AI model persistence (stores trained TensorFlow.js weights for expiry risk model)
+CREATE TABLE ai_models (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  model_name VARCHAR(50) NOT NULL UNIQUE,
+  weights_json LONGTEXT NOT NULL,
+  feature_stats_json TEXT NOT NULL,
+  training_samples INT DEFAULT 0,
+  trained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);

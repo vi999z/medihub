@@ -68,20 +68,34 @@ async function forecastDemand(medicineId, horizonDays = 14) {
   const series = await getDailySales(medicineId, 90);
   const smoothed = movingAverage(series, 7);
 
+  // ─── Edge case: no sales data at all — can't forecast ───
+  const totalSales = smoothed.reduce((a, b) => a + b, 0);
+  if (totalSales === 0) {
+    return { forecast: Array(horizonDays).fill(0), avg_daily_demand: 0, trend: 'stable' };
+  }
+
   const xs = tf.tensor1d(smoothed.map((_, i) => i));
   const ys = tf.tensor1d(smoothed);
 
-  const xMean = xs.mean();
-  const yMean = ys.mean();
-  const xDev = xs.sub(xMean);
-  const yDev = ys.sub(yMean);
-  const slope = xDev.mul(yDev).sum().div(xDev.square().sum());
-  const intercept = yMean.sub(slope.mul(xMean));
+  let slopeVal, interceptVal;
+  const intermediateTensors = [];
+  try {
+    const xMean = xs.mean();
+    const yMean = ys.mean();
+    const xDev = xs.sub(xMean);
+    const yDev = ys.sub(yMean);
+    const slope = xDev.mul(yDev).sum().div(xDev.square().sum());
+    const intercept = yMean.sub(slope.mul(xMean));
+    intermediateTensors.push(xMean, yMean, xDev, yDev, slope, intercept);
 
-  const slopeVal = (await slope.data())[0];
-  const interceptVal = (await intercept.data())[0];
-
-  xs.dispose(); ys.dispose(); xMean.dispose(); yMean.dispose(); xDev.dispose(); yDev.dispose(); slope.dispose(); intercept.dispose();
+    slopeVal = (await slope.data())[0];
+    interceptVal = (await intercept.data())[0];
+  } finally {
+    // Always dispose all tensors — input and intermediate
+    intermediateTensors.forEach((t) => t.dispose());
+    xs.dispose();
+    ys.dispose();
+  }
 
   const lastIndex = smoothed.length - 1;
   const forecast = [];
