@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
+import Modal from '../components/Modal';
 
 const TYPES = ['sale', 'adjustment', 'disposal', 'return'];
 const TYPE_FILTERS = [{ value: 'all', label: 'All types' }, ...TYPES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))];
@@ -74,9 +75,20 @@ export default function Transactions() {
         </button>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
-          <div className="field">
+      <Modal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title="Record transaction"
+        subtitle="Log a stock movement — sale, adjustment, disposal, or return."
+        footer={
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+            <button type="submit" form="transaction-form" className="btn btn-primary">Save transaction</button>
+          </>
+        }
+      >
+        <form id="transaction-form" onSubmit={handleSubmit} className="form-grid">
+          <div className="field span-2">
             <label>Batch</label>
             <select value={form.batch_id} onChange={(e) => setForm({ ...form, batch_id: e.target.value })} required>
               <option value="">Select a batch</option>
@@ -92,14 +104,10 @@ export default function Transactions() {
             </select>
           </div>
           <div className="field"><label>Quantity</label><input type="number" min="1" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required /></div>
-          <div className="field"><label>Reason (optional)</label><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">Save transaction</button>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
-          </div>
-          {error && <p className="error-text" style={{ gridColumn: 'span 2' }}>{error}</p>}
+          <div className="field span-2"><label>Reason <span className="optional">(optional)</span></label><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
+          {error && <p className="error-text span-2">{error}</p>}
         </form>
-      )}
+      </Modal>
 
       <div className="card" style={{ padding: 16 }}>
         <div className="filter-bar">

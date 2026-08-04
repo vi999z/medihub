@@ -112,8 +112,9 @@ export default function Notifications() {
         </div>
 
         {!loading && visibleNotifications.length === 0 && (
-          <div className="empty-state" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <BellRing size={16} /> {notifications.length === 0 ? 'No alerts yet.' : 'No alerts match the current filters.'}
+          <div className="empty-state">
+            <div className="empty-icon"><BellRing size={22} /></div>
+            <span>{notifications.length === 0 ? 'No alerts yet.' : 'No alerts match the current filters.'}</span>
           </div>
         )}
 

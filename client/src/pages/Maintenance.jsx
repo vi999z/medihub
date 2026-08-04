@@ -47,11 +47,11 @@ export default function Maintenance() {
             disabled={loading !== null}
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: 22, gap: 12, textAlign: 'left', minHeight: 180 }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="maintenance-icon">
               <action.icon size={20} stroke={1.8} />
-              <strong>{action.label}</strong>
             </div>
-            <p style={{ margin: 0, color: 'var(--steel)', fontSize: 14 }}>{action.confirm}</p>
+            <strong>{action.label}</strong>
+            <p style={{ margin: 0, color: 'var(--steel)', fontSize: 13.5, lineHeight: 1.5 }}>{action.confirm}</p>
             <span className="btn btn-secondary" style={{ alignSelf: 'stretch', justifyContent: 'center' }}>
               {loading === action.key ? 'Working…' : 'Run action'}
             </span>

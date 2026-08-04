@@ -50,7 +50,10 @@ export default function AuditLog() {
         </div>
 
         {!loading && visibleLogs.length === 0 && (
-          <div className="empty-state">{logs.length === 0 ? 'No activity recorded yet.' : `No entries match “${search}”.`}</div>
+          <div className="empty-state">
+            <div className="empty-icon"><Search size={20} /></div>
+            <span>{logs.length === 0 ? 'No activity recorded yet.' : `No entries match “${search}”.`}</span>
+          </div>
         )}
 
         <table className="data-table">

@@ -66,51 +66,55 @@ export default function Dashboard() {
   ];
 
   return (
-    <>
-      <div className="page-shell">
-        <div className="hero-panel" style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 13, color: 'var(--steel)', marginBottom: 3 }}>Megawide Drug Pharmacy</p>
-          <h1 style={{ fontSize: 'clamp(1.25rem, 2.2vw, 1.7rem)', marginBottom: 6 }}>{getGreeting()}, {user?.full_name?.split(' ')[0] || 'there'}</h1>
-          <p style={{ margin: 0, color: 'var(--ink-soft)', fontSize: 13 }}>Live inventory health, expiry risk, and procurement insights in one view.</p>
-        </div>
+    <div className="page-shell">
+      <div className="hero-panel" style={{ marginBottom: 4 }}>
+        <p style={{ fontSize: 13, color: 'var(--steel)', marginBottom: 4, fontWeight: 600 }}>Megawide Drug Pharmacy</p>
+        <h1 style={{ fontSize: 'clamp(1.35rem, 2.4vw, 1.8rem)', marginBottom: 8 }}>{getGreeting()}, {user?.full_name?.split(' ')[0] || 'there'}</h1>
+        <p style={{ margin: 0, color: 'var(--ink-soft)', fontSize: 13.5, position: 'relative', zIndex: 1 }}>
+          Live inventory health, expiry risk, and procurement insights in one view.
+        </p>
+      </div>
 
       <div className="kpi-grid">
         {kpis.map((k) => (
           <div className="card kpi-card" key={k.label}>
             <div className="kpi-top">
               <div className="kpi-label">{k.label}</div>
-              <div className="icon-badge"><k.icon size={16} stroke={1.8} color="var(--steel)" /></div>
+              <div className="icon-badge"><k.icon size={17} stroke={1.8} /></div>
             </div>
             <div className="kpi-value">
-              {loading ? <Skeleton width={60} height={26} /> : <AnimatedNumber value={k.value} prefix={k.prefix} />}
+              {loading ? <Skeleton width={70} height={28} /> : <AnimatedNumber value={k.value} prefix={k.prefix} />}
             </div>
             {!loading && k.trend !== undefined && <TrendChip pct={k.trend} />}
           </div>
         ))}
       </div>
 
-      <div className="card" style={{ padding: '20px 24px', marginBottom: 20 }}>
+      <div className="card" style={{ padding: '22px 24px', marginBottom: 18 }}>
         <div className="section-title">
           <h3>Units sold — last 30 days</h3>
           {salesTrendPct !== null && <TrendChip pct={salesTrendPct} />}
         </div>
-        <div style={{ height: 200, marginTop: 8 }}>
+        <div style={{ height: 210, marginTop: 4 }}>
           {trend.length === 0 ? (
-            <Skeleton height={200} radius={8} />
+            <Skeleton height={210} radius={8} />
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trend}>
                 <defs>
                   <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--amber)" stopOpacity={0.25} />
+                    <stop offset="0%" stopColor="var(--amber)" stopOpacity={0.28} />
                     <stop offset="100%" stopColor="var(--amber)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--steel)' }} tickFormatter={(d) => d.slice(5)} axisLine={false} tickLine={false} minTickGap={30} />
-                <YAxis tick={{ fontSize: 11, fill: 'var(--steel)' }} axisLine={false} tickLine={false} width={30} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid var(--border)' }} />
-                <Area type="monotone" dataKey="units_sold" stroke="var(--amber)" strokeWidth={2} fill="url(#salesFill)" />
+                <YAxis tick={{ fontSize: 11, fill: 'var(--steel)' }} axisLine={false} tickLine={false} width={32} />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}
+                  formatter={(value) => [`${value} units`, 'Units sold']}
+                />
+                <Area type="monotone" dataKey="units_sold" stroke="var(--amber)" strokeWidth={2.5} fill="url(#salesFill)" />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -121,14 +125,20 @@ export default function Dashboard() {
         <div className="card" style={{ padding: 20 }}>
           <div className="section-title">
             <h3>Expiring soon</h3>
+            <span className="stamp">{expiring.length} batch{expiring.length === 1 ? '' : 'es'}</span>
           </div>
-          {loading && [1, 2, 3].map((i) => <Skeleton key={i} height={36} style={{ marginBottom: 8 }} />)}
-          {!loading && expiring.length === 0 && <p style={{ color: 'var(--steel)', fontSize: 13 }}>Nothing expiring in the next 30 days.</p>}
+          {loading && [1, 2, 3].map((i) => <Skeleton key={i} height={38} style={{ marginBottom: 8 }} />)}
+          {!loading && expiring.length === 0 && (
+            <div className="empty-state" style={{ padding: 20 }}>
+              <div className="empty-icon"><IconPackageOff size={20} /></div>
+              <span>Nothing expiring in the next 30 days.</span>
+            </div>
+          )}
           {expiring.map((b) => (
-            <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
+            <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
               <div>
-                <div style={{ fontWeight: 500, fontSize: 13 }}>{b.medicine_name}</div>
-                <span className="stamp" style={{ marginTop: 4 }}>{b.batch_number}</span>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{b.medicine_name}</div>
+                <span className="stamp" style={{ marginTop: 5 }}>{b.batch_number}</span>
               </div>
               <span className={`status-pill ${b.days_left <= 7 ? 'critical' : 'warning'}`}>{b.days_left}d left</span>
             </div>
@@ -138,18 +148,23 @@ export default function Dashboard() {
         <div className="card" style={{ padding: 20 }}>
           <div className="section-title">
             <h3>Low stock</h3>
+            <span className="stamp">{lowStock.length} item{lowStock.length === 1 ? '' : 's'}</span>
           </div>
-          {loading && [1, 2, 3].map((i) => <Skeleton key={i} height={36} style={{ marginBottom: 8 }} />)}
-          {!loading && lowStock.length === 0 && <p style={{ color: 'var(--steel)', fontSize: 13 }}>All medicines are above their reorder level.</p>}
+          {loading && [1, 2, 3].map((i) => <Skeleton key={i} height={38} style={{ marginBottom: 8 }} />)}
+          {!loading && lowStock.length === 0 && (
+            <div className="empty-state" style={{ padding: 20 }}>
+              <div className="empty-icon"><IconAlertTriangle size={20} /></div>
+              <span>All medicines are above their reorder level.</span>
+            </div>
+          )}
           {lowStock.map((m) => (
-            <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontWeight: 500, fontSize: 13 }}>{m.name}</div>
+            <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{m.name}</div>
               <span className="stamp">{m.total_remaining} / {m.reorder_level}</span>
             </div>
           ))}
         </div>
       </div>
-      </div>
-    </>
+    </div>
   );
 }

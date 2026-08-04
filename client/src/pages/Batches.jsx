@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
+import Modal from '../components/Modal';
 
 const STATUS_FILTERS = [
   { value: 'all', label: 'All statuses' },
@@ -172,8 +173,19 @@ export default function Batches() {
         </div>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+      <Modal
+        open={showForm}
+        onClose={resetForm}
+        title={editingId ? 'Edit batch' : 'Receive stock'}
+        subtitle={editingId ? 'Update the details of this stock batch.' : 'Record a new stock batch arrival.'}
+        footer={
+          <>
+            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
+            <button type="submit" form="batch-form" className="btn btn-primary">{editingId ? 'Update batch' : 'Save batch'}</button>
+          </>
+        }
+      >
+        <form id="batch-form" onSubmit={handleSubmit} className="form-grid">
           <div className="field">
             <label>Medicine</label>
             <select value={form.medicine_id} onChange={(e) => setForm({ ...form, medicine_id: e.target.value })} required>
@@ -200,13 +212,9 @@ export default function Batches() {
           <div className="field"><label>Cost price</label><input type="number" step="0.01" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} /></div>
           <div className="field"><label>Selling price</label><input type="number" step="0.01" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} /></div>
           <div className="field"><label>Status</label><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="active">Active</option><option value="recalled">Recalled</option><option value="depleted">Depleted</option><option value="expired">Expired</option></select></div>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">{editingId ? 'Update batch' : 'Save batch'}</button>
-            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
-          </div>
-          {error && <p className="error-text" style={{ gridColumn: 'span 2' }}>{error}</p>}
+          {error && <p className="error-text span-2">{error}</p>}
         </form>
-      )}
+      </Modal>
 
       <div className="card" style={{ padding: 16 }}>
         <div className="filter-bar">

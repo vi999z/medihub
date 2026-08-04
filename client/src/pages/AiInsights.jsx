@@ -164,17 +164,12 @@ export default function AiInsights() {
         </p>
       </div>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)' }}>
+      <div className="ai-tabs">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className="btn"
-            style={{
-              background: 'none', borderRadius: 0, padding: '10px 4px', marginRight: 20,
-              borderBottom: tab === t.key ? '2px solid var(--amber)' : '2px solid transparent',
-              color: tab === t.key ? 'var(--ink)' : 'var(--steel)', fontWeight: 600
-            }}
+            className={`ai-tab${tab === t.key ? ' active' : ''}`}
           >
             {t.label}
           </button>

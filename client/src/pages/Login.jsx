@@ -58,21 +58,27 @@ export default function Login() {
             </div>
           ) : (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                <div className="icon-badge" style={{ width: 42, height: 42, borderRadius: 12 }}><Pill size={20} color="var(--amber)" /></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                <div className="icon-badge" style={{ width: 44, height: 44, borderRadius: 13, boxShadow: '0 4px 12px rgba(165,100,23,0.2)' }}>
+                  <Pill size={22} />
+                </div>
                 <div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18 }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 19, letterSpacing: '-0.02em' }}>
                     MEDI<span style={{ color: 'var(--amber)' }}>HUB</span>
                   </div>
                   <div style={{ color: 'var(--steel)', fontSize: 12, marginTop: 2 }}>Pharmacy operations platform</div>
                 </div>
               </div>
-              <p style={{ color: 'var(--steel)', fontSize: 13, margin: '0 0 24px' }}>Secure access for inventory, procurement, and dispensing workflows.</p>
-              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div className="field"><label>Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
-                <div className="field"><label>Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
-                {error && <p className="error-text">{error}</p>}
-                <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', marginTop: 6 }} disabled={loading}>Log in</button>
+              <p style={{ color: 'var(--steel)', fontSize: 13.5, margin: '0 0 26px', lineHeight: 1.6 }}>
+                Secure access for inventory, procurement, and dispensing workflows.
+              </p>
+              <form onSubmit={handleSubmit}>
+                <div className="field"><label>Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@pharmacy.com" required /></div>
+                <div className="field"><label>Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required /></div>
+                {error && <p className="error-text" style={{ margin: '4px 0 0' }}>{error}</p>}
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 8, padding: '11px 16px' }} disabled={loading}>
+                  {loading ? 'Signing in…' : 'Log in'}
+                </button>
               </form>
             </>
           )}

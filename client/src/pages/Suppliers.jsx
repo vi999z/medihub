@@ -4,6 +4,7 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
+import Modal from '../components/Modal';
 
 export default function Suppliers() {
   const { user } = useAuth();
@@ -115,19 +116,26 @@ export default function Suppliers() {
         </div>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+      <Modal
+        open={showForm}
+        onClose={resetForm}
+        title={editingId ? 'Edit supplier' : 'Add supplier'}
+        subtitle={editingId ? 'Update this supplier’s details.' : 'Add a new supplier to your network.'}
+        footer={
+          <>
+            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
+            <button type="submit" form="supplier-form" className="btn btn-primary">{editingId ? 'Update supplier' : 'Save supplier'}</button>
+          </>
+        }
+      >
+        <form id="supplier-form" onSubmit={handleSubmit} className="form-grid">
           <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
           <div className="field"><label>Contact person</label><input value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
           <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
           <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-          <div className="field" style={{ gridColumn: 'span 2' }}><label>Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">{editingId ? 'Update supplier' : 'Save supplier'}</button>
-            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
-          </div>
+          <div className="field span-2"><label>Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
         </form>
-      )}
+      </Modal>
 
       <div className="card" style={{ padding: 16 }}>
         <div className="filter-bar">

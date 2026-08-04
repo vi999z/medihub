@@ -3,6 +3,7 @@ import { Plus, Pencil, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import Modal from '../components/Modal';
 
 export default function Users() {
   const { user: me } = useAuth();
@@ -82,8 +83,19 @@ export default function Users() {
         <button className="btn btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}><Plus size={15} /> {showForm ? 'Close form' : 'Add account'}</button>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+      <Modal
+        open={showForm}
+        onClose={resetForm}
+        title={editingId ? 'Edit account' : 'Add account'}
+        subtitle={editingId ? 'Update this user’s details.' : 'Create a new user account.'}
+        footer={
+          <>
+            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
+            <button type="submit" form="user-form" className="btn btn-primary">{editingId ? 'Update account' : 'Create account'}</button>
+          </>
+        }
+      >
+        <form id="user-form" onSubmit={handleSubmit} className="form-grid">
           <div className="field"><label>Full name</label><input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} required /></div>
           <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
           {!editingId && (
@@ -96,12 +108,8 @@ export default function Users() {
               <option value="admin">Admin</option>
             </select>
           </div>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">{editingId ? 'Update account' : 'Create account'}</button>
-            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
-          </div>
         </form>
-      )}
+      </Modal>
 
       <div className="card" style={{ padding: 16 }}>
         <div className="filter-bar">

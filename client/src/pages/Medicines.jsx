@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
+import Modal from '../components/Modal';
 
 const CATEGORY_OPTIONS = [
   'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
@@ -310,8 +311,19 @@ export default function Medicines() {
         </button>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+      <Modal
+        open={showForm}
+        onClose={resetForm}
+        title={editingId ? 'Edit medicine' : 'Add medicine'}
+        subtitle={editingId ? 'Update the details of this medicine.' : 'Add a new medicine to the catalog.'}
+        footer={
+          <>
+            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
+            <button type="submit" form="medicine-form" className="btn btn-primary">{editingId ? 'Update medicine' : 'Save medicine'}</button>
+          </>
+        }
+      >
+        <form id="medicine-form" onSubmit={handleSubmit} className="form-grid">
           <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
           <div className="field"><label>Generic name</label><input value={form.generic_name} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} /></div>
           <div className="field">
@@ -324,17 +336,13 @@ export default function Medicines() {
           <div className="field"><label>Strength</label><input value={form.strength} onChange={(e) => setForm({ ...form, strength: e.target.value })} /></div>
           <div className="field"><label>Unit</label><input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required /></div>
           <div className="field"><label>Reorder level</label><input type="number" value={form.reorder_level} onChange={(e) => setForm({ ...form, reorder_level: e.target.value })} /></div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+          <label className="filter-toggle" style={{ alignSelf: 'end' }}>
             <input type="checkbox" checked={form.requires_prescription} onChange={(e) => setForm({ ...form, requires_prescription: e.target.checked })} />
             Requires prescription
           </label>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">{editingId ? 'Update medicine' : 'Save medicine'}</button>
-            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
-          </div>
-          {error && <p className="error-text" style={{ gridColumn: 'span 2' }}>{error}</p>}
+          {error && <p className="error-text span-2">{error}</p>}
         </form>
-      )}
+      </Modal>
 
       <div className="card" style={{ padding: 16 }}>
         <div className="filter-bar">

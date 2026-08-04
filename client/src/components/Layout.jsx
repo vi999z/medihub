@@ -28,9 +28,9 @@ const ALL_ITEMS = [...NAV_ITEMS, ...ADMIN_ITEMS];
 
 function NavItem({ to, label, icon: Icon, isActive }) {
   return (
-    <NavLink to={to} className={`nav-link-wrapper${isActive ? ' active' : ''}`}>
+    <NavLink to={to} className={`nav-link-wrapper${isActive ? ' active' : ''}`} title={label}>
       {isActive && <motion.div layoutId="nav-pill" className="nav-pill-bg" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />}
-      <span className="nav-link-content"><Icon size={16} stroke={1.8} /> {label}</span>
+      <span className="nav-link-content"><Icon size={17} stroke={1.8} /> <span>{label}</span></span>
     </NavLink>
   );
 }
@@ -107,7 +107,7 @@ function TopBar({ pageTitle }) {
   return (
     <header className="topbar">
       <div className="breadcrumb">{pageTitle}</div>
-      <div className="topbar-actions" style={{ flex: 1, justifyContent: 'flex-end' }}>
+      <div className="topbar-actions">
         <form className="search-bar" ref={searchRef} onSubmit={handleSearchSubmit} role="search">
           <IconSearch size={15} className="search-icon" stroke={1.8} />
           <input
@@ -130,7 +130,7 @@ function TopBar({ pageTitle }) {
           )}
         </form>
 
-        <button className="icon-btn" onClick={() => navigate('/notifications')}>
+        <button className="icon-btn" onClick={() => navigate('/notifications')} title="Alerts">
           <IconBellRinging size={18} stroke={1.8} />
           {unread > 0 && <span className="dot-badge" />}
         </button>
@@ -169,23 +169,31 @@ export default function Layout({ children }) {
     document.title = title;
   }, [pageTitle]);
 
+  const year = new Date().getFullYear();
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-logo"><span className="dot" />MEDI<span>HUB</span></div>
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div className="nav-section-label">Operations</div>
           {NAV_ITEMS.map((item) => <NavItem key={item.to} {...item} isActive={location.pathname === item.to} />)}
           {user.role === 'admin' && (
             <>
-              <div style={{ borderTop: '1px solid var(--border)', margin: '10px 8px' }} />
+              <div className="nav-section-label">Administration</div>
               {ADMIN_ITEMS.map((item) => <NavItem key={item.to} {...item} isActive={location.pathname === item.to} />)}
             </>
           )}
         </nav>
+        <div className="sidebar-footer">
+          <strong>Megawide Drug Pharmacy</strong>
+          Inventory Management System
+          <br />© {year}
+        </div>
       </aside>
       <div className="shell-main">
         <TopBar pageTitle={pageTitle} />
-        <main className="main-content" style={{ position: 'relative' }}>
+        <main className="main-content">
           <motion.div
             key={location.pathname}
             initial={false}
