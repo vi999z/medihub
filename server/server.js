@@ -11,10 +11,11 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const { startExpiryMonitor } = require('./jobs/expiryMonitor');
 const reportRoutes = require('./routes/reportRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const csvImportRoutes = require('./routes/csvImportRoutes');
 
 const app = express();
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || '*' }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'MediHub API running' });
@@ -31,6 +32,7 @@ app.use('/api/suppliers', require('./routes/supplierRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/audit-logs', require('./routes/auditRoutes'));
 app.use('/api/maintenance', require('./routes/maintenanceRoutes'));
+app.use('/api/import', csvImportRoutes);
 
 const clientDist = path.join(__dirname, '../client/dist');
 if (require('fs').existsSync(clientDist)) {

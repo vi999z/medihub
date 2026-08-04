@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, RefreshCw, Pencil, Download, Search, X } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Pencil, Download, Search, X, Upload } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import Modal from '../components/Modal';
+import CsvImportModal from '../components/CsvImportModal';
 
 export default function Suppliers() {
   const { user } = useAuth();
@@ -12,6 +13,7 @@ export default function Suppliers() {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ name: '', contact_person: '', phone: '', email: '', address: '' });
@@ -109,12 +111,25 @@ export default function Suppliers() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-secondary" onClick={handleExport}><Download size={15} /> Export CSV</button>
+          {user.role === 'admin' && (
+            <button className="btn btn-secondary" onClick={() => setShowImport(true)}><Upload size={15} /> Import CSV</button>
+          )}
           <button className="btn btn-secondary" onClick={handleRefresh}><RefreshCw size={15} /> Refresh</button>
           {user.role === 'admin' && (
             <button className="btn btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}><Plus size={15} /> {showForm ? 'Close form' : 'Add supplier'}</button>
           )}
         </div>
       </div>
+
+      <CsvImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        type="suppliers"
+        onImported={() => {
+          api.invalidateCache('/suppliers');
+          fetchAll();
+        }}
+      />
 
       <Modal
         open={showForm}

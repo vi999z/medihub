@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Pencil, Download, Search, X } from 'lucide-react';
+import { Plus, Trash2, Pencil, Download, Search, X, Upload } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
 import Modal from '../components/Modal';
+import CsvImportModal from '../components/CsvImportModal';
 
 const STATUS_FILTERS = [
   { value: 'all', label: 'All statuses' },
@@ -33,6 +34,7 @@ export default function Batches() {
   const [medicines, setMedicines] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({
     medicine_id: '', supplier_id: '', batch_number: '', quantity_received: '',
@@ -162,6 +164,9 @@ export default function Batches() {
           <button className="btn btn-secondary" onClick={handleExport}>
             <Download size={15} /> Export CSV
           </button>
+          <button className="btn btn-secondary" onClick={() => setShowImport(true)}>
+            <Upload size={15} /> Import CSV
+          </button>
           {user.role === 'admin' && (
             <button className="btn btn-secondary" onClick={handleRemoveDepleted}>
               <Trash2 size={15} /> Remove depleted
@@ -172,6 +177,17 @@ export default function Batches() {
           </button>
         </div>
       </div>
+
+      <CsvImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        type="batches"
+        onImported={() => {
+          api.invalidateCache('/batches');
+          api.invalidateCache('/medicines');
+          fetchAll();
+        }}
+      />
 
       <Modal
         open={showForm}
