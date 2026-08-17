@@ -1,13 +1,7 @@
 const batchModel = require('../models/batchModel');
 const medicineModel = require('../models/medicineModel');
 const { pool } = require('../config/db');
-
-async function logAudit(userId, action, details, req) {
-  await pool.query(
-    'INSERT INTO audit_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
-    [userId, action, details, req.ip]
-  );
-}
+const { logAudit } = require('../utils/auditLogger');
 
 async function getAll(req, res) {
   const batches = await batchModel.getAll();

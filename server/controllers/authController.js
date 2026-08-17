@@ -2,13 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const userModel = require('../models/userModel');
 const { pool } = require('../config/db');
-
-async function logAudit(userId, action, details, req) {
-  await pool.query(
-    'INSERT INTO audit_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
-    [userId, action, details, req.ip]
-  );
-}
+const { logAudit } = require('../utils/auditLogger');
 
 // POST /api/auth/login
 async function login(req, res) {

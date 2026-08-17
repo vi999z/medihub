@@ -1,5 +1,6 @@
 const userModel = require('../models/userModel');
 const { pool } = require('../config/db');
+const { logAudit } = require('../utils/auditLogger');
 
 async function getAll(req, res) {
   res.json(await userModel.getAllUsers());
@@ -30,10 +31,7 @@ async function update(req, res) {
     is_active: is_active === undefined ? existing.is_active : !!is_active
   });
 
-  await pool.query(
-    'INSERT INTO audit_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
-    [req.user.id, 'updated_user', `Updated user ${req.params.id}`, req.ip]
-  );
+  await logAudit(req.user.id, 'updated_user', `Updated user ${req.params.id}`, req);
 
   res.json({ success: true, user: { ...existing, full_name, email, role, is_active: is_active === undefined ? existing.is_active : !!is_active } });
 }
@@ -44,10 +42,7 @@ async function setStatus(req, res) {
     return res.status(400).json({ error: "You can't change your own status" });
   }
   await userModel.setActive(req.params.id, !!is_active);
-  await pool.query(
-    'INSERT INTO audit_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
-    [req.user.id, 'changed_user_status', `Set user ${req.params.id} active=${!!is_active}`, req.ip]
-  );
+  await logAudit(req.user.id, 'changed_user_status', `Set user ${req.params.id} active=${!!is_active}`, req);
   res.json({ success: true });
 }
 
@@ -57,10 +52,7 @@ async function remove(req, res) {
   }
 
   await userModel.setActive(req.params.id, false);
-  await pool.query(
-    'INSERT INTO audit_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
-    [req.user.id, 'deleted_user', `Deactivated user ${req.params.id}`, req.ip]
-  );
+  await logAudit(req.user.id, 'deleted_user', `Deactivated user ${req.params.id}`, req);
   res.json({ success: true });
 }
 

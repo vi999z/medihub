@@ -1,13 +1,7 @@
 const { pool } = require('../config/db');
 const transactionModel = require('../models/transactionModel');
 const batchModel = require('../models/batchModel');
-
-async function logAudit(userId, action, details, req) {
-  await pool.query(
-    'INSERT INTO audit_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
-    [userId, action, details, req.ip]
-  );
-}
+const { logAudit } = require('../utils/auditLogger');
 
 // POST /api/transactions
 // transaction_type: 'sale' | 'adjustment' | 'disposal' | 'return' (stock_in handled separately via batch creation)

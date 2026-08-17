@@ -1,14 +1,8 @@
 const medicineModel = require('../models/medicineModel');
 const { pool } = require('../config/db');
+const { logAudit } = require('../utils/auditLogger');
 const { parse } = require('csv-parse');
 const fs = require('fs');
-
-async function logAudit(userId, action, details, req) {
-  await pool.query(
-    'INSERT INTO audit_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
-    [userId, action, details, req.ip]
-  );
-}
 
 async function getAll(req, res) {
   const medicines = await medicineModel.getAll();

@@ -2,14 +2,7 @@ const { trainAndPersist, scoreActiveBatches } = require('../ai/expiryRiskModel')
 const { pool } = require('../config/db');
 const { getReorderSuggestions } = require('../ai/demandForecastModel');
 const { detectAnomalies } = require('../ai/anomalyDetection');
-
-
-async function logAudit(userId, action, details, req) {
-  await pool.query(
-    'INSERT INTO audit_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
-    [userId, action, details, req.ip]
-  );
-}
+const { logAudit } = require('../utils/auditLogger');
 
 // GET /api/ai/expiry-risk
 async function getExpiryRisk(req, res) {
