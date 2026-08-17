@@ -34,9 +34,14 @@ app.use('/api/maintenance', require('./routes/maintenanceRoutes'));
 
 const clientDist = path.join(__dirname, '../client/dist');
 if (require('fs').existsSync(clientDist)) {
-  app.use(express.static(clientDist));
+  app.use(express.static(clientDist, {
+    index: 'index.html',
+    fallthrough: true // Let the next middleware handle if file not found
+  }));
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
+    // Skip static assets
+    if (req.path.includes('.')) return res.status(404).json({ error: 'Not found' });
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }
