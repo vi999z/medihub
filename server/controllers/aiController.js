@@ -78,9 +78,9 @@ async function chat(req, res) {
       return res.status(400).json({ error: 'Question is required' });
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      console.error('OPENROUTER_API_KEY is not set in environment variables');
+      console.error('GROQ_API_KEY is not set in environment variables');
       return res.status(500).json({ error: 'AI service not configured. Please contact administrator.' });
     }
 
@@ -112,17 +112,15 @@ CURRENT INVENTORY DATA:
 - Reorder suggestions: ${JSON.stringify(reorderSuggestions)}
 - Anomalies detected: ${JSON.stringify(anomalies)}`;
 
-    // Call OpenRouter API
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    // Call Groq API
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
-        'X-Title': 'MediHub',
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-3-8b-instruct:free', // Free model from OpenRouter
+        model: 'llama3-8b-8192', // Free model from Groq
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: question }
@@ -134,14 +132,14 @@ CURRENT INVENTORY DATA:
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenRouter API error:', response.status, errorText);
+      console.error('Groq API error:', response.status, errorText);
       try {
         const errorData = JSON.parse(errorText);
-        console.error('OpenRouter error details:', errorData);
+        console.error('Groq error details:', errorData);
       } catch (e) {
         console.error('Could not parse error response');
       }
-      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+      throw new Error(`Groq API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
@@ -161,8 +159,8 @@ CURRENT INVENTORY DATA:
     console.error('Error details:', {
       message: err.message,
       stack: err.stack,
-      hasApiKey: !!process.env.OPENROUTER_API_KEY,
-      apiKeyPrefix: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.substring(0, 8) + '...' : 'none'
+      hasApiKey: !!process.env.GROQ_API_KEY,
+      apiKeyPrefix: process.env.GROQ_API_KEY ? process.env.GROQ_API_KEY.substring(0, 8) + '...' : 'none'
     });
     
     if (err.message?.includes('API key') || err.message?.includes('401')) {
@@ -171,7 +169,7 @@ CURRENT INVENTORY DATA:
     if (err.message?.includes('quota') || err.message?.includes('rate limit') || err.message?.includes('429')) {
       return res.status(429).json({ error: 'AI service rate limit exceeded. Please try again later.' });
     }
-    if (err.message?.includes('OpenRouter')) {
+    if (err.message?.includes('Groq')) {
       return res.status(500).json({ error: `AI service error: ${err.message}` });
     }
     res.status(500).json({ error: 'Failed to process question. Please try again.' });
