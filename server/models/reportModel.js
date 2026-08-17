@@ -81,4 +81,15 @@ async function getSalesTrend(days = 30) {
   return series;
 }
 
-module.exports = { getSummary, getExpiringSoon, getLowStock, getSalesTrend };
+async function getByCategory() {
+  const [rows] = await pool.query(
+    `SELECT COALESCE(m.category, 'Uncategorized') AS name, COUNT(*) AS count
+     FROM medicines m
+     LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active'
+     GROUP BY m.category
+     ORDER BY count DESC`
+  );
+  return rows;
+}
+
+module.exports = { getSummary, getExpiringSoon, getLowStock, getSalesTrend, getByCategory };

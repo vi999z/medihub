@@ -11,6 +11,14 @@ export function AuthProvider({ children }) {
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
+    api.setAuthLogout(() => {
+      setUser(null);
+      setAuthReady(true);
+      window.location.href = '/login';
+    });
+  }, []);
+
+  useEffect(() => {
     async function hydrate() {
       const token = localStorage.getItem('medihub_token');
       if (!token) {
@@ -48,6 +56,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('medihub_token');
     localStorage.removeItem('medihub_user');
     setUser(null);
+    window.location.href = '/login';
   }
 
   return (

@@ -5,6 +5,7 @@ const { calculateExpiryRisk } = require('./expiryRiskUtils');
 const FEATURE_KEYS = ['days_until_expiry_at_receipt', 'quantity_received', 'daily_velocity', 'reorder_level'];
 const MIN_TRAINING_SAMPLES = 15;
 const MODEL_NAME = 'expiry_risk';
+const AUTO_RETRAIN_INTERVAL_DAYS = 7;
 
 // ─── Ensure the ai_models table exists so training never fails on a missing table ───
 async function ensureAiModelsTable() {
@@ -15,6 +16,8 @@ async function ensureAiModelsTable() {
       weights_json LONGTEXT NOT NULL,
       feature_stats_json TEXT NOT NULL,
       training_samples INT DEFAULT 0,
+      training_loss FLOAT,
+      training_accuracy FLOAT,
       trained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `);
@@ -33,16 +36,21 @@ async function getVelocity(medicineId, days = 60) {
 }
 
 async function buildFeatureRow(batch) {
-  const velocity = await getVelocity(batch.medicine_id);
-  const daysUntilExpiryAtReceipt = Math.round(
-    (new Date(batch.expiry_date) - new Date(batch.date_received)) / 86400000
-  );
-  return {
-    days_until_expiry_at_receipt: daysUntilExpiryAtReceipt,
-    quantity_received: batch.quantity_received,
-    daily_velocity: velocity,
-    reorder_level: batch.reorder_level ?? 10,
-  };
+  try {
+    const velocity = await getVelocity(batch.medicine_id);
+    const daysUntilExpiryAtReceipt = Math.round(
+      (new Date(batch.expiry_date) - new Date(batch.date_received)) / 86400000
+    );
+    return {
+      days_until_expiry_at_receipt: daysUntilExpiryAtReceipt,
+      quantity_received: batch.quantity_received,
+      daily_velocity: velocity,
+      reorder_level: batch.reorder_level ?? 10,
+    };
+  } catch (err) {
+    console.error(`Failed to build feature row for batch ${batch.id}:`, err.message);
+    throw err;
+  }
 }
 
 function computeStats(rows) {
@@ -88,12 +96,28 @@ async function trainAndPersist() {
     };
   }
 
-  // Build feature rows
+  // Build feature rows with error handling - skip bad batches instead of failing all
   const featureRows = [];
   const labels = [];
+  const skippedBatches = [];
   for (const batch of resolved) {
-    featureRows.push(await buildFeatureRow(batch));
-    labels.push(batch.status === 'expired' ? 1 : 0);
+    try {
+      const row = await buildFeatureRow(batch);
+      featureRows.push(row);
+      labels.push(batch.status === 'expired' ? 1 : 0);
+    } catch (err) {
+      console.warn(`Skipping batch ${batch.id} due to feature extraction error:`, err.message);
+      skippedBatches.push(batch.id);
+    }
+  }
+
+  if (featureRows.length < MIN_TRAINING_SAMPLES) {
+    return {
+      trained: false,
+      reason: `After skipping ${skippedBatches.length} problematic batches, only ${featureRows.length} valid batches remain — need at least ${MIN_TRAINING_SAMPLES} to train reliably. Using the heuristic fallback until then.`,
+      samples: featureRows.length,
+      skipped_batches: skippedBatches,
+    };
   }
 
   // ─── Guard: if all labels are the same class, the model can't learn anything useful ───
@@ -125,30 +149,49 @@ async function trainAndPersist() {
 
   const model = buildModel();
 
+  let finalLoss = null;
+  let finalAccuracy = null;
   try {
-    await model.fit(xs, ys, {
+    const history = await model.fit(xs, ys, {
       epochs: 60,
       batchSize: Math.min(8, labels.length),
       shuffle: true,
       verbose: 0,
       sampleWeight: sw,
+      validationSplit: 0.2,
     });
+
+    finalLoss = history.history.loss[history.history.loss.length - 1];
+    finalAccuracy = history.history.acc ? history.history.acc[history.history.acc.length - 1] : null;
 
     const weights = await Promise.all(model.getWeights().map((w) => w.array()));
 
-    await pool.query(
-      `INSERT INTO ai_models (model_name, weights_json, feature_stats_json, training_samples)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE weights_json = VALUES(weights_json), feature_stats_json = VALUES(feature_stats_json),
-         training_samples = VALUES(training_samples), trained_at = CURRENT_TIMESTAMP`,
-      [MODEL_NAME, JSON.stringify(weights), JSON.stringify(stats), resolved.length]
-    );
+    // Use transaction to prevent partial updates on failure
+    await pool.query('START TRANSACTION');
+    try {
+      await pool.query(
+        `DELETE FROM ai_models WHERE model_name = ?`,
+        [MODEL_NAME]
+      );
+      await pool.query(
+        `INSERT INTO ai_models (model_name, weights_json, feature_stats_json, training_samples, training_loss, training_accuracy)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [MODEL_NAME, JSON.stringify(weights), JSON.stringify(stats), featureRows.length, finalLoss, finalAccuracy]
+      );
+      await pool.query('COMMIT');
+    } catch (dbErr) {
+      await pool.query('ROLLBACK');
+      throw dbErr;
+    }
 
     return {
       trained: true,
-      samples: resolved.length,
+      samples: featureRows.length,
       expired_count: expiredCount,
       depleted_count: depletedCount,
+      skipped_batches: skippedBatches,
+      training_loss: Number(finalLoss?.toFixed(4) || null),
+      training_accuracy: finalAccuracy ? Number(finalAccuracy.toFixed(4)) : null,
     };
   } finally {
     xs.dispose();
@@ -199,7 +242,14 @@ async function loadPersistedModel() {
       return null;
     }
 
-    return { model, stats, samples: rows[0].training_samples };
+    return { 
+      model, 
+      stats, 
+      samples: rows[0].training_samples,
+      training_loss: rows[0].training_loss,
+      training_accuracy: rows[0].training_accuracy,
+      trained_at: rows[0].trained_at
+    };
   } catch (err) {
     console.warn('⚠️  Could not load persisted AI model:', err.message);
     return null;
@@ -274,6 +324,8 @@ async function scoreActiveBatches() {
           risk = (await prediction.data())[0];
           input.dispose();
           prediction.dispose();
+          // Ensure bounded output between 0 and 1
+          risk = Math.max(0, Math.min(1, risk));
           method = 'model';
         } catch (err) {
           // If the model fails on a specific batch, fall back to heuristic for this batch
@@ -293,6 +345,8 @@ async function scoreActiveBatches() {
           days_left: daysLeft,
           reorder_level: batch.reorder_level ?? 10,
         });
+        // Ensure bounded output between 0 and 1
+        risk = Math.max(0, Math.min(1, risk));
         method = 'heuristic';
       }
 
@@ -323,4 +377,81 @@ async function scoreActiveBatches() {
   return results.sort((a, b) => b.risk_score - a.risk_score);
 }
 
-module.exports = { trainAndPersist, scoreActiveBatches };
+// ─── Check if automatic retraining is needed ───
+async function shouldRetrain() {
+  try {
+    await ensureAiModelsTable();
+    const [rows] = await pool.query(
+      `SELECT trained_at, training_samples FROM ai_models WHERE model_name = ? ORDER BY trained_at DESC LIMIT 1`,
+      [MODEL_NAME]
+    );
+    
+    if (!rows.length) return { should: true, reason: 'No trained model exists' };
+    
+    const lastModel = rows[0];
+    const daysSinceTraining = Math.floor((new Date() - new Date(lastModel.trained_at)) / 86400000);
+    
+    // Check if enough new data has accumulated
+    const [resolved] = await pool.query(
+      `SELECT COUNT(*) as count FROM batches WHERE status IN ('expired', 'depleted') AND created_at > ?`,
+      [lastModel.trained_at]
+    );
+    const newSamples = resolved[0].count;
+    
+    if (daysSinceTraining >= AUTO_RETRAIN_INTERVAL_DAYS && newSamples >= 5) {
+      return { 
+        should: true, 
+        reason: `${daysSinceTraining} days since last training with ${newSamples} new resolved batches`,
+        days_since_training: daysSinceTraining,
+        new_samples: newSamples
+      };
+    }
+    
+    return { 
+      should: false, 
+      reason: `Last trained ${daysSinceTraining} days ago with only ${newSamples} new batches (threshold: ${AUTO_RETRAIN_INTERVAL_DAYS} days, 5 batches)`,
+      days_since_training: daysSinceTraining,
+      new_samples: newSamples
+    };
+  } catch (err) {
+    console.error('Error checking retraining status:', err.message);
+    return { should: false, reason: 'Error checking retraining status' };
+  }
+}
+
+// ─── Get training diagnostics ───
+async function getTrainingDiagnostics() {
+  try {
+    await ensureAiModelsTable();
+    const [rows] = await pool.query(
+      `SELECT * FROM ai_models WHERE model_name = ? ORDER BY trained_at DESC LIMIT 1`,
+      [MODEL_NAME]
+    );
+    
+    if (!rows.length) {
+      return {
+        has_model: false,
+        message: 'No trained model exists'
+      };
+    }
+    
+    const model = rows[0];
+    const retrainCheck = await shouldRetrain();
+    
+    return {
+      has_model: true,
+      trained_at: model.trained_at,
+      training_samples: model.training_samples,
+      training_loss: model.training_loss,
+      training_accuracy: model.training_accuracy,
+      days_since_training: Math.floor((new Date() - new Date(model.trained_at)) / 86400000),
+      should_retrain: retrainCheck.should,
+      retrain_reason: retrainCheck.reason
+    };
+  } catch (err) {
+    console.error('Error getting training diagnostics:', err.message);
+    return { has_model: false, message: 'Error retrieving diagnostics' };
+  }
+}
+
+module.exports = { trainAndPersist, scoreActiveBatches, shouldRetrain, getTrainingDiagnostics };

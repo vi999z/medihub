@@ -11,26 +11,29 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
-  { to: '/medicines', label: 'Medicines', icon: IconPill },
-  { to: '/batches', label: 'Batches', icon: IconPackage },
-  { to: '/transactions', label: 'Transactions', icon: IconReceipt },
-  { to: '/notifications', label: 'Alerts', icon: IconBellRinging },
-  { to: '/ai-insights', label: 'AI Insights', icon: IconBrain },
-  { to: '/suppliers', label: 'Suppliers', icon: IconTruck },
+  { to: '/dashboard', label: 'Dashboard', icon: IconLayoutDashboard, section: 'MAIN MENU' },
+  { to: '/medicines', label: 'Medicines', icon: IconPill, section: 'MAIN MENU' },
+  { to: '/batches', label: 'Batches', icon: IconPackage, section: 'MAIN MENU' },
+  { to: '/transactions', label: 'Transactions', icon: IconReceipt, section: 'MAIN MENU' },
+  { to: '/notifications', label: 'Alerts', icon: IconBellRinging, section: 'MAIN MENU' },
+  { to: '/ai-insights', label: 'AI Insights', icon: IconBrain, section: 'OPERATIONS' },
+  { to: '/suppliers', label: 'Suppliers', icon: IconTruck, section: 'OPERATIONS' },
 ];
 const ADMIN_ITEMS = [
-  { to: '/users', label: 'Users', icon: IconUsers },
-  { to: '/audit-log', label: 'Audit Log', icon: IconFileText },
-  { to: '/maintenance', label: 'Maintenance', icon: IconTools },
+  { to: '/users', label: 'Users', icon: IconUsers, section: 'ADMIN' },
+  { to: '/audit-log', label: 'Audit Log', icon: IconFileText, section: 'ADMIN' },
+  { to: '/maintenance', label: 'Maintenance', icon: IconTools, section: 'ADMIN' },
 ];
 const ALL_ITEMS = [...NAV_ITEMS, ...ADMIN_ITEMS];
 
-function NavItem({ to, label, icon: Icon, isActive }) {
+function NavItem({ to, label, icon: Icon, isActive, showLabel }) {
   return (
     <NavLink to={to} className={`nav-link-wrapper${isActive ? ' active' : ''}`}>
-      {isActive && <motion.div layoutId="nav-pill" className="nav-pill-bg" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />}
-      <span className="nav-link-content"><Icon size={16} stroke={1.8} /> {label}</span>
+      {isActive && <motion.div layoutId="nav-pill" className="nav-pill-bg" transition={{ type: 'spring', stiffness: 400, damping: 30 }} />}
+      <span className="nav-link-content">
+        <span className="nav-icon-pill"><Icon size={14} stroke={1.8} /></span>
+        {showLabel && label}
+      </span>
     </NavLink>
   );
 }
@@ -138,7 +141,10 @@ function TopBar({ pageTitle }) {
         <div className="avatar-wrapper" ref={menuRef}>
           <button className="avatar-trigger" onClick={() => setMenuOpen((o) => !o)}>
             <span className="avatar-circle">{initials(user?.full_name)}</span>
-            <span className="avatar-name">{user?.full_name?.split(' ')[0]}</span>
+            <div className="avatar-info">
+              <span className="avatar-name">{user?.full_name?.split(' ')[0]}</span>
+              <span className="avatar-email">{user?.email}</span>
+            </div>
             <IconChevronDown size={14} stroke={1.8} color="var(--steel)" />
           </button>
           {menuOpen && (
@@ -173,14 +179,26 @@ export default function Layout({ children }) {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-logo"><span className="dot" />MEDI<span>HUB</span></div>
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {NAV_ITEMS.map((item) => <NavItem key={item.to} {...item} isActive={location.pathname === item.to} />)}
-          {user.role === 'admin' && (
-            <>
-              <div style={{ borderTop: '1px solid var(--border)', margin: '10px 8px' }} />
-              {ADMIN_ITEMS.map((item) => <NavItem key={item.to} {...item} isActive={location.pathname === item.to} />)}
-            </>
-          )}
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {Object.entries(
+            ALL_ITEMS.reduce((acc, item) => {
+              if (!acc[item.section]) acc[item.section] = [];
+              acc[item.section].push(item);
+              return acc;
+            }, {})
+          ).map(([section, items]) => (
+            <div key={section}>
+              <div className="nav-section-label">{section}</div>
+              {items.map((item) => (
+                <NavItem 
+                  key={item.to} 
+                  {...item} 
+                  isActive={location.pathname === item.to}
+                  showLabel={true}
+                />
+              ))}
+            </div>
+          ))}
         </nav>
       </aside>
       <div className="shell-main">

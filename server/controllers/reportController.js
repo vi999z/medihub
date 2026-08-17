@@ -20,4 +20,9 @@ async function salesTrend(req, res) {
   res.json(data);
 }
 
-module.exports = { summary, expiringSoon, lowStock, salesTrend };
+async function byCategory(req, res) {
+  const data = await reportModel.getByCategory();
+  res.json(data);
+}
+
+module.exports = { summary, expiringSoon, lowStock, salesTrend, byCategory };

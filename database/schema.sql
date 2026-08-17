@@ -101,5 +101,7 @@ CREATE TABLE ai_models (
   weights_json LONGTEXT NOT NULL,
   feature_stats_json TEXT NOT NULL,
   training_samples INT DEFAULT 0,
+  training_loss FLOAT,
+  training_accuracy FLOAT,
   trained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

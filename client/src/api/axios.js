@@ -43,13 +43,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let on401Callback = null;
+
+api.setAuthLogout = function setAuthLogout(callback) {
+  on401Callback = callback;
+};
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('medihub_token');
       localStorage.removeItem('medihub_user');
-      window.location.href = '/login';
+      if (on401Callback) {
+        on401Callback();
+      }
     }
     return Promise.reject(err);
   }
