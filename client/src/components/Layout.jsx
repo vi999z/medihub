@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import {
   IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
-  IconTools, IconQrcode
+  IconTools, IconQrcode, IconMessage
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { to: '/transactions', label: 'Transactions', icon: IconReceipt, section: 'MAIN MENU' },
   { to: '/notifications', label: 'Alerts', icon: IconBellRinging, section: 'MAIN MENU' },
   { to: '/scanner', label: 'Scanner', icon: IconQrcode, section: 'MAIN MENU' },
+  { to: '/ai-chat', label: 'AI Chat', icon: IconMessage, section: 'MAIN MENU' },
   { to: '/ai-insights', label: 'AI Insights', icon: IconBrain, section: 'OPERATIONS' },
   { to: '/suppliers', label: 'Suppliers', icon: IconTruck, section: 'OPERATIONS' },
 ];

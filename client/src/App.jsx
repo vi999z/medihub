@@ -14,6 +14,7 @@ const Batches = lazy(() => import('./pages/Batches'));
 const Transactions = lazy(() => import('./pages/Transactions'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const AiInsights = lazy(() => import('./pages/AiInsights'));
+const AiChat = lazy(() => import('./pages/AiChat'));
 const Suppliers = lazy(() => import('./pages/Suppliers'));
 const Users = lazy(() => import('./pages/Users'));
 const AuditLog = lazy(() => import('./pages/AuditLog'));
@@ -36,6 +37,7 @@ export default function App() {
                 <Route path="/transactions" element={<ProtectedRoute><Layout><Transactions /></Layout></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
                 <Route path="/scanner" element={<ProtectedRoute><Layout><Scanner /></Layout></ProtectedRoute>} />
+                <Route path="/ai-chat" element={<ProtectedRoute><Layout><AiChat /></Layout></ProtectedRoute>} />
                 <Route path="/ai-insights" element={<ProtectedRoute><Layout><AiInsights /></Layout></ProtectedRoute>} />
                 <Route path="/suppliers" element={<ProtectedRoute><Layout><Suppliers /></Layout></ProtectedRoute>} />
                 <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><Layout><Users /></Layout></ProtectedRoute>} />
