@@ -49,25 +49,6 @@ Be specific, factual, and non-accusatory.`;
         })
       }
     );
-    // Select best available model from fallback chain
-    const selectedModel = await selectAvailableModel(apiKey);
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            maxOutputTokens: 200,
-            temperature: 0.5
-          }
-        })
-      }
-    );
 
     if (!response.ok) {
       return null;
@@ -77,10 +58,28 @@ Be specific, factual, and non-accusatory.`;
     return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
 
   } catch (err) {
-    console.error('Error explaining expiry risk:', err.message);
+    console.error('Error explaining anomaly:', err.message);
     return null;
   }
 }
+
+/**
+ * Generate explanation for expiry risk predictions
+ */
+async function explainExpiryRisk(batch, riskScore, apiKey) {
+  try {
+    const prompt = `You are a pharmacy AI assistant. Explain this expiry risk assessment:
+
+Medicine: ${batch.medicine_name}
+Batch: ${batch.batch_number}
+Quantity: ${batch.quantity} units
+Days until expiry: ${batch.days_until_expiry}
+Risk score: ${riskScore} (0-100, higher = more risky)
+Average daily sales: ${batch.avg_daily_sales?.toFixed(1) || 0} units/day
+
+Provide a 1-2 sentence assessment in plain language:
+- Is this batch at risk? Why or why not?
+- What should the pharmacy team do?`;
 
 /**
  * Generate rationale for reorder recommendations
