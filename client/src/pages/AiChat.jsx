@@ -42,11 +42,18 @@ export default function AiChat() {
     setLoading(true);
 
     try {
+      // Check if user is authenticated
+      const token = localStorage.getItem('medihub_token');
+      if (!token) {
+        throw new Error('You are not logged in. Please log in to use AI chat.');
+      }
+      
+      console.log('Sending AI chat request with token:', token ? 'Present' : 'Missing');
       const res = await api.post('/ai/chat', { question: userMessage });
       setMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
     } catch (err) {
       console.error('Chat error:', err);
-      const errorMsg = err.response?.data?.error || 'Failed to get response. Please try again.';
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to get response. Please try again.';
       setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }]);
       addToast(errorMsg, 'error');
     } finally {

@@ -39,6 +39,8 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('medihub_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    console.warn('No token found in localStorage for request:', config.url);
   }
   return config;
 });
