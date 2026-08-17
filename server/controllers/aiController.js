@@ -100,21 +100,57 @@ async function chat(req, res) {
     ]);
     console.log('Database data fetched successfully');
 
-    // Construct the system prompt with real data
-    const systemPrompt = `You are a helpful AI assistant for a pharmacy inventory management system called MediHub. 
-You answer questions about inventory, expiry, stock levels, and sales using ONLY the data provided below.
-Do not invent or hallucinate numbers. If the answer cannot be found in the data, say so clearly.
-Be concise and professional. Format numbers with appropriate units.
+    // Filter out empty datasets to prevent AI from creating empty tables
+    const hasData = (data) => data && (Array.isArray(data) ? data.length > 0 : Object.keys(data).length > 0);
 
-CURRENT INVENTORY DATA:
-- Summary: ${JSON.stringify(summary)}
-- Expiring soon (next 30 days): ${JSON.stringify(expiring)}
-- Low stock items: ${JSON.stringify(lowStock)}
-- Sales trend (last 30 days): ${JSON.stringify(trend)}
-- Stock by category: ${JSON.stringify(categoryData)}
-- Expiry risk scores: ${JSON.stringify(expiryRisk)}
-- Reorder suggestions: ${JSON.stringify(reorderSuggestions)}
-- Anomalies detected: ${JSON.stringify(anomalies)}`;
+    const filteredData = {
+      summary: hasData(summary) ? summary : null,
+      expiring: hasData(expiring) ? expiring : null,
+      lowStock: hasData(lowStock) ? lowStock : null,
+      trend: hasData(trend) ? trend : null,
+      categoryData: hasData(categoryData) ? categoryData : null,
+      expiryRisk: hasData(expiryRisk) ? expiryRisk : null,
+      reorderSuggestions: hasData(reorderSuggestions) ? reorderSuggestions : null,
+      anomalies: hasData(anomalies) ? anomalies : null,
+    };
+
+    // Detect if question is pharmacy-related
+    const pharmacyKeywords = ['inventory', 'medicine', 'stock', 'expiry', 'sales', 'pharmacy', 'drug', 'medication', 'batch', 'transaction', 'supplier', 'order'];
+    const isPharmacyRelated = pharmacyKeywords.some(keyword => question.toLowerCase().includes(keyword));
+
+    // Construct the system prompt with real data
+    const systemPrompt = `You are a helpful AI assistant for a pharmacy inventory management system called MediHub.
+You answer questions about inventory, expiry, stock levels, and sales using ONLY the data provided below.
+For pharmacy-related questions, be precise and data-driven. For general questions, be conversational and helpful.
+
+GENERAL RESPONSE GUIDELINES:
+- Be conversational and natural - write like a helpful human assistant
+- Keep responses concise but complete - avoid unnecessary fluff
+- Use clear structure with paragraphs or bullet points when appropriate
+- Be specific and actionable when possible
+- If you don't know something, admit it honestly
+- Adapt your tone to the question - professional for data, friendly for general chat
+- Avoid robotic or overly formal language unless the topic requires it
+- Use formatting (bold, lists) sparingly and only when it adds clarity
+
+PHARMACY DATA RULES:
+- Do not invent or hallucinate numbers. If the answer cannot be found in the data, say so clearly.
+- Format numbers with appropriate units (currency, quantities, percentages)
+- For empty/missing data, give natural responses like "I don't have sales data recorded yet" instead of empty tables
+- ONLY create tables/charts when there is actual meaningful data to display
+- Never create empty tables with "No data available" placeholders
+
+CONTEXT: ${isPharmacyRelated ? 'This is a pharmacy-related question. Use the inventory data below.' : 'This is a general conversation question. Be helpful and conversational without forcing pharmacy data into your response.'}
+
+${filteredData.summary || filteredData.expiring || filteredData.lowStock || filteredData.trend || filteredData.categoryData || filteredData.expiryRisk || filteredData.reorderSuggestions || filteredData.anomalies ? `AVAILABLE PHARMACY DATA (use only if relevant to the question):` : ''}
+${filteredData.summary ? `|- Summary: ${JSON.stringify(filteredData.summary)}` : ''}
+${filteredData.expiring ? `|- Expiring soon (next 30 days): ${JSON.stringify(filteredData.expiring)}` : ''}
+${filteredData.lowStock ? `|- Low stock items: ${JSON.stringify(filteredData.lowStock)}` : ''}
+${filteredData.trend ? `|- Sales trend (last 30 days): ${JSON.stringify(filteredData.trend)}` : ''}
+${filteredData.categoryData ? `|- Stock by category: ${JSON.stringify(filteredData.categoryData)}` : ''}
+${filteredData.expiryRisk ? `|- Expiry risk scores: ${JSON.stringify(filteredData.expiryRisk)}` : ''}
+${filteredData.reorderSuggestions ? `|- Reorder suggestions: ${JSON.stringify(filteredData.reorderSuggestions)}` : ''}
+${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData.anomalies)}` : ''}`;
 
     console.log('Calling Google AI API with fallback system...');
     // Define fallback models in order of preference (more reliable models first)
@@ -145,7 +181,7 @@ CURRENT INVENTORY DATA:
             }
           ],
           generationConfig: {
-            maxOutputTokens: 500,
+            maxOutputTokens: 800,
             temperature: 0.7,
           }
         }),
@@ -167,7 +203,7 @@ CURRENT INVENTORY DATA:
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 contents: [{ parts: [{ text: systemPrompt + "\n\nUser: " + question }] }],
-                generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
+                generationConfig: { maxOutputTokens: 800, temperature: 0.7 }
               }),
             });
             if (retryResponse.ok) {
