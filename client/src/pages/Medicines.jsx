@@ -14,6 +14,7 @@ import CsvImport from '../components/CsvImport';
 import AnimatedNumber from '../components/AnimatedNumber';
 import StaggeredList from '../components/StaggeredList';
 import AnimatedModal from '../components/AnimatedModal';
+import Skeleton from '../components/Skeleton';
 
 const CATEGORY_OPTIONS = [
   'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
@@ -66,12 +67,12 @@ export default function Medicines() {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [medicines, setMedicines] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const prefersReducedMotion = useReducedMotion();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -103,6 +104,9 @@ export default function Medicines() {
     try {
       const res = await api.cachedGet('/medicines');
       setMedicines(res.data);
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load medicines');
     } finally {
       setLoading(false);
     }
@@ -350,7 +354,7 @@ export default function Medicines() {
       </motion.div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+        <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
           <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
           <div className="field"><label>Generic name</label><input value={form.generic_name} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} /></div>
           <div className="field">
@@ -367,11 +371,11 @@ export default function Medicines() {
             <input type="checkbox" checked={form.requires_prescription} onChange={(e) => setForm({ ...form, requires_prescription: e.target.checked })} />
             Requires prescription
           </label>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
             <button type="submit" className="btn btn-primary">{editingId ? 'Update medicine' : 'Save medicine'}</button>
             <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
           </div>
-          {error && <p className="error-text" style={{ gridColumn: 'span 2' }}>{error}</p>}
+          {error && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{error}</p>}
         </form>
       )}
 
@@ -431,7 +435,15 @@ export default function Medicines() {
           ))}
         </div>
 
-        {!loading && visibleMedicines.length === 0 && (
+        {error && (
+          <div className="empty-state">
+            <strong>Unable to load medicines</strong>
+            <p style={{ margin: '6px 0 0' }}>{error}</p>
+            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchMedicines}>Retry</button>
+          </div>
+        )}
+
+        {!loading && !error && visibleMedicines.length === 0 && (
           <div className="empty-state">
             <FileWarning size={18} style={{ marginBottom: 6 }} />
             <div>No medicines match the current filters.</div>
@@ -441,7 +453,36 @@ export default function Medicines() {
           </div>
         )}
 
-        {groups.map(([category, items]) => {
+        {loading && (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Strength</th>
+                <th>Stock</th>
+                <th>Status</th>
+                <th>Nearest expiry</th>
+                {user.role === 'admin' && <th>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {[1, 2, 3, 4].map((i) => (
+                <tr key={i}>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  {user.role === 'admin' && <td><Skeleton height={16} /></td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {!loading && !error && groups.map(([category, items]) => {
           if (!items.length) return null;
           const isCollapsed = grouped && collapsed[category];
           return (

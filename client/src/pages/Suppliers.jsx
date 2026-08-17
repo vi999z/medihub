@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import StaggeredList from '../components/StaggeredList';
+import Skeleton from '../components/Skeleton';
 
 export default function Suppliers() {
   const { user } = useAuth();
@@ -16,12 +17,16 @@ export default function Suppliers() {
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ name: '', contact_person: '', phone: '', email: '', address: '' });
+  const [error, setError] = useState('');
   const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
       const res = await api.cachedGet('/suppliers');
       setSuppliers(res.data || []);
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load suppliers');
     } finally {
       setLoading(false);
     }
@@ -113,7 +118,7 @@ export default function Suppliers() {
           <h1>Suppliers</h1>
           <p>{loading ? 'Loading suppliers…' : `${visibleSuppliers.length} of ${suppliers.length} shown`}</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={handleExport}>
             <Download size={15} /> Export CSV
           </button>
@@ -132,7 +137,7 @@ export default function Suppliers() {
         <motion.form
           onSubmit={handleSubmit}
           className="card"
-          style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
@@ -142,8 +147,8 @@ export default function Suppliers() {
           <div className="field"><label>Contact person</label><input value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
           <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
           <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-          <div className="field" style={{ gridColumn: 'span 2' }}><label>Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
+          <div className="field" style={{ gridColumn: '1 / -1' }}><label>Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
             <button type="submit" className="btn btn-primary">{editingId ? 'Update supplier' : 'Save supplier'}</button>
             <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
           </div>
@@ -174,33 +179,64 @@ export default function Suppliers() {
           </div>
         </div>
 
-        <table className="data-table">
-          <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
-          <StaggeredList staggerDelay={0.03}>
+        {error && (
+          <div className="empty-state">
+            <strong>Unable to load suppliers</strong>
+            <p style={{ margin: '6px 0 0' }}>{error}</p>
+            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
+          </div>
+        )}
+
+        {!loading && !error && visibleSuppliers.length === 0 && (
+          <div className="empty-state">
+            {suppliers.length === 0 ? 'No suppliers yet. Add your first one above.' : `No suppliers match "${search}".`}
+          </div>
+        )}
+
+        {loading && (
+          <table className="data-table">
+            <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
             <tbody>
-              {visibleSuppliers.map((s) => (
-                <tr key={s.id}>
-                  <td style={{ fontWeight: 500 }}>{s.name}</td>
-                  <td>{s.contact_person || '—'}</td>
-                  <td>{s.phone || '—'}</td>
-                  <td>{s.email || '—'}</td>
-                  <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.address || '—'}</td>
-                  {user.role === 'admin' && (
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn-icon" onClick={() => openEdit(s)} title="Edit supplier"><Pencil size={14} /></button>
-                        <button className="btn-icon" onClick={() => handleDelete(s.id)} title="Remove supplier"><Trash2 size={14} /></button>
-                      </div>
-                    </td>
-                  )}
+              {[1, 2, 3, 4].map((i) => (
+                <tr key={i}>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  {user.role === 'admin' && <td><Skeleton height={16} /></td>}
                 </tr>
               ))}
             </tbody>
-          </StaggeredList>
-        </table>
-        {!loading && visibleSuppliers.length === 0 && (
-          <div className="empty-state">
-            {suppliers.length === 0 ? 'No suppliers yet. Add your first one above.' : `No suppliers match “${search}”.`}
+          </table>
+        )}
+
+        {!loading && !error && (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
+              <StaggeredList staggerDelay={0.03}>
+                <tbody>
+                  {visibleSuppliers.map((s) => (
+                    <tr key={s.id}>
+                      <td style={{ fontWeight: 500 }}>{s.name}</td>
+                      <td>{s.contact_person || '—'}</td>
+                      <td>{s.phone || '—'}</td>
+                      <td>{s.email || '—'}</td>
+                      <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.address || '—'}</td>
+                      {user.role === 'admin' && (
+                        <td>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button className="btn-icon" onClick={() => openEdit(s)} title="Edit supplier"><Pencil size={14} /></button>
+                            <button className="btn-icon" onClick={() => handleDelete(s.id)} title="Remove supplier"><Trash2 size={14} /></button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </StaggeredList>
+            </table>
           </div>
         )}
       </motion.div>

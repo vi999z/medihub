@@ -4,6 +4,7 @@ import { CheckCheck, RefreshCw, BellRing, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import StaggeredList from '../components/StaggeredList';
+import Skeleton from '../components/Skeleton';
 
 const UNREAD_URL = '/notifications?unread=true';
 
@@ -19,12 +20,16 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [error, setError] = useState('');
   const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
       const res = await api.cachedGet('/notifications');
       setNotifications(res.data);
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load alerts');
     } finally {
       setLoading(false);
     }
@@ -86,7 +91,7 @@ export default function Notifications() {
           <h1>Alerts</h1>
           <p>{loading ? 'Loading alerts…' : `${unreadCount} unread of ${notifications.length}`}</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
@@ -124,36 +129,63 @@ export default function Notifications() {
           </label>
         </div>
 
-        {!loading && visibleNotifications.length === 0 && (
+        {error && (
+          <div className="empty-state">
+            <strong>Unable to load alerts</strong>
+            <p style={{ margin: '6px 0 0' }}>{error}</p>
+            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
+          </div>
+        )}
+
+        {!loading && !error && visibleNotifications.length === 0 && (
           <div className="empty-state">
             <BellRing size={16} /> {notifications.length === 0 ? 'No alerts yet.' : 'No alerts match the current filters.'}
           </div>
         )}
 
-        <table className="data-table">
-          <thead>
-            <tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr>
-          </thead>
-          <StaggeredList staggerDelay={0.03}>
+        {loading && (
+          <table className="data-table">
+            <thead><tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr></thead>
             <tbody>
-              {visibleNotifications.map((n) => (
-                <tr key={n.id} style={{ opacity: n.is_read ? 0.6 : 1 }}>
-                  <td><span className={`status-pill ${severityPill(n.severity)}`}>{n.severity}</span></td>
-                  <td>{n.message}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{n.type}</td>
-                  <td>{new Date(n.created_at).toLocaleString()}</td>
-                  <td>
-                    {!n.is_read && (
-                      <button className="btn-icon" onClick={() => markRead(n.id)} title="Mark as read">
-                        <CheckCheck size={14} />
-                      </button>
-                    )}
-                  </td>
+              {[1, 2, 3, 4].map((i) => (
+                <tr key={i}>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
                 </tr>
               ))}
             </tbody>
-          </StaggeredList>
-        </table>
+          </table>
+        )}
+
+        {!loading && !error && (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr></thead>
+              <StaggeredList staggerDelay={0.03}>
+                <tbody>
+                  {visibleNotifications.map((n) => (
+                    <tr key={n.id} style={{ opacity: n.is_read ? 0.6 : 1 }}>
+                      <td><span className={`status-pill ${severityPill(n.severity)}`}>{n.severity}</span></td>
+                      <td>{n.message}</td>
+                      <td style={{ textTransform: 'capitalize' }}>{n.type}</td>
+                      <td>{new Date(n.created_at).toLocaleString()}</td>
+                      <td>
+                        {!n.is_read && (
+                          <button className="btn-icon" onClick={() => markRead(n.id)} title="Mark as read">
+                            <CheckCheck size={14} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </StaggeredList>
+            </table>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );

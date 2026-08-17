@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Camera, X, Search, Plus, RefreshCw, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useZxing } from 'react-zxing';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import { daysUntil } from '../utils/date';
+import Skeleton from '../components/Skeleton';
 
 // Drug Database API (free tier: 100 req/day)
 const DRUG_API_BASE = 'https://api.drug-database.com/v1';
@@ -33,6 +35,7 @@ function statusPillFor(batch) {
 
 export default function Scanner() {
   const { addToast } = useToast();
+  const navigate = useNavigate();
   const [mode, setMode] = useState('lookup'); // 'lookup' | 'import'
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
@@ -192,7 +195,7 @@ export default function Scanner() {
                 ? 'Scan a batch QR code or barcode to look up batch details'
                 : 'Scan a product barcode to import new stock'}
             </p>
-            <button className="btn btn-primary" onClick={startScanning}>
+            <button className="btn btn-primary" onClick={startScanning} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
               <Camera size={18} style={{ marginRight: 8 }} />
               Start Scanning
             </button>
@@ -231,6 +234,8 @@ export default function Scanner() {
               className="btn btn-secondary"
               style={{ position: 'absolute', top: 12, right: 12, borderRadius: '50%', padding: 8 }}
               onClick={() => setIsScanning(false)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
             >
               <X size={20} />
             </button>
@@ -254,17 +259,17 @@ export default function Scanner() {
         {/* Loading State */}
         {loading && (
           <div style={{ textAlign: 'center', padding: 40 }}>
-            <RefreshCw size={32} className="spin" style={{ color: 'var(--amber)', marginBottom: 16 }} />
-            <p>Looking up code...</p>
+            <Skeleton height={32} width={32} radius={16} style={{ margin: '0 auto 16px' }} />
+            <p style={{ color: 'var(--steel)' }}>Looking up code...</p>
           </div>
         )}
 
         {/* Error State */}
         {error && (
-          <div style={{ textAlign: 'center', padding: 20, background: 'var(--red-tint)', borderRadius: 12, marginBottom: 20 }}>
-            <AlertCircle size={24} style={{ color: 'var(--red)', marginBottom: 8 }} />
-            <p style={{ color: 'var(--red)', margin: 0 }}>{error}</p>
-            <button className="btn btn-secondary" style={{ marginTop: 12 }} onClick={resetScanner}>
+          <div className="empty-state">
+            <AlertCircle size={16} style={{ marginBottom: 6 }} />
+            <div>{error}</div>
+            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={resetScanner} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
               Try Again
             </button>
           </div>
@@ -297,7 +302,7 @@ export default function Scanner() {
                 )}
               </div>
             </div>
-            <button className="btn btn-primary" style={{ width: '100%' }} onClick={resetScanner}>
+            <button className="btn btn-primary" style={{ width: '100%' }} onClick={resetScanner} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
               Scan Another
             </button>
           </motion.div>
@@ -342,15 +347,17 @@ export default function Scanner() {
             )}
             
             <div style={{ display: 'flex', gap: 12 }}>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={resetScanner}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={resetScanner} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
                 Scan Another
               </button>
               <button 
                 className="btn btn-primary" 
                 style={{ flex: 1 }}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => {
                   // Navigate to add medicine/batch form with pre-filled data
-                  window.location.href = '/batches?add=true&code=' + encodeURIComponent(scanResult.code);
+                  navigate(`/batches?add=true&code=${encodeURIComponent(scanResult.code)}`);
                 }}
               >
                 Add to Stock

@@ -5,6 +5,7 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import StaggeredList from '../components/StaggeredList';
+import Skeleton from '../components/Skeleton';
 
 export default function Users() {
   const { user: me } = useAuth();
@@ -15,12 +16,16 @@ export default function Users() {
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ full_name: '', email: '', password: '', role: 'pharmacist', is_active: true });
+  const [error, setError] = useState('');
   const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
       const res = await api.cachedGet('/users');
       setUsers(res.data);
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load accounts');
     } finally {
       setLoading(false);
     }
@@ -93,7 +98,7 @@ export default function Users() {
         <motion.form 
           onSubmit={handleSubmit} 
           className="card" 
-          style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
@@ -111,8 +116,8 @@ export default function Users() {
               <option value="admin">Admin</option>
             </select>
           </div>
-          {error && <p className="error-text" style={{ gridColumn: 'span 2' }}>{error}</p>}
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
+          {error && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{error}</p>}
+          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
             <button type="submit" className="btn btn-primary">{editingId ? 'Update account' : 'Create account'}</button>
             <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
           </div>
@@ -143,37 +148,68 @@ export default function Users() {
           </div>
         </div>
 
-        {!loading && visibleUsers.length === 0 && (
+        {error && (
+          <div className="empty-state">
+            <strong>Unable to load accounts</strong>
+            <p style={{ margin: '6px 0 0' }}>{error}</p>
+            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
+          </div>
+        )}
+
+        {!loading && !error && visibleUsers.length === 0 && (
           <div className="empty-state">No accounts match “{search}”.</div>
         )}
 
-        <table className="data-table">
-          <thead>
-            <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
-          </thead>
-          <StaggeredList staggerDelay={0.03}>
+        {loading && (
+          <table className="data-table">
+            <thead>
+              <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+            </thead>
             <tbody>
-              {visibleUsers.map((u) => (
-                <tr key={u.id}>
-                  <td style={{ fontWeight: 500 }}>{u.full_name}</td>
-                  <td>{u.email}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{u.role}</td>
-                  <td><span className={`status-pill ${u.is_active ? 'safe' : 'critical'}`}>{u.is_active ? 'Active' : 'Inactive'}</span></td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn-icon" onClick={() => openEdit(u)} title="Edit account"><Pencil size={14} /></button>
-                      {u.id !== me.id && (
-                        <button className="btn-icon" onClick={() => toggleActive(u)} title={u.is_active ? 'Deactivate' : 'Reactivate'}>
-                          {u.is_active ? <X size={14} /> : <Plus size={14} />}
-                        </button>
-                      )}
-                    </div>
-                  </td>
+              {[1, 2, 3, 4].map((i) => (
+                <tr key={i}>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
                 </tr>
               ))}
             </tbody>
-          </StaggeredList>
-        </table>
+          </table>
+        )}
+
+        {!loading && !error && (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <StaggeredList staggerDelay={0.03}>
+                <tbody>
+                  {visibleUsers.map((u) => (
+                    <tr key={u.id}>
+                      <td style={{ fontWeight: 500 }}>{u.full_name}</td>
+                      <td>{u.email}</td>
+                      <td style={{ textTransform: 'capitalize' }}>{u.role}</td>
+                      <td><span className={`status-pill ${u.is_active ? 'safe' : 'critical'}`}>{u.is_active ? 'Active' : 'Inactive'}</span></td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn-icon" onClick={() => openEdit(u)} title="Edit account"><Pencil size={14} /></button>
+                          {u.id !== me.id && (
+                            <button className="btn-icon" onClick={() => toggleActive(u)} title={u.is_active ? 'Deactivate' : 'Reactivate'}>
+                              {u.is_active ? <X size={14} /> : <Plus size={14} />}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </StaggeredList>
+            </table>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );

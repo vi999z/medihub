@@ -3,18 +3,25 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Search, X } from 'lucide-react';
 import api from '../api/axios';
 import StaggeredList from '../components/StaggeredList';
+import Skeleton from '../components/Skeleton';
 
 export default function AuditLog() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     let mounted = true;
     api.get('/audit-logs').then((res) => {
-      if (mounted) setLogs(res.data || []);
-    }).catch(() => {}).finally(() => {
+      if (mounted) {
+        setLogs(res.data || []);
+        setError('');
+      }
+    }).catch((err) => {
+      if (mounted) setError(err.response?.data?.error || 'Failed to load audit logs');
+    }).finally(() => {
       if (mounted) setLoading(false);
     });
     return () => { mounted = false; };
@@ -62,25 +69,53 @@ export default function AuditLog() {
           </div>
         </div>
 
-        {!loading && visibleLogs.length === 0 && (
-          <div className="empty-state">{logs.length === 0 ? 'No activity recorded yet.' : `No entries match “${search}”.`}</div>
+        {error && (
+          <div className="empty-state">
+            <strong>Unable to load audit logs</strong>
+            <p style={{ margin: '6px 0 0' }}>{error}</p>
+            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={() => window.location.reload()}>Retry</button>
+          </div>
         )}
 
-        <table className="data-table">
-          <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
-          <StaggeredList staggerDelay={0.03}>
+        {!loading && !error && visibleLogs.length === 0 && (
+          <div className="empty-state">{logs.length === 0 ? 'No activity recorded yet.' : `No entries match "${search}".`}</div>
+        )}
+
+        {loading && (
+          <table className="data-table">
+            <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
             <tbody>
-              {visibleLogs.map((l) => (
-                <tr key={l.id}>
-                  <td><span className="stamp">{new Date(l.created_at).toLocaleString()}</span></td>
-                  <td>{l.user_name || 'System'}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{l.action.replace(/_/g, ' ')}</td>
-                  <td style={{ color: 'var(--steel)' }}>{l.details}</td>
+              {[1, 2, 3, 4].map((i) => (
+                <tr key={i}>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
                 </tr>
               ))}
             </tbody>
-          </StaggeredList>
-        </table>
+          </table>
+        )}
+
+        {!loading && !error && (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
+              <StaggeredList staggerDelay={0.03}>
+                <tbody>
+                  {visibleLogs.map((l) => (
+                    <tr key={l.id}>
+                      <td><span className="stamp">{new Date(l.created_at).toLocaleString()}</span></td>
+                      <td>{l.user_name || 'System'}</td>
+                      <td style={{ textTransform: 'capitalize' }}>{l.action.replace(/_/g, ' ')}</td>
+                      <td style={{ color: 'var(--steel)' }}>{l.details}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </StaggeredList>
+            </table>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );

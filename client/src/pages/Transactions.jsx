@@ -4,6 +4,7 @@ import { Plus, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import StaggeredList from '../components/StaggeredList';
+import Skeleton from '../components/Skeleton';
 
 const TYPES = ['sale', 'adjustment', 'disposal', 'return'];
 const TYPE_FILTERS = [{ value: 'all', label: 'All types' }, ...TYPES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))];
@@ -25,6 +26,9 @@ export default function Transactions() {
       const [t, b] = await Promise.all([api.cachedGet('/transactions/recent'), api.cachedGet('/batches')]);
       setTransactions(t.data || []);
       setBatches((b.data || []).filter((batch) => batch.status === 'active'));
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load transactions');
     } finally {
       setLoading(false);
     }
@@ -85,7 +89,7 @@ export default function Transactions() {
         <motion.form 
           onSubmit={handleSubmit} 
           className="card" 
-          style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
@@ -108,11 +112,11 @@ export default function Transactions() {
           </div>
           <div className="field"><label>Quantity</label><input type="number" min="1" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required /></div>
           <div className="field"><label>Reason (optional)</label><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 10 }}>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
             <button type="submit" className="btn btn-primary">Save transaction</button>
             <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
           </div>
-          {error && <p className="error-text" style={{ gridColumn: 'span 2' }}>{error}</p>}
+          {error && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{error}</p>}
         </motion.form>
       )}
 
@@ -150,7 +154,15 @@ export default function Transactions() {
           )}
         </div>
 
-        {!loading && visibleTransactions.length === 0 && (
+        {error && (
+          <div className="empty-state">
+            <strong>Unable to load transactions</strong>
+            <p style={{ margin: '6px 0 0' }}>{error}</p>
+            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
+          </div>
+        )}
+
+        {!loading && !error && visibleTransactions.length === 0 && (
           <div className="empty-state">
             <div>{transactions.length === 0 ? 'No stock movements recorded yet.' : 'No movements match the current filters.'}</div>
             {filtersActive && (
@@ -159,25 +171,45 @@ export default function Transactions() {
           </div>
         )}
 
-        <table className="data-table">
-          <thead>
-            <tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr>
-          </thead>
-          <StaggeredList staggerDelay={0.03}>
+        {loading && (
+          <table className="data-table">
+            <thead><tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr></thead>
             <tbody>
-              {visibleTransactions.map((t) => (
-                <tr key={t.id}>
-                  <td>{new Date(t.created_at).toLocaleString()}</td>
-                  <td style={{ fontWeight: 500 }}>{t.medicine_name}</td>
-                  <td><span className="stamp">{t.batch_number}</span></td>
-                  <td style={{ textTransform: 'capitalize' }}>{t.transaction_type}</td>
-                  <td style={{ color: t.quantity < 0 ? 'var(--red)' : 'var(--green)' }}>{t.quantity > 0 ? `+${t.quantity}` : t.quantity}</td>
-                  <td>{t.user_name}</td>
+              {[1, 2, 3, 4].map((i) => (
+                <tr key={i}>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
+                  <td><Skeleton height={16} /></td>
                 </tr>
               ))}
             </tbody>
-          </StaggeredList>
-        </table>
+          </table>
+        )}
+
+        {!loading && !error && (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr></thead>
+              <StaggeredList staggerDelay={0.03}>
+                <tbody>
+                  {visibleTransactions.map((t) => (
+                    <tr key={t.id}>
+                      <td>{new Date(t.created_at).toLocaleString()}</td>
+                      <td style={{ fontWeight: 500 }}>{t.medicine_name}</td>
+                      <td><span className="stamp">{t.batch_number}</span></td>
+                      <td style={{ textTransform: 'capitalize' }}>{t.transaction_type}</td>
+                      <td style={{ color: t.quantity < 0 ? 'var(--red)' : 'var(--green)' }}>{t.quantity > 0 ? `+${t.quantity}` : t.quantity}</td>
+                      <td>{t.user_name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </StaggeredList>
+            </table>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );
