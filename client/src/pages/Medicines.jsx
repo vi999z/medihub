@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   Plus, Pencil, Trash2, RefreshCw, Download, Search, X,
   ChevronDown, ChevronRight, LayoutGrid, List, ArrowUpDown, FileWarning, Upload
@@ -10,6 +11,9 @@ import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
 import CsvImport from '../components/CsvImport';
+import AnimatedNumber from '../components/AnimatedNumber';
+import StaggeredList from '../components/StaggeredList';
+import AnimatedModal from '../components/AnimatedModal';
 
 const CATEGORY_OPTIONS = [
   'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
@@ -68,6 +72,7 @@ export default function Medicines() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const prefersReducedMotion = useReducedMotion();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get('q') || '';
@@ -264,7 +269,11 @@ export default function Medicines() {
   }
 
   return (
-    <>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
+    >
       <div className="page-header">
         <div>
           <h1>Medicines</h1>
@@ -292,40 +301,53 @@ export default function Medicines() {
         </div>
       </div>
 
-      <div className="stat-grid">
-        <button
+      <motion.div 
+        className="stat-grid"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
+      >
+        <motion.button
           type="button"
           className={`card stat-card accent-red filter-tile ${stockFilter === 'out' ? 'active' : ''}`}
           onClick={() => setStockFilter(stockFilter === 'out' ? 'all' : 'out')}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.98 }}
         >
-          <div className="value">{summary.out}</div>
+          <div className="value"><AnimatedNumber value={summary.out} /></div>
           <div className="label">Out of stock</div>
-        </button>
-        <button
+        </motion.button>
+        <motion.button
           type="button"
           className={`card stat-card accent-gold filter-tile ${stockFilter === 'low' ? 'active' : ''}`}
           onClick={() => setStockFilter(stockFilter === 'low' ? 'all' : 'low')}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.98 }}
         >
-          <div className="value">{summary.low}</div>
+          <div className="value"><AnimatedNumber value={summary.low} /></div>
           <div className="label">At or below reorder level</div>
-        </button>
-        <button
+        </motion.button>
+        <motion.button
           type="button"
           className={`card stat-card accent-amber filter-tile ${stockFilter === 'expiring' ? 'active' : ''}`}
           onClick={() => setStockFilter(stockFilter === 'expiring' ? 'all' : 'expiring')}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.98 }}
         >
-          <div className="value">{summary.expiring}</div>
+          <div className="value"><AnimatedNumber value={summary.expiring} /></div>
           <div className="label">Expiring within 30 days</div>
-        </button>
-        <button
+        </motion.button>
+        <motion.button
           type="button"
           className={`card stat-card accent-green filter-tile ${stockFilter === 'healthy' ? 'active' : ''}`}
           onClick={() => setStockFilter(stockFilter === 'healthy' ? 'all' : 'healthy')}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.98 }}
         >
-          <div className="value">{summary.healthy}</div>
+          <div className="value"><AnimatedNumber value={summary.healthy} /></div>
           <div className="label">Healthy stock</div>
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
@@ -451,39 +473,41 @@ export default function Medicines() {
                         {user.role === 'admin' && <th>Actions</th>}
                       </tr>
                     </thead>
-                    <tbody>
-                      {items.map((m) => {
-                        const state = stockStateOf(m);
-                        const expiry = expiryLabel(m);
-                        return (
-                          <tr key={m.id} className={state.key === 'out' ? 'row-critical' : state.key === 'low' ? 'row-warning' : ''}>
-                            <td>
-                              <div style={{ fontWeight: 600 }}>{m.name}</div>
-                              <div style={{ fontSize: 11.5, color: 'var(--steel)' }}>
-                                {[m.generic_name, m.dosage_form].filter(Boolean).join(' · ') || '—'}
-                                {m.requires_prescription ? ' · Rx' : ''}
-                              </div>
-                            </td>
-                            {!grouped && <td><span className="stamp">{categoryOf(m)}</span></td>}
-                            <td><span className="stamp">{m.strength || '—'}</span></td>
-                            <td>
-                              <div style={{ fontWeight: 600 }}>{m.total_stock ?? 0} {m.unit}</div>
-                              <div style={{ fontSize: 11.5, color: 'var(--steel)' }}>reorder at {m.reorder_level}</div>
-                            </td>
-                            <td><span className={`status-pill ${state.cls}`}>{state.label}</span></td>
-                            <td>{expiry ? <span className={`status-pill ${expiry.cls}`}>{expiry.label}</span> : <span className="stamp">—</span>}</td>
-                            {user.role === 'admin' && (
+                    <StaggeredList staggerDelay={0.03}>
+                      <tbody>
+                        {items.map((m) => {
+                          const state = stockStateOf(m);
+                          const expiry = expiryLabel(m);
+                          return (
+                            <tr key={m.id} className={state.key === 'out' ? 'row-critical' : state.key === 'low' ? 'row-warning' : ''}>
                               <td>
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                  <button className="btn-icon" onClick={() => openEdit(m)} title="Edit medicine"><Pencil size={14} /></button>
-                                  <button className="btn-icon" onClick={() => handleDelete(m.id)} title="Delete medicine"><Trash2 size={14} /></button>
+                                <div style={{ fontWeight: 600 }}>{m.name}</div>
+                                <div style={{ fontSize: 11.5, color: 'var(--steel)' }}>
+                                  {[m.generic_name, m.dosage_form].filter(Boolean).join(' · ') || '—'}
+                                  {m.requires_prescription ? ' · Rx' : ''}
                                 </div>
                               </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
+                              {!grouped && <td><span className="stamp">{categoryOf(m)}</span></td>}
+                              <td><span className="stamp">{m.strength || '—'}</span></td>
+                              <td>
+                                <div style={{ fontWeight: 600 }}>{m.total_stock ?? 0} {m.unit}</div>
+                                <div style={{ fontSize: 11.5, color: 'var(--steel)' }}>reorder at {m.reorder_level}</div>
+                              </td>
+                              <td><span className={`status-pill ${state.cls}`}>{state.label}</span></td>
+                              <td>{expiry ? <span className={`status-pill ${expiry.cls}`}>{expiry.label}</span> : <span className="stamp">—</span>}</td>
+                              {user.role === 'admin' && (
+                                <td>
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    <button className="btn-icon" onClick={() => openEdit(m)} title="Edit medicine"><Pencil size={14} /></button>
+                                    <button className="btn-icon" onClick={() => handleDelete(m.id)} title="Delete medicine"><Trash2 size={14} /></button>
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </StaggeredList>
                   </table>
                 </div>
               )}
@@ -492,17 +516,13 @@ export default function Medicines() {
         })}
       </div>
 
-      {showCsvImport && (
-        <div className="modal-overlay" onClick={() => setShowCsvImport(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <CsvImport
-              onClose={() => setShowCsvImport(false)}
-              onImportComplete={handleCsvImportComplete}
-              entityType="medicines"
-            />
-          </div>
-        </div>
-      )}
-    </>
+      <AnimatedModal isOpen={showCsvImport} onClose={() => setShowCsvImport(false)}>
+        <CsvImport
+          onClose={() => setShowCsvImport(false)}
+          onImportComplete={handleCsvImportComplete}
+          entityType="medicines"
+        />
+      </AnimatedModal>
+    </motion.div>
   );
 }

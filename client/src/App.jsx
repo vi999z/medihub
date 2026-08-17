@@ -18,6 +18,7 @@ const Suppliers = lazy(() => import('./pages/Suppliers'));
 const Users = lazy(() => import('./pages/Users'));
 const AuditLog = lazy(() => import('./pages/AuditLog'));
 const Maintenance = lazy(() => import('./pages/Maintenance'));
+const Scanner = lazy(() => import('./pages/Scanner'));
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
                 <Route path="/batches" element={<ProtectedRoute><Layout><Batches /></Layout></ProtectedRoute>} />
                 <Route path="/transactions" element={<ProtectedRoute><Layout><Transactions /></Layout></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
+                <Route path="/scanner" element={<ProtectedRoute><Layout><Scanner /></Layout></ProtectedRoute>} />
                 <Route path="/ai-insights" element={<ProtectedRoute><Layout><AiInsights /></Layout></ProtectedRoute>} />
                 <Route path="/suppliers" element={<ProtectedRoute><Layout><Suppliers /></Layout></ProtectedRoute>} />
                 <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><Layout><Users /></Layout></ProtectedRoute>} />

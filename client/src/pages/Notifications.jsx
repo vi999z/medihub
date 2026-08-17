@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { CheckCheck, RefreshCw, BellRing, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
+import StaggeredList from '../components/StaggeredList';
 
 const UNREAD_URL = '/notifications?unread=true';
 
@@ -17,6 +19,7 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
@@ -73,7 +76,11 @@ export default function Notifications() {
   }
 
   return (
-    <>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
+    >
       <div className="page-header">
         <div>
           <h1>Alerts</h1>
@@ -89,7 +96,13 @@ export default function Notifications() {
         </div>
       </div>
 
-      <div className="card" style={{ padding: 16 }}>
+      <motion.div 
+        className="card" 
+        style={{ padding: 16 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
+      >
         <div className="filter-bar">
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
@@ -112,31 +125,36 @@ export default function Notifications() {
         </div>
 
         {!loading && visibleNotifications.length === 0 && (
-          <div className="empty-state" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <div className="empty-state">
             <BellRing size={16} /> {notifications.length === 0 ? 'No alerts yet.' : 'No alerts match the current filters.'}
           </div>
         )}
 
-        {visibleNotifications.map((n) => (
-          <div
-            key={n.id}
-            onClick={() => !n.is_read && markRead(n.id)}
-            style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '14px 4px', borderBottom: '1px solid var(--border)',
-              opacity: n.is_read ? 0.55 : 1, cursor: n.is_read ? 'default' : 'pointer'
-            }}
-          >
-            <div>
-              <span className={`status-pill ${severityPill(n.severity)}`} style={{ marginRight: 10 }}>
-                {n.type.replace(/_/g, ' ')}
-              </span>
-              <span style={{ fontSize: 13.5 }}>{n.message}</span>
-            </div>
-            <span className="stamp">{new Date(n.created_at).toLocaleDateString()}</span>
-          </div>
-        ))}
-      </div>
-    </>
+        <table className="data-table">
+          <thead>
+            <tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr>
+          </thead>
+          <StaggeredList staggerDelay={0.03}>
+            <tbody>
+              {visibleNotifications.map((n) => (
+                <tr key={n.id} style={{ opacity: n.is_read ? 0.6 : 1 }}>
+                  <td><span className={`status-pill ${severityPill(n.severity)}`}>{n.severity}</span></td>
+                  <td>{n.message}</td>
+                  <td style={{ textTransform: 'capitalize' }}>{n.type}</td>
+                  <td>{new Date(n.created_at).toLocaleString()}</td>
+                  <td>
+                    {!n.is_read && (
+                      <button className="btn-icon" onClick={() => markRead(n.id)} title="Mark as read">
+                        <CheckCheck size={14} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </StaggeredList>
+        </table>
+      </motion.div>
+    </motion.div>
   );
 }

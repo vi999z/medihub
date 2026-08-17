@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Plus, Trash2, RefreshCw, Pencil, Download, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
+import StaggeredList from '../components/StaggeredList';
 
 export default function Suppliers() {
   const { user } = useAuth();
@@ -14,6 +16,7 @@ export default function Suppliers() {
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ name: '', contact_person: '', phone: '', email: '', address: '' });
+  const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
@@ -100,23 +103,41 @@ export default function Suppliers() {
   }
 
   return (
-    <>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
+    >
       <div className="page-header">
         <div>
           <h1>Suppliers</h1>
-          <p>{loading ? 'Loading suppliers…' : `${visibleSuppliers.length} of ${suppliers.length} suppliers shown`}</p>
+          <p>{loading ? 'Loading suppliers…' : `${visibleSuppliers.length} of ${suppliers.length} shown`}</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary" onClick={handleExport}><Download size={15} /> Export CSV</button>
-          <button className="btn btn-secondary" onClick={handleRefresh}><RefreshCw size={15} /> Refresh</button>
+          <button className="btn btn-secondary" onClick={handleExport}>
+            <Download size={15} /> Export CSV
+          </button>
+          <button className="btn btn-secondary" onClick={handleRefresh}>
+            <RefreshCw size={15} /> Refresh
+          </button>
           {user.role === 'admin' && (
-            <button className="btn btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}><Plus size={15} /> {showForm ? 'Close form' : 'Add supplier'}</button>
+            <button className="btn btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}>
+              <Plus size={15} /> {showForm ? 'Close form' : 'Add supplier'}
+            </button>
           )}
         </div>
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+        <motion.form
+          onSubmit={handleSubmit}
+          className="card"
+          style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
+        >
           <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
           <div className="field"><label>Contact person</label><input value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
           <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
@@ -126,10 +147,16 @@ export default function Suppliers() {
             <button type="submit" className="btn btn-primary">{editingId ? 'Update supplier' : 'Save supplier'}</button>
             <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
           </div>
-        </form>
+        </motion.form>
       )}
 
-      <div className="card" style={{ padding: 16 }}>
+      <motion.div
+        className="card"
+        style={{ padding: 16 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
+      >
         <div className="filter-bar">
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
@@ -148,32 +175,35 @@ export default function Suppliers() {
         </div>
 
         <table className="data-table">
-          <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
-          <tbody>
-            {visibleSuppliers.map((s) => (
-              <tr key={s.id}>
-                <td style={{ fontWeight: 500 }}>{s.name}</td>
-                <td>{s.contact_person || '—'}</td>
-                <td>{s.phone || '—'}</td>
-                <td>{s.email || '—'}</td>
-                {user.role === 'admin' && (
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn-icon" onClick={() => openEdit(s)} title="Edit supplier"><Pencil size={14} /></button>
-                      <button className="btn-icon" onClick={() => handleDelete(s.id)} title="Delete supplier"><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
+          <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
+          <StaggeredList staggerDelay={0.03}>
+            <tbody>
+              {visibleSuppliers.map((s) => (
+                <tr key={s.id}>
+                  <td style={{ fontWeight: 500 }}>{s.name}</td>
+                  <td>{s.contact_person || '—'}</td>
+                  <td>{s.phone || '—'}</td>
+                  <td>{s.email || '—'}</td>
+                  <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.address || '—'}</td>
+                  {user.role === 'admin' && (
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn-icon" onClick={() => openEdit(s)} title="Edit supplier"><Pencil size={14} /></button>
+                        <button className="btn-icon" onClick={() => handleDelete(s.id)} title="Remove supplier"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </StaggeredList>
         </table>
         {!loading && visibleSuppliers.length === 0 && (
           <div className="empty-state">
             {suppliers.length === 0 ? 'No suppliers yet. Add your first one above.' : `No suppliers match “${search}”.`}
           </div>
         )}
-      </div>
-    </>
+      </motion.div>
+    </motion.div>
   );
 }

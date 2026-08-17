@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { IconTrash, IconHistory, IconClock, IconRefresh, IconAlertTriangle } from '@tabler/icons-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
@@ -14,6 +15,7 @@ const ACTIONS = [
 export default function Maintenance() {
   const [loading, setLoading] = useState(null);
   const { addToast } = useToast();
+  const prefersReducedMotion = useReducedMotion();
 
   async function runAction(action) {
     if (!window.confirm(`${action.label}\n\n${action.confirm}`)) return;
@@ -29,7 +31,11 @@ export default function Maintenance() {
   }
 
   return (
-    <>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
+    >
       <div className="page-header">
         <div>
           <h1>Maintenance</h1>
@@ -37,15 +43,26 @@ export default function Maintenance() {
         </div>
       </div>
 
-      <div className="card" style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', padding: 18 }}>
-        {ACTIONS.map((action) => (
-          <button
+      <motion.div 
+        className="card" 
+        style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', padding: 18 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
+      >
+        {ACTIONS.map((action, index) => (
+          <motion.button
             key={action.key}
             className="card maintenance-action"
             type="button"
             onClick={() => runAction(action)}
             disabled={loading !== null}
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: 22, gap: 12, textAlign: 'left', minHeight: 180 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.4, delay: prefersReducedMotion ? 0 : index * 0.08 }}
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.98 }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <action.icon size={20} stroke={1.8} />
@@ -55,9 +72,9 @@ export default function Maintenance() {
             <span className="btn btn-secondary" style={{ alignSelf: 'stretch', justifyContent: 'center' }}>
               {loading === action.key ? 'Working…' : 'Run action'}
             </span>
-          </button>
+          </motion.button>
         ))}
-      </div>
-    </>
+      </motion.div>
+    </motion.div>
   );
 }

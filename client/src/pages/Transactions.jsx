@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Plus, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
+import StaggeredList from '../components/StaggeredList';
 
 const TYPES = ['sale', 'adjustment', 'disposal', 'return'];
 const TYPE_FILTERS = [{ value: 'all', label: 'All types' }, ...TYPES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))];
@@ -16,6 +18,7 @@ export default function Transactions() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
@@ -63,7 +66,11 @@ export default function Transactions() {
   }
 
   return (
-    <>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
+    >
       <div className="page-header">
         <div>
           <h1>Transactions</h1>
@@ -75,7 +82,15 @@ export default function Transactions() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+        <motion.form 
+          onSubmit={handleSubmit} 
+          className="card" 
+          style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
+        >
           <div className="field">
             <label>Batch</label>
             <select value={form.batch_id} onChange={(e) => setForm({ ...form, batch_id: e.target.value })} required>
@@ -98,10 +113,16 @@ export default function Transactions() {
             <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
           </div>
           {error && <p className="error-text" style={{ gridColumn: 'span 2' }}>{error}</p>}
-        </form>
+        </motion.form>
       )}
 
-      <div className="card" style={{ padding: 16 }}>
+      <motion.div 
+        className="card" 
+        style={{ padding: 16 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
+      >
         <div className="filter-bar">
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
@@ -142,20 +163,22 @@ export default function Transactions() {
           <thead>
             <tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr>
           </thead>
-          <tbody>
-            {visibleTransactions.map((t) => (
-              <tr key={t.id}>
-                <td>{new Date(t.created_at).toLocaleString()}</td>
-                <td style={{ fontWeight: 500 }}>{t.medicine_name}</td>
-                <td><span className="stamp">{t.batch_number}</span></td>
-                <td style={{ textTransform: 'capitalize' }}>{t.transaction_type}</td>
-                <td style={{ color: t.quantity < 0 ? 'var(--red)' : 'var(--green)' }}>{t.quantity > 0 ? `+${t.quantity}` : t.quantity}</td>
-                <td>{t.user_name}</td>
-              </tr>
-            ))}
-          </tbody>
+          <StaggeredList staggerDelay={0.03}>
+            <tbody>
+              {visibleTransactions.map((t) => (
+                <tr key={t.id}>
+                  <td>{new Date(t.created_at).toLocaleString()}</td>
+                  <td style={{ fontWeight: 500 }}>{t.medicine_name}</td>
+                  <td><span className="stamp">{t.batch_number}</span></td>
+                  <td style={{ textTransform: 'capitalize' }}>{t.transaction_type}</td>
+                  <td style={{ color: t.quantity < 0 ? 'var(--red)' : 'var(--green)' }}>{t.quantity > 0 ? `+${t.quantity}` : t.quantity}</td>
+                  <td>{t.user_name}</td>
+                </tr>
+              ))}
+            </tbody>
+          </StaggeredList>
         </table>
-      </div>
-    </>
+      </motion.div>
+    </motion.div>
   );
 }

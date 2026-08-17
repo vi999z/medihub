@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Pencil, Download, Search, X } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { Plus, Trash2, Pencil, Download, Search, X, QrCode } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
+import StaggeredList from '../components/StaggeredList';
+import QRCodeDisplay from '../components/QRCode';
 
 const STATUS_FILTERS = [
   { value: 'all', label: 'All statuses' },
@@ -41,6 +44,9 @@ export default function Batches() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrBatch, setQrBatch] = useState(null);
+  const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
@@ -151,7 +157,11 @@ export default function Batches() {
   }
 
   return (
-    <>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
+    >
       <div className="page-header">
         <div>
           <h1>Batches</h1>
@@ -173,7 +183,15 @@ export default function Batches() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+        <motion.form 
+          onSubmit={handleSubmit} 
+          className="card" 
+          style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
+        >
           <div className="field">
             <label>Medicine</label>
             <select value={form.medicine_id} onChange={(e) => setForm({ ...form, medicine_id: e.target.value })} required>
@@ -205,10 +223,16 @@ export default function Batches() {
             <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
           </div>
           {error && <p className="error-text" style={{ gridColumn: 'span 2' }}>{error}</p>}
-        </form>
+        </motion.form>
       )}
 
-      <div className="card" style={{ padding: 16 }}>
+      <motion.div 
+        className="card" 
+        style={{ padding: 16 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
+      >
         <div className="filter-bar">
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
@@ -249,40 +273,84 @@ export default function Batches() {
           <thead>
             <tr><th>Medicine</th><th>Batch</th><th>Expiry</th><th>Remaining</th><th>Status</th><th>Actions</th></tr>
           </thead>
-          <tbody>
-            {visibleBatches.map((b) => {
-              const pill = statusPillFor(b);
-              return (
-                <tr key={b.id}>
-                  <td style={{ fontWeight: 500 }}>{b.medicine_name}</td>
-                  <td><span className="stamp">{b.batch_number}</span></td>
-                  <td><span className="stamp">{new Date(b.expiry_date).toLocaleDateString()}</span></td>
-                  <td>{b.quantity_remaining}</td>
-                  <td><span className={`status-pill ${pill.cls}`}>{pill.label}</span></td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn-icon" onClick={() => openEdit(b)} title="Edit batch"><Pencil size={14} /></button>
-                    <button className="btn-icon" onClick={async () => {
-                      if (!window.confirm(`Delete batch ${b.batch_number}?`)) return;
-                      try {
-                        await api.delete(`/batches/${b.id}`);
-                        api.invalidateCache('/batches');
-                        api.invalidateCache('/notifications');
-                        api.invalidateCache('/notifications?unread=true');
-                        await fetchAll();
-                        addToast('Batch deleted', 'success');
-                      } catch (err) {
-                        addToast(err.response?.data?.error || 'Could not delete batch', 'error');
-                      }
-                    }} title="Delete batch"><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
+          <StaggeredList staggerDelay={0.03}>
+            <tbody>
+              {visibleBatches.map((b) => {
+                const pill = statusPillFor(b);
+                return (
+                  <tr key={b.id}>
+                    <td style={{ fontWeight: 500 }}>{b.medicine_name}</td>
+                    <td><span className="stamp">{b.batch_number}</span></td>
+                    <td><span className="stamp">{new Date(b.expiry_date).toLocaleDateString()}</span></td>
+                    <td>{b.quantity_remaining}</td>
+                    <td><span className={`status-pill ${pill.cls}`}>{pill.label}</span></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn-icon" onClick={() => openEdit(b)} title="Edit batch"><Pencil size={14} /></button>
+                      <button className="btn-icon" onClick={() => { setQrBatch(b); setShowQRModal(true); }} title="Show QR code"><QrCode size={14} /></button>
+                      <button className="btn-icon" onClick={async () => {
+                        if (!window.confirm(`Delete batch ${b.batch_number}?`)) return;
+                        try {
+                          await api.delete(`/batches/${b.id}`);
+                          api.invalidateCache('/batches');
+                          api.invalidateCache('/notifications');
+                          api.invalidateCache('/notifications?unread=true');
+                          await fetchAll();
+                          addToast('Batch deleted', 'success');
+                        } catch (err) {
+                          addToast(err.response?.data?.error || 'Could not delete batch', 'error');
+                        }
+                      }} title="Delete batch"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </StaggeredList>
         </table>
-      </div>
-    </>
+      </motion.div>
+
+      {showQRModal && qrBatch && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowQRModal(false)}>
+          <motion.div 
+            className="card" 
+            style={{ padding: 24, maxWidth: 400, width: '90%' }}
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0 }}>Batch QR Code</h3>
+              <button className="btn-icon" onClick={() => setShowQRModal(false)}><X size={18} /></button>
+            </div>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <QRCodeDisplay value={qrBatch.id.toString()} size={250} />
+            </div>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <p style={{ fontWeight: 500, margin: '0 0 4px' }}>{qrBatch.medicine_name}</p>
+              <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>Batch: {qrBatch.batch_number}</p>
+              <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>ID: {qrBatch.id}</p>
+            </div>
+            <button 
+              className="btn btn-primary" 
+              style={{ width: '100%' }}
+              onClick={() => {
+                const canvas = document.querySelector('.qr-code-container canvas');
+                if (canvas) {
+                  const link = document.createElement('a');
+                  link.download = `batch-${qrBatch.batch_number}-qr.png`;
+                  link.href = canvas.toDataURL();
+                  link.click();
+                }
+              }}
+            >
+              Download QR Code
+            </button>
+          </motion.div>
+        </div>
+      )}
+    </motion.div>
   );
 }

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Search, X } from 'lucide-react';
 import api from '../api/axios';
+import StaggeredList from '../components/StaggeredList';
 
 export default function AuditLog() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     let mounted = true;
@@ -24,14 +27,24 @@ export default function AuditLog() {
   }, [logs, search]);
 
   return (
-    <>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
+    >
       <div className="page-header">
         <div>
           <h1>Audit Log</h1>
           <p>{loading ? 'Loading activity…' : `${visibleLogs.length} of the ${logs.length} most recent system actions`}</p>
         </div>
       </div>
-      <div className="card" style={{ padding: 16 }}>
+      <motion.div 
+        className="card" 
+        style={{ padding: 16 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
+      >
         <div className="filter-bar">
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
@@ -55,18 +68,20 @@ export default function AuditLog() {
 
         <table className="data-table">
           <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
-          <tbody>
-            {visibleLogs.map((l) => (
-              <tr key={l.id}>
-                <td><span className="stamp">{new Date(l.created_at).toLocaleString()}</span></td>
-                <td>{l.user_name || 'System'}</td>
-                <td style={{ textTransform: 'capitalize' }}>{l.action.replace(/_/g, ' ')}</td>
-                <td style={{ color: 'var(--steel)' }}>{l.details}</td>
-              </tr>
-            ))}
-          </tbody>
+          <StaggeredList staggerDelay={0.03}>
+            <tbody>
+              {visibleLogs.map((l) => (
+                <tr key={l.id}>
+                  <td><span className="stamp">{new Date(l.created_at).toLocaleString()}</span></td>
+                  <td>{l.user_name || 'System'}</td>
+                  <td style={{ textTransform: 'capitalize' }}>{l.action.replace(/_/g, ' ')}</td>
+                  <td style={{ color: 'var(--steel)' }}>{l.details}</td>
+                </tr>
+              ))}
+            </tbody>
+          </StaggeredList>
         </table>
-      </div>
-    </>
+      </motion.div>
+    </motion.div>
   );
 }
