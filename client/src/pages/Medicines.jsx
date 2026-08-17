@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Plus, Pencil, Trash2, RefreshCw, Download, Search, X,
-  ChevronDown, ChevronRight, LayoutGrid, List, ArrowUpDown, FileWarning
+  ChevronDown, ChevronRight, LayoutGrid, List, ArrowUpDown, FileWarning, Upload
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
+import CsvImport from '../components/CsvImport';
 
 const CATEGORY_OPTIONS = [
   'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
@@ -63,6 +64,7 @@ export default function Medicines() {
   const [medicines, setMedicines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showCsvImport, setShowCsvImport] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
@@ -80,6 +82,16 @@ export default function Medicines() {
     setForm(emptyForm);
     setEditingId(null);
     setShowForm(false);
+  }
+
+  function handleCsvImportComplete(result) {
+    api.invalidateCache('/medicines');
+    fetchMedicines();
+    addToast(`Imported ${result.created} medicines successfully`, 'success');
+    if (result.failed > 0) {
+      addToast(`${result.failed} rows failed to import`, 'error');
+    }
+    setShowCsvImport(false);
   }
 
   async function fetchMedicines() {
@@ -268,9 +280,14 @@ export default function Medicines() {
             <RefreshCw size={15} /> Refresh
           </button>
           {user.role === 'admin' && (
-            <button className="btn btn-primary" onClick={openCreate}>
-              <Plus size={15} /> Add medicine
-            </button>
+            <>
+              <button className="btn btn-secondary" onClick={() => setShowCsvImport(true)}>
+                <Upload size={15} /> Import CSV
+              </button>
+              <button className="btn btn-primary" onClick={openCreate}>
+                <Plus size={15} /> Add medicine
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -474,6 +491,18 @@ export default function Medicines() {
           );
         })}
       </div>
+
+      {showCsvImport && (
+        <div className="modal-overlay" onClick={() => setShowCsvImport(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <CsvImport
+              onClose={() => setShowCsvImport(false)}
+              onImportComplete={handleCsvImportComplete}
+              entityType="medicines"
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,0 +1,6 @@
+name,generic_name,category,dosage_form,strength,unit,reorder_level,requires_prescription
+Amoxicillin,Amoxicillin trihydrate,Antibiotic,Capsule,500mg,capsule,30,true
+Ibuprofen,Ibuprofen,Analgesic,Tablet,400mg,tablet,50,false
+Omeprazole,Omeprazole,Antacid,Capsule,20mg,capsule,25,false
+Metformin,Metformin hydrochloride,Cardiovascular,Tablet,500mg,tablet,40,true
+Loratadine,Loratadine,Antihistamine,Tablet,10mg,tablet,60,false
