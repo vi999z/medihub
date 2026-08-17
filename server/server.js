@@ -11,13 +11,14 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const { startExpiryMonitor } = require('./jobs/expiryMonitor');
 const reportRoutes = require('./routes/reportRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const aiRoutesEnhanced = require('./routes/aiRoutesEnhanced');
 
 const app = express();
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || '*' }));
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'MediHub API running' });
+  res.json({ status: 'MediHub API running', version: '2.0', ai: 'modern-llm' });
 });
 
 app.use('/api/auth', authRoutes);
@@ -26,7 +27,10 @@ app.use('/api/batches', batchRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
-app.use('/api/ai', aiRoutes);
+// Use enhanced AI routes (modern LLM features) - includes backward compatibility
+app.use('/api/ai', aiRoutesEnhanced);
+// Legacy routes still available but will use enhanced controller
+app.use('/api/ai-legacy', aiRoutes);
 app.use('/api/suppliers', require('./routes/supplierRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/audit-logs', require('./routes/auditRoutes'));
