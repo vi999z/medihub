@@ -81,6 +81,39 @@ Provide a 1-2 sentence assessment in plain language:
 - Is this batch at risk? Why or why not?
 - What should the pharmacy team do?`;
 
+    // Select best available model from fallback chain
+    const selectedModel = await selectAvailableModel(apiKey);
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: prompt }]
+          }],
+          generationConfig: {
+            maxOutputTokens: 200,
+            temperature: 0.5
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+
+  } catch (err) {
+    console.error('Error explaining expiry risk:', err.message);
+    return null;
+  }
+}
+
 /**
  * Generate rationale for reorder recommendations
  */

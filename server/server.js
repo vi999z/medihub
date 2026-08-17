@@ -42,10 +42,10 @@ if (require('fs').existsSync(clientDist)) {
     index: 'index.html',
     fallthrough: true // Let the next middleware handle if file not found
   }));
-  app.get('*', (req, res) => {
-    if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
-    // Skip static assets
-    if (req.path.includes('.')) return res.status(404).json({ error: 'Not found' });
+  // Serve SPA fallback for client-side routing
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    if (req.path.includes('.')) return next();
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }
