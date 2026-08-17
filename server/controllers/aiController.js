@@ -117,8 +117,8 @@ CURRENT INVENTORY DATA:
 - Anomalies detected: ${JSON.stringify(anomalies)}`;
 
     console.log('Calling Google AI API...');
-    // Call Google AI Studio API
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // Call Google AI Studio API with updated model
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -173,13 +173,13 @@ CURRENT INVENTORY DATA:
       apiKeyPrefix: process.env.GOOGLE_AI_API_KEY ? process.env.GOOGLE_AI_API_KEY.substring(0, 8) + '...' : 'none'
     });
 
-    if (err.message?.includes('API key') || err.message?.includes('401')) {
+    if (err.message?.includes('API key') || err.message?.includes('401') || err.message?.includes('auth')) {
       return res.status(500).json({ error: 'AI service authentication failed. Please contact administrator.' });
     }
     if (err.message?.includes('quota') || err.message?.includes('rate limit') || err.message?.includes('429')) {
       return res.status(429).json({ error: 'AI service rate limit exceeded. Please try again later.' });
     }
-    if (err.message?.includes('Google AI') || err.message?.includes('AI service')) {
+    if (err.message?.includes('Google AI') || err.message?.includes('AI service') || err.message?.includes('genai')) {
       return res.status(500).json({ error: `AI service error: ${err.message}` });
     }
     res.status(500).json({ error: 'Failed to process question. Please try again.' });
