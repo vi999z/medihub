@@ -125,7 +125,7 @@ CURRENT INVENTORY DATA:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama3-8b-8192', // Free model from Groq
+        model: 'llama-3.1-8b-instant', // Free model from Groq
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: question }
