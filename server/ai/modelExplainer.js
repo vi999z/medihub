@@ -5,6 +5,7 @@
  */
 
 const { pool } = require('../config/db');
+const { selectAvailableModel } = require('./medicalLLM');
 
 /**
  * Generate a detailed explanation for an anomaly detection result
@@ -29,8 +30,11 @@ Explain BRIEFLY (2-3 sentences):
 
 Be specific, factual, and non-accusatory.`;
 
+    // Select best available model from fallback chain
+    const selectedModel = await selectAvailableModel(apiKey);
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -45,40 +49,11 @@ Be specific, factual, and non-accusatory.`;
         })
       }
     );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-
-  } catch (err) {
-    console.error('Error explaining anomaly:', err.message);
-    return null;
-  }
-}
-
-/**
- * Generate explanation for expiry risk predictions
- */
-async function explainExpiryRisk(batch, riskScore, apiKey) {
-  try {
-    const prompt = `You are a pharmacy AI assistant. Explain this expiry risk assessment:
-
-Medicine: ${batch.medicine_name}
-Batch: ${batch.batch_number}
-Quantity: ${batch.quantity} units
-Days until expiry: ${batch.days_until_expiry}
-Risk score: ${riskScore} (0-100, higher = more risky)
-Average daily sales: ${batch.avg_daily_sales?.toFixed(1) || 0} units/day
-
-Provide a 1-2 sentence assessment in plain language:
-- Is this batch at risk? Why or why not?
-- What should the pharmacy team do?`;
+    // Select best available model from fallback chain
+    const selectedModel = await selectAvailableModel(apiKey);
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -127,8 +102,11 @@ Explain in 1-2 sentences:
 
 Be clear and actionable.`;
 
+    // Select best available model from fallback chain
+    const selectedModel = await selectAvailableModel(apiKey);
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -179,8 +157,11 @@ Generate a 3-4 sentence health summary that:
 
 Be concise and actionable.`;
 
+    // Select best available model from fallback chain
+    const selectedModel = await selectAvailableModel(apiKey);
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

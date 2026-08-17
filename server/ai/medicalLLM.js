@@ -9,6 +9,17 @@ const { scoreActiveBatches } = require('./expiryRiskModel');
 const { getReorderSuggestions } = require('./demandForecastModel');
 const { detectAnomalies } = require('./anomalyDetection');
 
+// ─── Model Configuration with Fallback Chain ───
+const MODEL_FALLBACK_CHAIN = [
+  'gemini-3.6-flash',       // Latest model with best performance
+  'gemini-3.1-flash-lite',  // Lighter, fast model with less congestion
+  'gemini-2.5-flash',       // Previous generation, stable and widely supported
+  'gemini-2.0-flash',       // Another stable option
+  'gemini-1.5-flash',       // Original fallback
+  'gemini-1.5-pro',         // More capable option
+  'gemini-pro'              // Final fallback
+];
+
 // ─── Medical Domain Expertise System ───
 const MEDICAL_INSTRUCTIONS = `You are MediHub, an advanced medical inventory AI assistant.
 You combine database analytics with pharmaceutical knowledge to provide evidence-based insights.
@@ -346,6 +357,37 @@ function detectIntention(question) {
   return 'general_inquiry';
 }
 
+// ─── Model Selection with Fallback ───
+async function selectAvailableModel(apiKey) {
+  for (const model of MODEL_FALLBACK_CHAIN) {
+    try {
+      // Quick test to see if model is available
+      const testResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: 'test' }] }],
+            generationConfig: { maxOutputTokens: 10 }
+          })
+        }
+      );
+      
+      if (testResponse.ok) {
+        console.log(`[AI] Selected model: ${model}`);
+        return model;
+      }
+    } catch (err) {
+      console.log(`[AI] Model ${model} not available, trying next...`);
+    }
+  }
+  
+  // Fall back to the most stable model
+  console.warn('[AI] All model tests failed, using gemini-2.0-flash as fallback');
+  return 'gemini-2.0-flash';
+}
+
 // ─── Main Chat Function with Modern LLM Capabilities ───
 async function modernChat(question, userId, context = null) {
   try {
@@ -390,8 +432,11 @@ async function modernChat(question, userId, context = null) {
       throw new Error('AI service not configured');
     }
 
+    // Select best available model from fallback chain
+    const selectedModel = await selectAvailableModel(apiKey);
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -435,7 +480,7 @@ async function modernChat(question, userId, context = null) {
     return {
       response: aiResponse,
       intention,
-      model: 'gemini-2.0-flash',
+      model: selectedModel,
       timestamp: new Date().toISOString()
     };
 
@@ -451,5 +496,7 @@ module.exports = {
   callFunction,
   AVAILABLE_FUNCTIONS,
   detectIntention,
-  buildSystemPrompt
+  buildSystemPrompt,
+  selectAvailableModel,
+  MODEL_FALLBACK_CHAIN
 };
