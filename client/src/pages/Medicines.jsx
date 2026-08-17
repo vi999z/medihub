@@ -354,7 +354,7 @@ export default function Medicines() {
       </motion.div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
+        <form onSubmit={handleSubmit} className="card" style={{ marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
           <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
           <div className="field"><label>Generic name</label><input value={form.generic_name} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} /></div>
           <div className="field">
@@ -379,7 +379,7 @@ export default function Medicines() {
         </form>
       )}
 
-      <div className="card" style={{ padding: 16 }}>
+      <div className="card table-card">
         <div className="filter-bar">
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />

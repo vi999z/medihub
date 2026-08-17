@@ -133,9 +133,15 @@ CURRENT INVENTORY DATA:
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('OpenRouter API error:', errorData);
-      throw new Error(`OpenRouter API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('OpenRouter API error:', response.status, errorText);
+      try {
+        const errorData = JSON.parse(errorText);
+        console.error('OpenRouter error details:', errorData);
+      } catch (e) {
+        console.error('Could not parse error response');
+      }
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
@@ -152,11 +158,21 @@ CURRENT INVENTORY DATA:
     res.json({ response: aiResponse });
   } catch (err) {
     console.error('AI chat failed:', err);
+    console.error('Error details:', {
+      message: err.message,
+      stack: err.stack,
+      hasApiKey: !!process.env.OPENROUTER_API_KEY,
+      apiKeyPrefix: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.substring(0, 8) + '...' : 'none'
+    });
+    
     if (err.message?.includes('API key') || err.message?.includes('401')) {
       return res.status(500).json({ error: 'AI service authentication failed. Please contact administrator.' });
     }
     if (err.message?.includes('quota') || err.message?.includes('rate limit') || err.message?.includes('429')) {
       return res.status(429).json({ error: 'AI service rate limit exceeded. Please try again later.' });
+    }
+    if (err.message?.includes('OpenRouter')) {
+      return res.status(500).json({ error: `AI service error: ${err.message}` });
     }
     res.status(500).json({ error: 'Failed to process question. Please try again.' });
   }

@@ -164,7 +164,7 @@ export default function AiInsights() {
 
       <TrainBanner trainMsg={trainMsg} trainStatus={trainStatus} />
 
-      <div className="card" style={{ padding: 16, marginBottom: 16, background: 'linear-gradient(135deg, #fefcf8 0%, #f8ebdc 100%)' }}>
+      <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(135deg, #fefcf8 0%, #f8ebdc 100%)' }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--amber)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>How these insights work</div>
         <p style={{ margin: '6px 0 0', color: 'var(--ink-soft)', fontSize: 13 }}>
           These recommendations are based on real stock movement, expiry dates, and recent transaction patterns. They are meant to highlight what needs attention now, why it matters, and what action to take next.
@@ -190,7 +190,7 @@ export default function AiInsights() {
 
       {tab === 'risk' && (
         <motion.div 
-          className="card"
+          className="card table-card"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
@@ -239,7 +239,7 @@ export default function AiInsights() {
 
       {tab === 'reorder' && (
         <motion.div 
-          className="card"
+          className="card table-card"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
@@ -288,7 +288,7 @@ export default function AiInsights() {
 
       {tab === 'anomalies' && (
         <motion.div 
-          className="card"
+          className="card table-card"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}

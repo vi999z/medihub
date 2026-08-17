@@ -46,8 +46,7 @@ export default function AuditLog() {
         </div>
       </div>
       <motion.div 
-        className="card" 
-        style={{ padding: 16 }}
+        className="card table-card" 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
