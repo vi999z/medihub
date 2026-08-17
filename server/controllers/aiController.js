@@ -79,12 +79,12 @@ async function chat(req, res) {
       return res.status(400).json({ error: 'Question is required' });
     }
 
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = process.env.FREE_AI_API_KEY;
     if (!apiKey) {
-      console.error('GROQ_API_KEY is not set in environment variables');
+      console.error('FREE_AI_API_KEY is not set in environment variables');
       return res.status(500).json({ error: 'AI service not configured. Please contact administrator.' });
     }
-    console.log('Groq API key present:', apiKey ? 'Yes' : 'No');
+    console.log('Free.ai API key present:', apiKey ? 'Yes' : 'No');
 
     console.log('Fetching database data...');
     // Gather relevant data from existing endpoints
@@ -116,16 +116,16 @@ CURRENT INVENTORY DATA:
 - Reorder suggestions: ${JSON.stringify(reorderSuggestions)}
 - Anomalies detected: ${JSON.stringify(anomalies)}`;
 
-    console.log('Calling Groq API...');
-    // Call Groq API
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    console.log('Calling Free.ai API...');
+    // Call Free.ai API
+    const response = await fetch('https://api.free.ai/v1/chat/', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant', // Free model from Groq
+        model: 'qwen2.5-7b', // Free model from Free.ai
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: question }
@@ -135,21 +135,21 @@ CURRENT INVENTORY DATA:
       }),
     });
 
-    console.log('Groq API response status:', response.status);
+    console.log('Free.ai API response status:', response.status);
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Groq API error:', response.status, errorText);
+      console.error('Free.ai API error:', response.status, errorText);
       try {
         const errorData = JSON.parse(errorText);
-        console.error('Groq error details:', errorData);
+        console.error('Free.ai error details:', errorData);
       } catch (e) {
         console.error('Could not parse error response');
       }
-      throw new Error(`Groq API error: ${response.status} - ${errorText}`);
+      throw new Error(`Free.ai API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('Groq API response received');
+    console.log('Free.ai API response received');
     const aiResponse = data.choices[0]?.message?.content || 'No response generated';
 
     // Log the chat interaction
@@ -166,17 +166,17 @@ CURRENT INVENTORY DATA:
     console.error('Error details:', {
       message: err.message,
       stack: err.stack,
-      hasApiKey: !!process.env.GROQ_API_KEY,
-      apiKeyPrefix: process.env.GROQ_API_KEY ? process.env.GROQ_API_KEY.substring(0, 8) + '...' : 'none'
+      hasApiKey: !!process.env.FREE_AI_API_KEY,
+      apiKeyPrefix: process.env.FREE_AI_API_KEY ? process.env.FREE_AI_API_KEY.substring(0, 8) + '...' : 'none'
     });
-    
+
     if (err.message?.includes('API key') || err.message?.includes('401')) {
       return res.status(500).json({ error: 'AI service authentication failed. Please contact administrator.' });
     }
     if (err.message?.includes('quota') || err.message?.includes('rate limit') || err.message?.includes('429')) {
       return res.status(429).json({ error: 'AI service rate limit exceeded. Please try again later.' });
     }
-    if (err.message?.includes('Groq')) {
+    if (err.message?.includes('Free.ai') || err.message?.includes('AI service')) {
       return res.status(500).json({ error: `AI service error: ${err.message}` });
     }
     res.status(500).json({ error: 'Failed to process question. Please try again.' });
