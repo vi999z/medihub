@@ -82,19 +82,21 @@ export default function AuditLog() {
         )}
 
         {loading && (
-          <table className="data-table">
-            <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
-            <tbody>
-              {[1, 2, 3, 4].map((i) => (
-                <tr key={i}>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
+              <tbody>
+                {[1, 2, 3, 4].map((i) => (
+                  <tr key={i}>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {!loading && !error && (

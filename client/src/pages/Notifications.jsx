@@ -144,20 +144,22 @@ export default function Notifications() {
         )}
 
         {loading && (
-          <table className="data-table">
-            <thead><tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr></thead>
-            <tbody>
-              {[1, 2, 3, 4].map((i) => (
-                <tr key={i}>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr></thead>
+              <tbody>
+                {[1, 2, 3, 4].map((i) => (
+                  <tr key={i}>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {!loading && !error && (

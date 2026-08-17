@@ -312,17 +312,16 @@ export default function Batches() {
                   </tr>
                 ) : (
                   <StaggeredList staggerDelay={0.03}>
-                    <tbody>
-                      {visibleBatches.map((b) => {
-                        const pill = statusPillFor(b);
-                        return (
-                          <tr key={b.id}>
-                            <td style={{ fontWeight: 500 }}>{b.medicine_name}</td>
-                            <td><span className="stamp">{b.batch_number}</span></td>
-                            <td><span className="stamp">{new Date(b.expiry_date).toLocaleDateString()}</span></td>
-                            <td>{b.quantity_remaining}</td>
-                            <td><span className={`status-pill ${pill.cls}`}>{pill.label}</span></td>
-                            <td>
+                    {visibleBatches.map((b) => {
+                      const pill = statusPillFor(b);
+                      return (
+                        <tr key={b.id}>
+                          <td style={{ fontWeight: 500 }}>{b.medicine_name}</td>
+                          <td><span className="stamp">{b.batch_number}</span></td>
+                          <td><span className="stamp">{new Date(b.expiry_date).toLocaleDateString()}</span></td>
+                          <td>{b.quantity_remaining}</td>
+                          <td><span className={`status-pill ${pill.cls}`}>{pill.label}</span></td>
+                          <td>
                               <div style={{ display: 'flex', gap: 6 }}>
                               <button className="btn-icon" onClick={() => openEdit(b)} title="Edit batch"><Pencil size={14} /></button>
                               <button className="btn-icon" onClick={() => { setQrBatch(b); setShowQRModal(true); }} title="Show QR code"><QrCode size={14} /></button>
@@ -341,10 +340,9 @@ export default function Batches() {
                               }} title="Delete batch"><Trash2 size={14} /></button>
                               </div>
                             </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
+                        </tr>
+                      );
+                    })}
                   </StaggeredList>
                 )}
               </tbody>

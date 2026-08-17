@@ -172,21 +172,23 @@ export default function Transactions() {
         )}
 
         {loading && (
-          <table className="data-table">
-            <thead><tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr></thead>
-            <tbody>
-              {[1, 2, 3, 4].map((i) => (
-                <tr key={i}>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr></thead>
+              <tbody>
+                {[1, 2, 3, 4].map((i) => (
+                  <tr key={i}>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {!loading && !error && (

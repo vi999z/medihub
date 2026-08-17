@@ -194,21 +194,23 @@ export default function Suppliers() {
         )}
 
         {loading && (
-          <table className="data-table">
-            <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
-            <tbody>
-              {[1, 2, 3, 4].map((i) => (
-                <tr key={i}>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  {user.role === 'admin' && <td><Skeleton height={16} /></td>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
+              <tbody>
+                {[1, 2, 3, 4].map((i) => (
+                  <tr key={i}>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    <td><Skeleton height={16} /></td>
+                    {user.role === 'admin' && <td><Skeleton height={16} /></td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {!loading && !error && (

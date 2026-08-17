@@ -3,7 +3,6 @@ const { pool } = require('../config/db');
 const { getReorderSuggestions } = require('../ai/demandForecastModel');
 const { detectAnomalies } = require('../ai/anomalyDetection');
 const { logAudit } = require('../utils/auditLogger');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // GET /api/ai/expiry-risk
 async function getExpiryRisk(req, res) {
@@ -79,9 +78,9 @@ async function chat(req, res) {
       return res.status(400).json({ error: 'Question is required' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
-      console.error('GEMINI_API_KEY is not set in environment variables');
+      console.error('OPENROUTER_API_KEY is not set in environment variables');
       return res.status(500).json({ error: 'AI service not configured. Please contact administrator.' });
     }
 
@@ -97,7 +96,7 @@ async function chat(req, res) {
       detectAnomalies(30).catch(() => []),
     ]);
 
-    // Construct the prompt with real data
+    // Construct the system prompt with real data
     const systemPrompt = `You are a helpful AI assistant for a pharmacy inventory management system called MediHub. 
 You answer questions about inventory, expiry, stock levels, and sales using ONLY the data provided below.
 Do not invent or hallucinate numbers. If the answer cannot be found in the data, say so clearly.
@@ -111,17 +110,36 @@ CURRENT INVENTORY DATA:
 - Stock by category: ${JSON.stringify(categoryData)}
 - Expiry risk scores: ${JSON.stringify(expiryRisk)}
 - Reorder suggestions: ${JSON.stringify(reorderSuggestions)}
-- Anomalies detected: ${JSON.stringify(anomalies)}
+- Anomalies detected: ${JSON.stringify(anomalies)}`;
 
-User question: ${question}`;
+    // Call OpenRouter API
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
+        'X-Title': 'MediHub',
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-3-8b-instruct:free', // Free model from OpenRouter
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: question }
+        ],
+        max_tokens: 500,
+        temperature: 0.7,
+      }),
+    });
 
-    // Initialize Gemini
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('OpenRouter API error:', errorData);
+      throw new Error(`OpenRouter API error: ${response.status}`);
+    }
 
-    // Generate response
-    const result = await model.generateContent(systemPrompt);
-    const response = result.response.text();
+    const data = await response.json();
+    const aiResponse = data.choices[0]?.message?.content || 'No response generated';
 
     // Log the chat interaction
     await logAudit(
@@ -131,13 +149,13 @@ User question: ${question}`;
       req
     );
 
-    res.json({ response });
+    res.json({ response: aiResponse });
   } catch (err) {
     console.error('AI chat failed:', err);
-    if (err.message?.includes('API key')) {
+    if (err.message?.includes('API key') || err.message?.includes('401')) {
       return res.status(500).json({ error: 'AI service authentication failed. Please contact administrator.' });
     }
-    if (err.message?.includes('quota') || err.message?.includes('rate limit')) {
+    if (err.message?.includes('quota') || err.message?.includes('rate limit') || err.message?.includes('429')) {
       return res.status(429).json({ error: 'AI service rate limit exceeded. Please try again later.' });
     }
     res.status(500).json({ error: 'Failed to process question. Please try again.' });
