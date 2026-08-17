@@ -520,7 +520,7 @@ export default function Medicines() {
                           const state = stockStateOf(m);
                           const expiry = expiryLabel(m);
                           return (
-                            <tr key={m.id} className={state.key === 'out' ? 'row-critical' : state.key === 'low' ? 'row-warning' : ''}>
+                            <tr key={m.id}>
                               <td>
                                 <div style={{ fontWeight: 600 }}>{m.name}</div>
                                 <div style={{ fontSize: 11.5, color: 'var(--steel)' }}>

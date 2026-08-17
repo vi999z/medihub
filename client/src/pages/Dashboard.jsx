@@ -16,11 +16,11 @@ function getGreeting() {
   return 'Good evening';
 }
 
-const PASTEL_COLORS = ['#d4edda', '#c3e6cb', '#f8d7da', '#e2d9f3', '#cce5ff', '#fff3cd'];
+const PASTEL_COLORS = ['#d1eadd', '#c3e6cb', '#f5d0d5', '#e0d5f0', '#d5e5f5', '#f5f0d0', '#f5e0d0', '#c6f6d5'];
 const SEVERITY_COLORS = {
-  critical: '#dc3545',
-  warning: '#ffc107', 
-  safe: '#198754'
+  critical: '#c53030',
+  warning: '#d69e2e', 
+  safe: '#2f855a'
 };
 
 export default function Dashboard() {
@@ -140,9 +140,6 @@ export default function Dashboard() {
           ) : categoryData.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                {categoryData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={PASTEL_COLORS[index % PASTEL_COLORS.length]} />
-                ))}
                 <Pie
                   data={categoryData}
                   cx="50%"
@@ -154,12 +151,16 @@ export default function Dashboard() {
                   labelLine={false}
                   animationBegin={prefersReducedMotion ? 0 : 200}
                   animationDuration={prefersReducedMotion ? 0 : 1000}
-                />
+                >
+                  {categoryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={PASTEL_COLORS[index % PASTEL_COLORS.length]} />
+                  ))}
+                </Pie>
                 <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 24, fontWeight: 800, fill: 'var(--ink)' }}>
                   {categoryData.reduce((a, b) => a + b.count, 0)}
                 </text>
                 <text x="50%" y="58%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 11, fontWeight: 600, fill: 'var(--steel)' }}>
-                  Total Items
+                  Total Medicines
                 </text>
                 <Tooltip 
                   contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}

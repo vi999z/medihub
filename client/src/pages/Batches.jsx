@@ -272,15 +272,6 @@ export default function Batches() {
           </div>
         )}
 
-        {!loading && !error && visibleBatches.length === 0 && (
-          <div className="empty-state">
-            <div>{batches.length === 0 ? 'No batches recorded yet.' : 'No batches match the current filters.'}</div>
-            {filtersActive && (
-              <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
-            )}
-          </div>
-        )}
-
         {loading && (
           <table className="data-table">
             <thead>
@@ -307,41 +298,56 @@ export default function Batches() {
               <thead>
                 <tr><th>Medicine</th><th>Batch</th><th>Expiry</th><th>Remaining</th><th>Status</th><th>Actions</th></tr>
               </thead>
-              <StaggeredList staggerDelay={0.03}>
-                <tbody>
-                  {visibleBatches.map((b) => {
-                    const pill = statusPillFor(b);
-                    return (
-                      <tr key={b.id}>
-                        <td style={{ fontWeight: 500 }}>{b.medicine_name}</td>
-                        <td><span className="stamp">{b.batch_number}</span></td>
-                        <td><span className="stamp">{new Date(b.expiry_date).toLocaleDateString()}</span></td>
-                        <td>{b.quantity_remaining}</td>
-                        <td><span className={`status-pill ${pill.cls}`}>{pill.label}</span></td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn-icon" onClick={() => openEdit(b)} title="Edit batch"><Pencil size={14} /></button>
-                          <button className="btn-icon" onClick={() => { setQrBatch(b); setShowQRModal(true); }} title="Show QR code"><QrCode size={14} /></button>
-                          <button className="btn-icon" onClick={async () => {
-                            if (!window.confirm(`Delete batch ${b.batch_number}?`)) return;
-                            try {
-                              await api.delete(`/batches/${b.id}`);
-                              api.invalidateCache('/batches');
-                              api.invalidateCache('/notifications');
-                              api.invalidateCache('/notifications?unread=true');
-                              await fetchAll();
-                              addToast('Batch deleted', 'success');
-                            } catch (err) {
-                              addToast(err.response?.data?.error || 'Could not delete batch', 'error');
-                            }
-                          }} title="Delete batch"><Trash2 size={14} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </StaggeredList>
+              <tbody>
+                {visibleBatches.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--steel)' }}>
+                      <div style={{ fontSize: 14 }}>
+                        {batches.length === 0 ? 'No batches recorded yet.' : 'No batches match the current filters.'}
+                      </div>
+                      {filtersActive && (
+                        <button type="button" className="btn btn-secondary" style={{ marginTop: 12 }} onClick={clearFilters}>Clear filters</button>
+                      )}
+                    </td>
+                  </tr>
+                ) : (
+                  <StaggeredList staggerDelay={0.03}>
+                    <tbody>
+                      {visibleBatches.map((b) => {
+                        const pill = statusPillFor(b);
+                        return (
+                          <tr key={b.id}>
+                            <td style={{ fontWeight: 500 }}>{b.medicine_name}</td>
+                            <td><span className="stamp">{b.batch_number}</span></td>
+                            <td><span className="stamp">{new Date(b.expiry_date).toLocaleDateString()}</span></td>
+                            <td>{b.quantity_remaining}</td>
+                            <td><span className={`status-pill ${pill.cls}`}>{pill.label}</span></td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                              <button className="btn-icon" onClick={() => openEdit(b)} title="Edit batch"><Pencil size={14} /></button>
+                              <button className="btn-icon" onClick={() => { setQrBatch(b); setShowQRModal(true); }} title="Show QR code"><QrCode size={14} /></button>
+                              <button className="btn-icon" onClick={async () => {
+                                if (!window.confirm(`Delete batch ${b.batch_number}?`)) return;
+                                try {
+                                  await api.delete(`/batches/${b.id}`);
+                                  api.invalidateCache('/batches');
+                                  api.invalidateCache('/notifications');
+                                  api.invalidateCache('/notifications?unread=true');
+                                  await fetchAll();
+                                  addToast('Batch deleted', 'success');
+                                } catch (err) {
+                                  addToast(err.response?.data?.error || 'Could not delete batch', 'error');
+                                }
+                              }} title="Delete batch"><Trash2 size={14} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </StaggeredList>
+                )}
+              </tbody>
             </table>
           </div>
         )}
