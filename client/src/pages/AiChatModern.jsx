@@ -12,8 +12,105 @@ const STARTER_PROMPTS = [
   "Show me sales trend",
   "What's the total inventory value?",
   "Are there any suspicious transactions?",
-  "Generate pharmacy health report"
+  "Generate pharmacy health report",
+  "Export inventory CSV",
+  "Download PDF pharmacy report"
 ];
+
+function detectExportType(prompt = '') {
+  const text = prompt.toLowerCase();
+
+  if (/csv|excel|spreadsheet|xls/.test(text)) return 'csv';
+  if (/pdf|report/.test(text)) return 'pdf';
+  if (/text file|txt|summary/.test(text)) return 'txt';
+  if (/json|api payload|structured data/.test(text)) return 'json';
+  if (/chart|graph|visual|dashboard/.test(text)) return 'chart';
+
+  return null;
+}
+
+function getExportTitle(prompt = '') {
+  const clean = prompt.trim();
+  if (!clean) return 'MediHub report';
+  const title = clean
+    .replace(/^(please|can you|could you|kindly)\s+/i, '')
+    .replace(/\b(download|export|generate|create|make)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return title || 'MediHub report';
+}
+
+async function triggerExportDownload(prompt) {
+  const exportType = detectExportType(prompt);
+  if (!exportType) return false;
+
+  try {
+    const [summaryRes, expiringRes, lowStockRes, salesRes] = await Promise.all([
+      api.get('/reports/summary'),
+      api.get('/reports/expiring-soon?days=30'),
+      api.get('/reports/low-stock'),
+      api.get('/reports/sales-trend?days=30')
+    ]);
+
+    const summary = summaryRes.data || {};
+    const expiring = Array.isArray(expiringRes.data) ? expiringRes.data : [];
+    const lowStock = Array.isArray(lowStockRes.data) ? lowStockRes.data : [];
+    const salesTrend = Array.isArray(salesRes.data) ? salesRes.data : [];
+
+    const report = {
+      title: getExportTitle(prompt),
+      summary: {
+        total_medicines: summary.total_medicines || 0,
+        inventory_value: summary.inventory_value || 0,
+        expiring_soon: summary.expiring_soon || expiring.length || 0,
+        low_stock: summary.low_stock || lowStock.length || 0,
+        total_sales_points: salesTrend.length || 0,
+      },
+      rows: [
+        ...expiring.slice(0, 15).map((item) => ({
+          medicine_name: item.medicine_name,
+          batch_number: item.batch_number,
+          expiry_date: item.expiry_date,
+          quantity_remaining: item.quantity_remaining,
+          days_left: item.days_left,
+          type: 'expiring_soon'
+        })),
+        ...lowStock.slice(0, 15).map((item) => ({
+          medicine_name: item.name,
+          reorder_level: item.reorder_level,
+          total_remaining: item.total_remaining,
+          type: 'low_stock'
+        }))
+      ],
+      recommendations: [
+        expiring.length ? `Review ${expiring.length} items expiring soon.` : 'No urgent expiry items identified.',
+        lowStock.length ? `Reorder ${lowStock.length} low-stock medicines.` : 'Inventory stock levels look healthy.'
+      ],
+      trend: salesTrend.map((point) => ({
+        label: point.date || point.day || 'Day',
+        value: Number(point.units_sold ?? point.items_sold ?? point.total_sold ?? 0)
+      }))
+    };
+
+    const response = await api.post('/ai/report/export', { type: exportType, report }, { responseType: 'blob' });
+    const blob = new Blob([response.data], {
+      type: response.headers['content-type'] || 'application/octet-stream'
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${getExportTitle(prompt).replace(/\s+/g, '_').toLowerCase()}.${exportType === 'csv' ? 'csv' : exportType === 'pdf' ? 'pdf' : exportType === 'txt' ? 'txt' : exportType === 'json' ? 'json' : 'json'}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+
+    return true;
+  } catch (err) {
+    console.error('Export download failed:', err);
+    return false;
+  }
+}
 
 export default function AiChatModern() {
   const { user } = useAuth();
@@ -31,6 +128,7 @@ export default function AiChatModern() {
   const [intention, setIntention] = useState(null);
   const [conversationTurn, setConversationTurn] = useState(0);
   const messagesEndRef = useRef(null);
+  const abortControllerRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
 
   const scrollToBottom = () => {
@@ -70,6 +168,21 @@ export default function AiChatModern() {
         throw new Error('You are not logged in. Please log in to use AI chat.');
       }
 
+      const exportType = detectExportType(userMessage);
+      if (exportType) {
+        const started = await triggerExportDownload(userMessage);
+        if (started) {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `Your ${exportType.toUpperCase()} export is downloading now.`,
+            timestamp: new Date(),
+            isExport: true
+          }]);
+          addToast(`Download started: ${exportType.toUpperCase()}`, 'success');
+          return;
+        }
+      }
+
       // Try streaming first for better UX
       const useStreaming = true;
 
@@ -94,11 +207,24 @@ export default function AiChatModern() {
     }
   }
 
+  function abortCurrentRequest() {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
+    setStreaming(false);
+    addToast('Request stopped', 'info');
+  }
+
   async function handleNormalResponse(userMessage) {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     const res = await api.post('/ai/chat', { 
       question: userMessage,
       stream: false
-    });
+    }, { signal: controller.signal });
 
     setMessages(prev => [...prev, { 
       role: 'assistant', 
@@ -109,12 +235,15 @@ export default function AiChatModern() {
     }]);
     setIntention(res.data.intention);
     setConversationTurn(res.data.conversation_turn || conversationTurn + 1);
+    abortControllerRef.current = null;
   }
 
   async function handleStreamingResponse(userMessage) {
     setStreaming(true);
     let fullResponse = '';
     let addedMessage = false;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       const response = await fetch('/api/ai/chat', {
@@ -123,6 +252,7 @@ export default function AiChatModern() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('medihub_token')}`
         },
+        signal: controller.signal,
         body: JSON.stringify({ 
           question: userMessage,
           stream: true
@@ -137,8 +267,12 @@ export default function AiChatModern() {
       const decoder = new TextDecoder();
 
       while (true) {
+        if (controller.signal.aborted) {
+          break;
+        }
+
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done || controller.signal.aborted) break;
 
         const chunk = decoder.decode(value);
         const lines = chunk.split('\n');
@@ -190,9 +324,22 @@ export default function AiChatModern() {
         }
       }
     } catch (err) {
+      if (err.name === 'AbortError') {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: 'Request stopped by user.',
+          timestamp: new Date(),
+          isError: true
+        }]);
+        return;
+      }
+
       console.error('Streaming error:', err);
       // Fallback to normal response on streaming failure
       await handleNormalResponse(userMessage);
+    } finally {
+      abortControllerRef.current = null;
+      setStreaming(false);
     }
   }
 
@@ -382,24 +529,45 @@ export default function AiChatModern() {
               fontFamily: 'inherit'
             }}
           />
-          <button
-            type="submit"
-            disabled={loading || streaming || !input.trim()}
-            style={{
-              padding: '10px 16px',
-              background: 'var(--primary)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 8,
-              cursor: loading || streaming ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              opacity: loading || streaming ? 0.6 : 1
-            }}
-          >
-            {loading || streaming ? <Skeleton width={16} height={16} /> : <IconSend size={18} />}
-          </button>
+          {loading || streaming ? (
+            <button
+              type="button"
+              onClick={abortCurrentRequest}
+              style={{
+                padding: '10px 16px',
+                background: '#b42318',
+                color: 'white',
+                border: 'none',
+                borderRadius: 8,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontWeight: 600
+              }}
+            >
+              Stop
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!input.trim()}
+              style={{
+                padding: '10px 16px',
+                background: 'var(--primary)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 8,
+                cursor: !input.trim() ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                opacity: !input.trim() ? 0.6 : 1
+              }}
+            >
+              <IconSend size={18} />
+            </button>
+          )}
         </form>
       </div>
 
