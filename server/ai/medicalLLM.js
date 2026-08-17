@@ -20,35 +20,18 @@ const MODEL_FALLBACK_CHAIN = [
   'gemini-pro'              // Final fallback
 ];
 
-// ─── Medical Domain Expertise System ───
-const MEDICAL_INSTRUCTIONS = `You are MediHub, an advanced medical inventory AI assistant.
-You combine database analytics with pharmaceutical knowledge to provide evidence-based insights.
+// ─── Medical Domain Expertise System (Optimized for Speed) ───
+const MEDICAL_INSTRUCTIONS = `You are MediHub AI, a fast pharmacy inventory assistant.
 
-CORE PRINCIPLES:
-1. **Medical Accuracy**: Prioritize patient safety and regulatory compliance
-2. **Data-Driven**: Back every claim with actual data from the pharmacy system
-3. **Clear Communication**: Explain complex pharmacy concepts simply
-4. **Actionable**: Provide specific, implementable recommendations
-5. **Transparency**: Acknowledge data limitations and assumptions
+ANSWER CONCISELY (1-2 sentences max unless details are requested):
+- Give direct answer first
+- Include key data point
+- One actionable suggestion if needed
 
-PHARMACEUTICAL EXPERTISE AREAS:
-- Inventory optimization for patient access and cost efficiency
-- Expiry management and waste reduction
-- Demand forecasting and seasonal patterns
-- Anomaly detection (potential theft, usage patterns, documentation errors)
-- Supplier performance and reorder strategies
-- Batch tracking and quality assurance
-- Regulatory compliance documentation
+FORMAT: Use PLAIN TEXT ONLY. NO MARKDOWN. No asterisks, no bold, no special formatting.
+NO ** symbols. NO # headers. Just plain clean text.
 
-RESPONSE FRAMEWORK:
-When answering questions, use this structure:
-1. **Direct Answer**: Address the question concisely
-2. **Data Evidence**: Show relevant data from the system
-3. **Pharmaceutical Context**: Explain why this matters for patient care or operations
-4. **Actionable Recommendation**: What to do about it
-5. **Caveats**: Acknowledge data limitations or edge cases
-
-TONE: Professional but conversational. Avoid jargon when possible, explain when necessary.`;
+KEEP IT SHORT. NO LENGTHY EXPLANATIONS.`;
 
 // ─── Function Calling System ───
 // These are the "tools" the AI can invoke to query data
@@ -270,9 +253,9 @@ async function getBatchDetails(medicineId) {
   return { batches: batches || [], medicine_id: medicineId };
 }
 
-// ─── Conversation History & Context Management ───
+// ─── Conversation History & Context Management (Optimized for Speed) ───
 class ConversationContext {
-  constructor(userId, maxTurns = 5) {
+  constructor(userId, maxTurns = 2) {  // Reduced from 5 to 2 for speed
     this.userId = userId;
     this.maxTurns = maxTurns;
     this.history = [];
@@ -307,32 +290,27 @@ class ConversationContext {
 function buildSystemPrompt(context = null, detectedIntention = null) {
   let prompt = MEDICAL_INSTRUCTIONS;
   
-  prompt += `\n\n## FUNCTION CALLING SYSTEM
-You can invoke these functions to query pharmacy data:
+  prompt += `\n\nAVAILABLE FUNCTIONS:
 ${Object.entries(AVAILABLE_FUNCTIONS).map(([name, info]) => 
   `- ${name}: ${info.description}`
-).join('\n')}
-
-When you need data to answer a question, mention which function(s) you'd like to call.
-Format: [FUNCTION_CALL: function_name(param1=value, param2=value)]`;
+).join('\n')}`;
 
   if (detectedIntention) {
-    prompt += `\n\n## DETECTED QUESTION TYPE
-The user is asking about: ${detectedIntention}
+    prompt += `\n\nQUESTION TYPE: ${detectedIntention}
 Focus your response on this domain.`;
   }
 
   if (context) {
-    prompt += `\n\n## CONVERSATION CONTEXT
+    prompt += `\n\nPREVIOUS CONVERSATION:
 ${context}`;
   }
 
-  prompt += `\n\n## RESPONSE EXPECTATIONS
-- Be concise but thorough (2-3 paragraphs max unless asked for details)
-- Use markdown for formatting when helpful
-- Include data points to support claims
-- Suggest follow-up actions
-- If data is incomplete, explain what's missing`;
+  prompt += `\n\nRESPONSE FORMAT:
+- Plain text only, NO markdown
+- NO asterisks, NO bold, NO special formatting
+- Be concise (1-2 sentences max)
+- Include key data points
+- One actionable suggestion if needed`;
 
   return prompt;
 }
@@ -357,35 +335,11 @@ function detectIntention(question) {
   return 'general_inquiry';
 }
 
-// ─── Model Selection with Fallback ───
+// ─── Model Selection with Fallback (Optimized for Speed) ───
 async function selectAvailableModel(apiKey) {
-  for (const model of MODEL_FALLBACK_CHAIN) {
-    try {
-      // Quick test to see if model is available
-      const testResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: 'test' }] }],
-            generationConfig: { maxOutputTokens: 10 }
-          })
-        }
-      );
-      
-      if (testResponse.ok) {
-        console.log(`[AI] Selected model: ${model}`);
-        return model;
-      }
-    } catch (err) {
-      console.log(`[AI] Model ${model} not available, trying next...`);
-    }
-  }
-  
-  // Fall back to the most stable model
-  console.warn('[AI] All model tests failed, using gemini-2.0-flash as fallback');
-  return 'gemini-2.0-flash';
+  // For speed: return fastest model immediately instead of testing
+  // In production with low quota: revert to testing if rate limited
+  return 'gemini-3.6-flash';
 }
 
 // ─── Main Chat Function with Modern LLM Capabilities ───
@@ -450,10 +404,9 @@ async function modernChat(question, userId, context = null) {
             parts: [{ text: msg.content }]
           })),
           generationConfig: {
-            maxOutputTokens: 1000,
-            temperature: 0.7,
-            topP: 0.9,
-            topK: 40,
+            maxOutputTokens: 400,  // Reduced from 1000 for speed (still good quality)
+            temperature: 0.5,      // Reduced from 0.7 for focused responses
+            // Removed topP and topK for faster processing
           },
           safetySettings: [
             { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },

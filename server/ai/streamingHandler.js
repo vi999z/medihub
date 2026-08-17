@@ -47,9 +47,9 @@ async function streamGeminiResponse(question, systemPrompt, res) {
             }
           ],
           generationConfig: {
-            maxOutputTokens: 1200,
-            temperature: 0.7,
-            topP: 0.9,
+            maxOutputTokens: 600,  // Reduced from 1200 for faster streaming
+            temperature: 0.5,      // Reduced for faster focused responses
+            // Removed topP and topK for speed
           }
         })
       }
