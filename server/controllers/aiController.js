@@ -149,8 +149,8 @@ CURRENT INVENTORY DATA:
     }
 
     const data = await response.json();
-    console.log('Free.ai API response received');
-    const aiResponse = data.choices[0]?.message?.content || 'No response generated';
+    console.log('Free.ai API response received:', JSON.stringify(data));
+    const aiResponse = data.choices?.[0]?.message?.content || data.message?.content || data.content || JSON.stringify(data);
 
     // Log the chat interaction
     await logAudit(
