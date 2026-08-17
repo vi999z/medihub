@@ -125,7 +125,7 @@ CURRENT INVENTORY DATA:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'qwen2.5-7b', // Free model from Free.ai
+        model: 'qwen7b', // Free model from Free.ai
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: question }
