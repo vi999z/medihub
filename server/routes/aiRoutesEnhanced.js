@@ -15,7 +15,9 @@ router.get('/health-report', ctrlEnhanced.getPharmacyHealthReport);
 // Enhanced analytics with AI explanations
 router.get('/expiry-risk', ctrlEnhanced.getExpiryRiskEnhanced);
 router.get('/anomalies', ctrlEnhanced.getAnomaliesEnhanced);
-
+// AI-generated export formats
+router.get('/report/export', require('../controllers/exportController').generateReportExport);
+router.post('/report/export', require('../controllers/exportController').generateReportExport);
 // Conversation management
 router.post('/conversation/clear', ctrlEnhanced.clearConversation);
 router.get('/conversation/info', ctrlEnhanced.getConversationInfo);
