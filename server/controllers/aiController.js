@@ -116,54 +116,112 @@ CURRENT INVENTORY DATA:
 - Reorder suggestions: ${JSON.stringify(reorderSuggestions)}
 - Anomalies detected: ${JSON.stringify(anomalies)}`;
 
-    console.log('Calling Google AI API...');
-    // Call Google AI Studio API with updated model
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: systemPrompt + "\n\nUser: " + question }
-            ]
-          }
-        ],
-        generationConfig: {
-          maxOutputTokens: 500,
-          temperature: 0.7,
-        }
-      }),
-    });
+    console.log('Calling Google AI API with fallback system...');
+    // Define fallback models in order of preference (more reliable models first)
+    const models = [
+      'gemini-3.1-flash-lite',  // Lighter, fast model with less congestion
+      'gemini-2.5-flash',       // Previous generation, stable and widely supported
+      'gemini-2.0-flash',       // Another stable option
+      'gemini-1.5-flash',       // Original fallback
+      'gemini-1.5-pro',         // More capable option
+      'gemini-pro'              // Final fallback
+    ];
+    let lastError = null;
 
-    console.log('Google AI API response status:', response.status);
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Google AI API error:', response.status, errorText);
+    for (const model of models) {
       try {
-        const errorData = JSON.parse(errorText);
-        console.error('Google AI error details:', errorData);
-      } catch (e) {
-        console.error('Could not parse error response');
+        console.log(`Trying model: ${model}`);
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: systemPrompt + "\n\nUser: " + question }
+              ]
+            }
+          ],
+          generationConfig: {
+            maxOutputTokens: 500,
+            temperature: 0.7,
+          }
+        }),
+      });
+
+      console.log(`Google AI API response status for ${model}:`, response.status);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Google AI API error for ${model}:`, response.status, errorText);
+
+        // If it's a 503 (high demand), retry with exponential backoff
+        if (response.status === 503) {
+          console.log(`Model ${model} experiencing high demand, retrying...`);
+          for (let retry = 1; retry <= 3; retry++) {
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retry) * 1000)); // 2s, 4s, 8s
+            console.log(`Retry attempt ${retry} for ${model}...`);
+            const retryResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: systemPrompt + "\n\nUser: " + question }] }],
+                generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
+              }),
+            });
+            if (retryResponse.ok) {
+              const retryData = await retryResponse.json();
+              const aiResponse = retryData.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+              console.log(`Retry successful for ${model}`);
+
+              await logAudit(req.user.id, 'ai_chat', `Question: ${question.substring(0, 100)}...`, req);
+              return res.json({ response: aiResponse });
+            }
+          }
+          console.log(`All retries failed for ${model}, trying next model...`);
+          lastError = new Error(`Model ${model} failed after retries: 503`);
+          continue;
+        }
+
+        // If it's a 404 (model not found), try next model
+        if (response.status === 404) {
+          console.log(`Model ${model} not found, trying next model...`);
+          lastError = new Error(`Model ${model} not found: 404`);
+          continue;
+        }
+
+        // For other errors, throw immediately
+        throw new Error(`Google AI API error: ${response.status} - ${errorText}`);
       }
-      throw new Error(`Google AI API error: ${response.status} - ${errorText}`);
+
+      const data = await response.json();
+      console.log(`Google AI API response received from ${model}`);
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+
+      // If we got here, the model worked
+      console.log(`Successfully used model: ${model}`);
+
+      // Log the chat interaction
+      await logAudit(
+        req.user.id,
+        'ai_chat',
+        `Question: ${question.substring(0, 100)}...`,
+        req
+      );
+
+      return res.json({ response: aiResponse });
+
+    } catch (err) {
+      console.error(`Error with model ${model}:`, err.message);
+      lastError = err;
+      continue; // Try next model
     }
+  }
 
-    const data = await response.json();
-    console.log('Google AI API response received');
-    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
-
-    // Log the chat interaction
-    await logAudit(
-      req.user.id,
-      'ai_chat',
-      `Question: ${question.substring(0, 100)}...`,
-      req
-    );
-
-    res.json({ response: aiResponse });
+    // If we get here, all models failed
+    console.error('All AI models failed, last error:', lastError);
+    throw lastError || new Error('All AI models failed');
   } catch (err) {
     console.error('AI chat failed:', err);
     console.error('Error details:', {
@@ -173,13 +231,16 @@ CURRENT INVENTORY DATA:
       apiKeyPrefix: process.env.GOOGLE_AI_API_KEY ? process.env.GOOGLE_AI_API_KEY.substring(0, 8) + '...' : 'none'
     });
 
-    if (err.message?.includes('API key') || err.message?.includes('401') || err.message?.includes('auth')) {
+    if (err.message?.includes('API key') || err.message?.includes('401')) {
       return res.status(500).json({ error: 'AI service authentication failed. Please contact administrator.' });
     }
     if (err.message?.includes('quota') || err.message?.includes('rate limit') || err.message?.includes('429')) {
       return res.status(429).json({ error: 'AI service rate limit exceeded. Please try again later.' });
     }
-    if (err.message?.includes('Google AI') || err.message?.includes('AI service') || err.message?.includes('genai')) {
+    if (err.message?.includes('503') || err.message?.includes('high demand') || err.message?.includes('UNAVAILABLE')) {
+      return res.status(503).json({ error: 'AI service is currently experiencing high demand. Please try again in a few moments.' });
+    }
+    if (err.message?.includes('Google AI') || err.message?.includes('AI service')) {
       return res.status(500).json({ error: `AI service error: ${err.message}` });
     }
     res.status(500).json({ error: 'Failed to process question. Please try again.' });
