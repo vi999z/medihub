@@ -514,41 +514,39 @@ export default function Medicines() {
                         {user.role === 'admin' && <th>Actions</th>}
                       </tr>
                     </thead>
-                    <StaggeredList staggerDelay={0.03}>
-                      <tbody>
-                        {items.map((m) => {
-                          const state = stockStateOf(m);
-                          const expiry = expiryLabel(m);
-                          return (
-                            <tr key={m.id}>
+                    <tbody>
+                      {items.map((m) => {
+                        const state = stockStateOf(m);
+                        const expiry = expiryLabel(m);
+                        return (
+                          <tr key={m.id}>
+                            <td>
+                              <div style={{ fontWeight: 600 }}>{m.name}</div>
+                              <div style={{ fontSize: 11.5, color: 'var(--steel)' }}>
+                                {[m.generic_name, m.dosage_form].filter(Boolean).join(' · ') || '—'}
+                                {m.requires_prescription ? ' · Rx' : ''}
+                              </div>
+                            </td>
+                            {!grouped && <td><span className="stamp">{categoryOf(m)}</span></td>}
+                            <td><span className="stamp">{m.strength || '—'}</span></td>
+                            <td>
+                              <div style={{ fontWeight: 600 }}>{m.total_stock ?? 0} {m.unit}</div>
+                              <div style={{ fontSize: 11.5, color: 'var(--steel)' }}>reorder at {m.reorder_level}</div>
+                            </td>
+                            <td><span className={`status-pill ${state.cls}`}>{state.label}</span></td>
+                            <td>{expiry ? <span className={`status-pill ${expiry.cls}`}>{expiry.label}</span> : <span className="stamp">—</span>}</td>
+                            {user.role === 'admin' && (
                               <td>
-                                <div style={{ fontWeight: 600 }}>{m.name}</div>
-                                <div style={{ fontSize: 11.5, color: 'var(--steel)' }}>
-                                  {[m.generic_name, m.dosage_form].filter(Boolean).join(' · ') || '—'}
-                                  {m.requires_prescription ? ' · Rx' : ''}
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <button className="btn-icon" onClick={() => openEdit(m)} title="Edit medicine"><Pencil size={14} /></button>
+                                  <button className="btn-icon" onClick={() => handleDelete(m.id)} title="Delete medicine"><Trash2 size={14} /></button>
                                 </div>
                               </td>
-                              {!grouped && <td><span className="stamp">{categoryOf(m)}</span></td>}
-                              <td><span className="stamp">{m.strength || '—'}</span></td>
-                              <td>
-                                <div style={{ fontWeight: 600 }}>{m.total_stock ?? 0} {m.unit}</div>
-                                <div style={{ fontSize: 11.5, color: 'var(--steel)' }}>reorder at {m.reorder_level}</div>
-                              </td>
-                              <td><span className={`status-pill ${state.cls}`}>{state.label}</span></td>
-                              <td>{expiry ? <span className={`status-pill ${expiry.cls}`}>{expiry.label}</span> : <span className="stamp">—</span>}</td>
-                              {user.role === 'admin' && (
-                                <td>
-                                  <div style={{ display: 'flex', gap: 6 }}>
-                                    <button className="btn-icon" onClick={() => openEdit(m)} title="Edit medicine"><Pencil size={14} /></button>
-                                    <button className="btn-icon" onClick={() => handleDelete(m.id)} title="Delete medicine"><Trash2 size={14} /></button>
-                                  </div>
-                                </td>
-                              )}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </StaggeredList>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
                   </table>
                 </div>
               )}
