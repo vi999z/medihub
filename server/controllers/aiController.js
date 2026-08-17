@@ -73,6 +73,7 @@ async function getAnomalies(req, res) {
 async function chat(req, res) {
   try {
     const { question } = req.body;
+    console.log('AI chat request received:', { question: question?.substring(0, 50) + '...', userId: req.user?.id });
 
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
       return res.status(400).json({ error: 'Question is required' });
@@ -83,18 +84,21 @@ async function chat(req, res) {
       console.error('GROQ_API_KEY is not set in environment variables');
       return res.status(500).json({ error: 'AI service not configured. Please contact administrator.' });
     }
+    console.log('Groq API key present:', apiKey ? 'Yes' : 'No');
 
+    console.log('Fetching database data...');
     // Gather relevant data from existing endpoints
     const [summary, expiring, lowStock, trend, categoryData, expiryRisk, reorderSuggestions, anomalies] = await Promise.all([
-      pool.query('SELECT * FROM summary_view').then(r => r[0] || {}),
-      pool.query('SELECT * FROM batches WHERE status = "active" AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) ORDER BY expiry_date ASC LIMIT 10').then(r => r),
-      pool.query('SELECT * FROM low_stock_view LIMIT 10').then(r => r),
-      pool.query('SELECT * FROM sales_trend_view ORDER BY date DESC LIMIT 30').then(r => r),
-      pool.query('SELECT category, COUNT(*) as count FROM medicines GROUP BY category').then(r => r),
-      scoreActiveBatches().catch(() => []),
-      getReorderSuggestions().catch(() => []),
-      detectAnomalies(30).catch(() => []),
+      pool.query('SELECT * FROM summary_view').then(r => r[0] || {}).catch(e => { console.error('Summary view error:', e); return {}; }),
+      pool.query('SELECT * FROM batches WHERE status = \'active\' AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) ORDER BY expiry_date ASC LIMIT 10').then(r => r).catch(e => { console.error('Expiring batches error:', e); return []; }),
+      pool.query('SELECT * FROM low_stock_view LIMIT 10').then(r => r).catch(e => { console.error('Low stock view error:', e); return []; }),
+      pool.query('SELECT * FROM sales_trend_view ORDER BY date DESC LIMIT 30').then(r => r).catch(e => { console.error('Sales trend view error:', e); return []; }),
+      pool.query('SELECT category, COUNT(*) as count FROM medicines GROUP BY category').then(r => r).catch(e => { console.error('Category query error:', e); return []; }),
+      scoreActiveBatches().catch(e => { console.error('Expiry risk error:', e); return []; }),
+      getReorderSuggestions().catch(e => { console.error('Reorder suggestions error:', e); return []; }),
+      detectAnomalies(30).catch(e => { console.error('Anomalies error:', e); return []; }),
     ]);
+    console.log('Database data fetched successfully');
 
     // Construct the system prompt with real data
     const systemPrompt = `You are a helpful AI assistant for a pharmacy inventory management system called MediHub. 
@@ -112,6 +116,7 @@ CURRENT INVENTORY DATA:
 - Reorder suggestions: ${JSON.stringify(reorderSuggestions)}
 - Anomalies detected: ${JSON.stringify(anomalies)}`;
 
+    console.log('Calling Groq API...');
     // Call Groq API
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -130,6 +135,7 @@ CURRENT INVENTORY DATA:
       }),
     });
 
+    console.log('Groq API response status:', response.status);
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Groq API error:', response.status, errorText);
@@ -143,6 +149,7 @@ CURRENT INVENTORY DATA:
     }
 
     const data = await response.json();
+    console.log('Groq API response received');
     const aiResponse = data.choices[0]?.message?.content || 'No response generated';
 
     // Log the chat interaction
