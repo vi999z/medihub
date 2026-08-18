@@ -94,7 +94,19 @@ CREATE TABLE audit_logs (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- 8. AI model persistence (stores trained TensorFlow.js weights for expiry risk model)
+-- 8. AI conversation persistence
+CREATE TABLE ai_conversations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL DEFAULT 'New Conversation',
+  messages_json LONGTEXT NOT NULL DEFAULT '[]',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_conv (user_id, updated_at)
+);
+
+-- 9. AI model persistence (stores trained TensorFlow.js weights for expiry risk model)
 CREATE TABLE ai_models (
   id INT AUTO_INCREMENT PRIMARY KEY,
   model_name VARCHAR(50) NOT NULL UNIQUE,

@@ -15,7 +15,7 @@ const aiRoutesEnhanced = require('./routes/aiRoutesEnhanced');
 
 const app = express();
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || '*' }));
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'MediHub API running', version: '2.0', ai: 'modern-llm' });

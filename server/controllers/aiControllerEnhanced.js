@@ -4,7 +4,7 @@
  * Replaces the basic Google AI calls with sophisticated reasoning and context awareness
  */
 
-const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand: forecastDemandModel, analyzeEfficiency: analyzeEfficiencyModel, chatWithFileGeneration } = require('../ai/medicalLLM');
+const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, buildGeminiTools, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand: forecastDemandModel, analyzeEfficiency: analyzeEfficiencyModel, chatWithFileGeneration } = require('../ai/medicalLLM');
 const { explainAnomaly, explainExpiryRisk, explainReorderRecommendation, generatePharmacyHealthReport } = require('../ai/modelExplainer');
 const { streamGeminiResponse } = require('../ai/streamingHandler');
 const { trainAndPersist, scoreActiveBatches } = require('../ai/expiryRiskModel');
@@ -18,7 +18,7 @@ const conversationContexts = new Map();
 
 function getUserContext(userId) {
   if (!conversationContexts.has(userId)) {
-    conversationContexts.set(userId, new ConversationContext(userId, 5)); // Increased to 5 turns for better context
+    conversationContexts.set(userId, new ConversationContext(userId, 20));
   }
   return conversationContexts.get(userId);
 }
@@ -370,7 +370,7 @@ async function generateReportWithDownload(req, res) {
 // ─── Modern Chat with Conversation History & Function Calling ───
 async function chatModern(req, res) {
   try {
-    const { question, stream = false } = req.body;
+    const { question, stream = false, image_base64, mime_type } = req.body;
     const userId = req.user.id;
 
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
@@ -390,16 +390,16 @@ async function chatModern(req, res) {
     // Try modern approach first
     try {
       if (stream) {
-        // Stream response mode (like ChatGPT)
+        // Stream response mode — pass full history and context for stateful streaming
         const systemPrompt = buildSystemPrompt(
           context.getContext(),
           detectIntention(question)
         );
 
-        return streamGeminiResponse(question, systemPrompt, res);
+        return streamGeminiResponse(question, systemPrompt, context.getHistory(), context, res, image_base64 || null, mime_type || null);
       } else {
         // Regular response mode (faster) with file generation support
-        const result = await chatWithFileGeneration(question, userId, context);
+        const result = await chatWithFileGeneration(question, userId, context, image_base64 || null, mime_type || null);
 
         // Log interaction
         await logAudit(

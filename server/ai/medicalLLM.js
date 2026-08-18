@@ -849,7 +849,7 @@ function identifyQuickWins(summary, anomalies, sales) {
 
 // ─── Conversation History & Context Management (Enhanced) ───
 class ConversationContext {
-  constructor(userId, maxTurns = 5) {
+  constructor(userId, maxTurns = 20) {
     this.userId = userId;
     this.maxTurns = maxTurns;
     this.history = [];
@@ -952,11 +952,6 @@ class ConversationContext {
 // ─── Enhanced System Prompt Builder ───
 function buildSystemPrompt(context = null, detectedIntention = null) {
   let prompt = MEDICAL_INSTRUCTIONS;
-  
-  prompt += `\n\nAVAILABLE FUNCTIONS:
-${Object.entries(AVAILABLE_FUNCTIONS).map(([name, info]) => 
-  `- ${name}: ${info.description}`
-).join('\n')}`;
 
   if (detectedIntention) {
     const intentionHints = {
@@ -980,14 +975,35 @@ ${intentionHints[detectedIntention] || intentionHints.general}`;
 ${context}`;
   }
 
-  prompt += `\n\nRESPONSE FORMAT:
-- Plain text only, NO markdown
-- NO asterisks, NO bold, NO special formatting
-- Be concise (1-2 sentences max)
-- Include key data points
-- One actionable suggestion if needed`;
-
   return prompt;
+}
+
+// ─── Build Gemini tools array from AVAILABLE_FUNCTIONS ───
+function buildGeminiTools() {
+  const functionDeclarations = Object.entries(AVAILABLE_FUNCTIONS).map(([name, info]) => {
+    const declaration = {
+      name,
+      description: info.description,
+    };
+
+    if (info.params && info.params.length > 0) {
+      const properties = {};
+      info.params.forEach(p => {
+        properties[p.name] = { type: p.type === 'number' ? 'NUMBER' : p.type === 'boolean' ? 'BOOLEAN' : 'STRING', description: p.description };
+      });
+      declaration.parameters = {
+        type: 'OBJECT',
+        properties,
+        required: []
+      };
+    } else {
+      declaration.parameters = { type: 'OBJECT', properties: {} };
+    }
+
+    return declaration;
+  });
+
+  return [{ functionDeclarations }];
 }
 
 // ─── Intention Detection (enhanced with more patterns) ───
@@ -1245,12 +1261,12 @@ function detectFileRequest(question) {
 }
 
 // ─── Enhanced Chat with File Generation ───
-async function chatWithFileGeneration(question, userId, context = null) {
+async function chatWithFileGeneration(question, userId, context = null, imageBase64 = null, mimeType = null) {
   const requestedFileType = detectFileRequest(question);
   const intention = detectIntention(question);
 
   // Get the standard AI response first
-  const standardResponse = await modernChat(question, userId, context);
+  const standardResponse = await modernChat(question, userId, context, imageBase64, mimeType);
 
   // If user requested a file, enhance the response
   if (requestedFileType) {
@@ -1271,7 +1287,7 @@ async function chatWithFileGeneration(question, userId, context = null) {
   return standardResponse;
 }
 
-async function modernChat(question, userId, context = null) {
+async function modernChat(question, userId, context = null, imageBase64 = null, mimeType = null) {
   try {
     const intention = detectIntention(question);
 
@@ -1280,65 +1296,55 @@ async function modernChat(question, userId, context = null) {
       contextStr = context.getContext();
     }
 
-    // Add user message to context before building prompt
-    if (context) {
-      context.addMessage('user', question);
-    }
-
     const baseSystemPrompt = buildSystemPrompt(contextStr, intention);
-    const messages = [];
 
-    if (context && context.getHistory().length > 0) {
-      const history = context.getHistory();
-      for (const msg of history) {
-        messages.push({ role: msg.role, content: msg.content });
-      }
-    }
+    // Build contents from history (before adding current turn)
+    const historyMsgs = context ? context.getHistory() : [];
+    const contents = historyMsgs.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
 
-    // If it's the first message or no history, add the question
-    if (messages.length === 0 || messages[messages.length - 1].role !== 'user') {
-      messages.push({ role: 'user', content: question });
+    // Build the current user turn (with optional image)
+    const userParts = [];
+    if (imageBase64 && mimeType) {
+      userParts.push({ inlineData: { mimeType, data: imageBase64 } });
     }
+    userParts.push({ text: question });
+    contents.push({ role: 'user', parts: userParts });
 
     console.log(`[AI] Processing question with intention: ${intention}`);
-    console.log(`[AI] Conversation history length: ${messages.length}`);
+    console.log(`[AI] Conversation history length: ${contents.length}`);
 
     const apiKey = process.env.GOOGLE_AI_API_KEY;
     if (!apiKey) {
       throw new Error('AI service not configured');
     }
 
+    const tools = buildGeminiTools();
+
     const selectedModels = [
-      'gemini-3.1-flash-lite',
       'gemini-2.5-flash',
       'gemini-2.0-flash',
-      'gemini-1.5-flash'
+      'gemini-1.5-flash',
+      'gemini-3.1-flash-lite',
     ];
 
     let lastError = null;
 
     for (const modelName of [...new Set(selectedModels)]) {
       try {
-        const recoveryPrompt = `${baseSystemPrompt}\n\nIMPORTANT: If the request is ambiguous or the model output would be empty, answer using the pharmacy inventory snapshot instead of refusing. Focus on concise data-driven help.`;
-
-        const response = await fetch(
+        // ── First API call: let Gemini decide which tools (if any) to invoke ──
+        const firstResponse = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              systemInstruction: {
-                parts: [{ text: recoveryPrompt }],
-                role: 'system'
-              },
-              contents: messages.map(msg => ({
-                role: msg.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: msg.content }]
-              })),
-              generationConfig: {
-                maxOutputTokens: 2048,  // Increased for generative responses
-                temperature: 0.7,       // Higher temperature for more creative responses
-              },
+              systemInstruction: { parts: [{ text: baseSystemPrompt }], role: 'system' },
+              contents,
+              tools,
+              generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
               safetySettings: [
                 { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
                 { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
@@ -1347,45 +1353,103 @@ async function modernChat(question, userId, context = null) {
           }
         );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          lastError = new Error(`API error (${response.status}): ${errorText}`);
+        if (!firstResponse.ok) {
+          const errorText = await firstResponse.text();
+          lastError = new Error(`API error (${firstResponse.status}): ${errorText}`);
           continue;
         }
 
-        const data = await response.json();
-        const aiResponse = extractGeneratedText(data);
-        const isRecoveryText = /quick inventory summary|switching to a quick inventory summary|safer alternative|having trouble generating a full answer|blocked by the safety filter/i.test(aiResponse);
+        const firstData = await firstResponse.json();
+        const candidate = firstData?.candidates?.[0];
+        const parts = candidate?.content?.parts || [];
+
+        // ── Check if Gemini requested any function calls ──
+        const functionCallParts = parts.filter(p => p.functionCall);
+        if (functionCallParts.length > 0) {
+          // Execute each requested function
+          const functionResponseParts = await Promise.all(
+            functionCallParts.map(async p => {
+              const { name, args } = p.functionCall;
+              console.log(`[AI] Gemini requested function: ${name}`, args);
+              const result = await callFunction(name, args || {});
+              return {
+                functionResponse: {
+                  name,
+                  response: { result }
+                }
+              };
+            })
+          );
+
+          // ── Second API call: feed function results back to Gemini ──
+          const contentsWithFn = [
+            ...contents,
+            { role: 'model', parts },                              // model's function-call turn
+            { role: 'function', parts: functionResponseParts }    // our function results
+          ];
+
+          const secondResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: baseSystemPrompt }], role: 'system' },
+                contents: contentsWithFn,
+                tools,
+                generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
+                safetySettings: [
+                  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+                  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
+                ]
+              })
+            }
+          );
+
+          if (!secondResponse.ok) {
+            const errorText = await secondResponse.text();
+            lastError = new Error(`API error on function response (${secondResponse.status}): ${errorText}`);
+            continue;
+          }
+
+          const secondData = await secondResponse.json();
+          const finalText = extractGeneratedText(secondData);
+          const finalResponse = finalText || await buildFallbackInventoryResponse(question);
+
+          if (context) {
+            context.addMessage('user', question);
+            context.addMessage('assistant', finalResponse);
+          }
+
+          return { response: finalResponse, intention, model: modelName, timestamp: new Date().toISOString() };
+        }
+
+        // ── No function call — use the direct text response ──
+        const aiResponse = extractGeneratedText(firstData);
+        const isRecoveryText = /quick inventory summary|switching to a quick inventory summary|having trouble generating a full answer|blocked by the safety filter/i.test(aiResponse);
         const finalResponse = isRecoveryText ? await buildFallbackInventoryResponse(question) : aiResponse;
 
         if (context) {
+          context.addMessage('user', question);
           context.addMessage('assistant', finalResponse);
         }
 
-        return {
-          response: finalResponse,
-          intention,
-          model: modelName,
-          timestamp: new Date().toISOString()
-        };
+        return { response: finalResponse, intention, model: modelName, timestamp: new Date().toISOString() };
+
       } catch (err) {
         console.warn(`[AI] Model ${modelName} failed:`, err.message);
         lastError = err;
       }
     }
 
+    // All models failed — local fallback
     const recoveryResponse = await buildFallbackInventoryResponse(question);
-
     if (context) {
+      context.addMessage('user', question);
       context.addMessage('assistant', recoveryResponse);
     }
 
-    return {
-      response: recoveryResponse,
-      intention,
-      model: selectedModels[0],
-      timestamp: new Date().toISOString()
-    };
+    return { response: recoveryResponse, intention, model: 'local_fallback', timestamp: new Date().toISOString() };
 
   } catch (err) {
     console.error('[AI] Error in modernChat:', err.message);
@@ -1400,6 +1464,7 @@ module.exports = {
   AVAILABLE_FUNCTIONS,
   detectIntention,
   buildSystemPrompt,
+  buildGeminiTools,
   selectAvailableModel,
   MODEL_FALLBACK_CHAIN,
   extractGeneratedText,
