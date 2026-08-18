@@ -346,16 +346,17 @@ export default function AiChatModern() {
     }
 
     const res = await api.post('/ai/chat', body, { signal: controller.signal });
+    const responseText = res?.data?.response || res?.data?.error || 'AI service returned an empty response. Please try again.';
 
     setMessages(prev => [...prev, { 
       role: 'assistant', 
-      content: res.data.response,
+      content: responseText,
       timestamp: new Date(),
-      intention: res.data.intention,
-      model: res.data.model
+      intention: res?.data?.intention,
+      model: res?.data?.model
     }]);
-    setIntention(res.data.intention);
-    setConversationTurn(res.data.conversation_turn || conversationTurn + 1);
+    setIntention(res?.data?.intention);
+    setConversationTurn(res?.data?.conversation_turn || conversationTurn + 1);
     abortControllerRef.current = null;
   }
 

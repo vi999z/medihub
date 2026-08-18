@@ -380,8 +380,8 @@ export default function AiChat() {
 
         const assistantMsg = {
           role: 'assistant',
-          content: data.response,
-          file_request: data.file_request || (data.export ? { detected: true, file_type: data.export.type } : null),
+          content: data?.response || 'AI service returned an empty response. Please try again.',
+          file_request: data?.file_request || (data?.export ? { detected: true, file_type: data.export.type } : null),
         };
         const finalMessages = [...nextMessages, assistantMsg];
         setMessages(finalMessages);
