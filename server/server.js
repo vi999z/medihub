@@ -21,12 +21,17 @@ const app = express();
 //   • Any localhost / 127.0.0.1 port (dev)
 //   • FRONTEND_ORIGIN env var (production — set this on Render to the client URL)
 //   • Requests with no Origin header (curl, Postman, server-to-server)
-const ALLOWED_ORIGINS = new Set(
-  (process.env.FRONTEND_ORIGIN || '')
+const ALLOWED_ORIGINS = new Set([
+  // Explicit env var — set FRONTEND_ORIGIN on Render to your client URL.
+  // Supports comma-separated values for multiple frontends.
+  ...(process.env.FRONTEND_ORIGIN || '')
     .split(',')
     .map(s => s.trim())
-    .filter(Boolean)
-);
+    .filter(Boolean),
+  // Hardcoded Render frontend URL as a guaranteed fallback so the app
+  // works even before the env var is configured on the server service.
+  'https://medihub-2-hn4o.onrender.com',
+]);
 
 app.use(cors({
   origin: (origin, callback) => {
