@@ -300,8 +300,9 @@ export default function AiChatModern() {
         }
       }
 
-      // Try streaming first for better UX
-      const useStreaming = true;
+      // Streaming is not supported by the current /api/ai/chat endpoint;
+      // use the normal (non-streaming) path.
+      const useStreaming = false;
 
       if (useStreaming) {
         await handleStreamingResponse(userMessage, imageToSend);
