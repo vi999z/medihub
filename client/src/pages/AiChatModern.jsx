@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { IconSend, IconRobot, IconUser, IconRefresh, IconAlertTriangle, IconSparkles } from '@tabler/icons-react';
+import ReactMarkdown from 'react-markdown';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } = require('../context/ToastContext');
@@ -456,13 +457,35 @@ export default function AiChatModern() {
                   color: msg.role === 'user' ? 'white' : 'inherit',
                   border: msg.isError ? '1px solid #fcc' : 'none',
                   wordWrap: 'break-word',
-                  whiteSpace: 'pre-wrap',
                   fontSize: 14,
                   lineHeight: 1.5
                 }}
               >
-                {msg.content}
-                {msg.isStreaming && <span style={{ animation: 'blink 1s infinite' }}>▌</span>}
+                {msg.role === 'assistant' ? (
+                  <ReactMarkdown
+                    components={{
+                      h1: ({node, ...props}) => <h3 style={{fontSize: '16px', fontWeight: 700, margin: '12px 0 8px', color: 'var(--primary)'}} {...props} />,
+                      h2: ({node, ...props}) => <h3 style={{fontSize: '15px', fontWeight: 700, margin: '10px 0 6px', color: 'var(--primary)'}} {...props} />,
+                      h3: ({node, ...props}) => <h4 style={{fontSize: '14px', fontWeight: 700, margin: '8px 0 4px', color: 'var(--primary)'}} {...props} />,
+                      strong: ({node, ...props}) => <strong style={{fontWeight: 700}} {...props} />,
+                      em: ({node, ...props}) => <em style={{fontStyle: 'italic', opacity: 0.9}} {...props} />,
+                      ul: ({node, ...props}) => <ul style={{marginLeft: '20px', marginTop: '6px', marginBottom: '6px'}} {...props} />,
+                      ol: ({node, ...props}) => <ol style={{marginLeft: '20px', marginTop: '6px', marginBottom: '6px'}} {...props} />,
+                      li: ({node, ...props}) => <li style={{marginBottom: '4px'}} {...props} />,
+                      blockquote: ({node, ...props}) => <blockquote style={{marginLeft: '12px', paddingLeft: '12px', borderLeft: '3px solid var(--primary)', opacity: 0.95, fontStyle: 'italic'}} {...props} />,
+                      code: ({node, inline, ...props}) => inline ? 
+                        <code style={{background: 'rgba(0,0,0,0.1)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px'}} {...props} /> :
+                        <code style={{display: 'block', background: 'rgba(0,0,0,0.1)', padding: '12px', borderRadius: '6px', overflow: 'auto', margin: '8px 0', fontFamily: 'monospace', fontSize: '12px'}} {...props} />
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : (
+                  <>
+                    {msg.content}
+                    {msg.isStreaming && <span style={{ animation: 'blink 1s infinite' }}>▌</span>}
+                  </>
+                )}
               </div>
 
               {msg.role === 'user' && (

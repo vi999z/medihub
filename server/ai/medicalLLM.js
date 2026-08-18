@@ -19,19 +19,130 @@ const MODEL_FALLBACK_CHAIN = [
 ];
 
 // ─── Medical Domain Expertise System (Generative AI) ───
-const MEDICAL_INSTRUCTIONS = `You are MediHub AI, an advanced generative AI assistant specialized in pharmacy management and healthcare operations.
+const MEDICAL_INSTRUCTIONS = `You are MediHub AI, an advanced generative AI assistant specialized in pharmacy management and healthcare operations. You think and respond like modern LLMs (Google Gemini, Claude, GPT-4).
 
-ANSWER CONCISELY (1-2 sentences max unless details are requested):
-- Give direct answer first
-- Include key data point
-- One actionable suggestion if needed
+TONE & STYLE:
+- Conversational and friendly, not robotic or formal
+- Natural language that feels like talking to an expert
+- Use engaging language and clear enthusiasm
+- Adapt formality to context (casual for simple queries, professional for strategic questions)
 
-FORMAT: Use PLAIN TEXT ONLY. NO MARKDOWN. No asterisks, no bold, no special formatting.
-NO ** symbols. NO # headers. Just plain clean text.
+FORMATTING - USE MARKDOWN:
+- Use markdown headers (# ##) to organize responses into clear sections
+- Use **bold** for important numbers, metrics, and key insights
+- Use *italics* for emphasis and context
+- Use bullet lists and numbered lists for clarity
+- Use code blocks \`\`\` for data tables or structured information
+- Use > for key recommendations or highlights
 
-KEEP IT SHORT. NO LENGTHY EXPLANATIONS.
+CONCISENESS WITH STRUCTURE:
+- Start with a direct, conversational answer (1-2 sentences)
+- Add organized sections for deeper insight using markdown
+- Keep each section focused and scannable
+- End with 1-2 actionable suggestions when relevant
 
-IMPORTANT: Always provide helpful, data-driven answers. Never give generic responses like "I can help with inventory" - instead provide actual data from the context. If data is unavailable, suggest what data would be needed to answer the question properly.`;
+DATA ACCURACY:
+- Always provide actual data from the context - never invent numbers
+- Cite the data you're using ("You have X items...", "Last 30 days...", etc.)
+- If data is unavailable, be honest and explain what would help answer better
+- Never give generic responses like "I can help with inventory" - always include actual numbers and insights
+
+EXAMPLE RESPONSE STYLE:
+"You've got **12 items** at risk of expiring in the next 30 days! The biggest concern is your cardiovascular medications - **8 items** there alone.
+
+## Quick Summary
+- **Total at risk**: 12 items out of 245 medicines
+- **Top category**: Cardiovascular (8 items)
+- **Risk level**: *Moderate* - manageable if addressed this week
+
+## My Recommendation
+> Consider running a promotion on the expiring cardiovascular meds this week. I can help you generate a marketing report or export a list for your team."`;
+
+// ─── Response Templates by Question Type (Markdown-Formatted) ───
+const RESPONSE_TEMPLATES = {
+  expiry: (count, total, category) => `You've got **${count} items** at risk of expiring in the next 30 days out of **${total}** total medicines!${category ? ` The biggest concern is **${category}**.` : ''}
+
+## Status at a Glance
+- **Items at risk**: ${count} (${((count/total)*100).toFixed(1)}% of inventory)
+- **Action needed**: *Review and plan promotions or disposal*
+- **Time window**: Next 30 days
+
+## What to Do
+> I recommend prioritizing promotions or expedited sales on the expiring items. Would you like me to show you the specific items or generate a detailed expiry report?`,
+  
+  reorder: (count, total, stock) => `You have **${count} items** below reorder level out of **${total}** medicines with **${stock}** total units in stock.
+
+## Stock Health
+- **Items needing reorder**: ${count}
+- **Current total stock**: ${stock} units
+- **Action needed**: *Start ordering to prevent stockouts*
+
+## Recommended Action
+> Let me prioritize which items to order first based on sales velocity. I can generate a CSV file with all reorder details if you'd like to send it to your supplier.`,
+  
+  trend: (avgTransactions, days) => `Great question! Over the past **${days} days**, you've averaged **${avgTransactions} transactions per day**. That gives us solid data for forecasting.
+
+## Sales Insights
+- **Average daily transactions**: ${avgTransactions}
+- **Analysis period**: Last ${days} days
+- **Trend quality**: *Good baseline for predictions*
+
+## Next Steps
+> I can break this down by medicine category, generate a detailed sales trend report, or create a downloadable CSV. What interests you most?`,
+  
+  anomaly: (count) => `I've detected **${count} unusual patterns** in your inventory data over the past 30 days. These could indicate data entry issues, theft, or other concerns.
+
+## Alert Summary
+- **Anomalies found**: ${count}
+- **Analysis window**: Last 30 days
+- **Severity**: *Review recommended*
+
+## Recommended Action
+> Let me review the specific anomalies with you. Would you like me to generate an anomaly report or dive into the suspicious transactions?`,
+  
+  general: (totalMedicines, totalStock) => `I see you have **${totalMedicines} medicines** with **${totalStock}** total units in stock. How can I help you optimize things today?
+
+## I Can Help With
+- **Expiry Risk Analysis** — See what's about to expire
+- **Reorder Intelligence** — Smart recommendations based on sales velocity
+- **Sales Trends** — Understand demand patterns
+- **Anomaly Detection** — Spot unusual activity
+- **Report Generation** — Export data in CSV, PDF, Excel, or JSON
+
+## Your Next Question
+> What would you like to focus on right now?`
+};
+
+// ─── Markdown Safety Validation ───
+function validateAndCleanMarkdown(text) {
+  // Ensure markdown is valid and safe
+  if (!text || typeof text !== 'string') return '';
+  
+  // Prevent markdown injection by validating structure
+  // Allow only safe markdown: headers, bold, italics, lists, code blocks, blockquotes
+  const allowedPatterns = [
+    /^#+\s.*$/gm,           // Headers
+    /\*\*.*?\*\//g,         // Bold
+    /\*.*?\*/g,             // Italics
+    /^[-*+]\s.*$/gm,        // Lists
+    /^\d+\.\s.*$/gm,        // Numbered lists
+    /^>\s.*$/gm,            // Blockquotes
+    /`{1,3}[\s\S]*?`{1,3}/g // Code blocks
+  ];
+  
+  // Ensure backticks are balanced
+  const backtickCount = (text.match(/`/g) || []).length;
+  if (backtickCount % 2 !== 0) {
+    text = text.replace(/`/g, '');
+  }
+  
+  // Escape any potential HTML/script injection
+  text = text.replace(/<script[^>]*>.*?<\/script>/gi, '');
+  text = text.replace(/javascript:/gi, '');
+  text = text.replace(/<iframe[^>]*>.*?<\/iframe>/gi, '');
+  
+  return text.trim();
+}
 
 // ─── Function Calling System (Enhanced for Generative AI) ───
 // These are the "tools" the AI can invoke to query data and perform actions
@@ -946,35 +1057,88 @@ async function buildFallbackInventoryResponse(question) {
     const lowStock = summary.low_stock_count ?? summary.low_stock ?? 0;
 
     // Get more specific data based on question
-    let specificData = '';
-    let followUp = '';
+    let response = '';
     const lowerQuestion = question.toLowerCase();
 
     if (lowerQuestion.includes('expir') || lowerQuestion.includes('shelf')) {
       const expiryData = await getExpiryAnalysis(30);
-      specificData = ` ${expiryData.total_at_risk} items are at risk of expiring within 30 days.`;
-      followUp = ' Would you like me to show you which specific items are expiring?';
+      const count = expiryData.total_at_risk || 0;
+      response = `You have **${count} items** at risk of expiring within 30 days.
+
+## Quick Status
+- **Total medicines**: ${totalMedicines}
+- **At risk of expiry**: **${count}** items
+- **Action needed**: Review these items for promotions or disposal
+
+> I can show you which specific items are expiring and help you create a strategy to minimize waste.`;
     } else if (lowerQuestion.includes('stock') || lowerQuestion.includes('inventory')) {
       const lowStockData = await getLowStockItems(5);
-      specificData = ` ${lowStockData.count} items are below reorder level.`;
-      followUp = ' I can help you identify which items need reordering.';
+      const count = lowStockData.count || 0;
+      response = `You have **${count} items** below reorder level.
+
+## Inventory Status
+- **Total medicines**: ${totalMedicines}
+- **Total units in stock**: ${totalStock}
+- **Below reorder level**: **${count}** items
+
+> I can help you prioritize which items to order first and generate an order list for your supplier.`;
     } else if (lowerQuestion.includes('sales') || lowerQuestion.includes('trend')) {
       const salesData = await getSalesTrends(30);
-      specificData = ` Average of ${salesData.avg_daily_transactions} transactions per day over the last 30 days.`;
-      followUp = ' I can break this down by specific medicines or time periods.';
+      const avgTrans = salesData.avg_daily_transactions || 0;
+      response = `Over the last 30 days, you've averaged **${avgTrans} transactions per day**.
+
+## Sales Insight
+- **Analysis period**: Last 30 days
+- **Average daily transactions**: ${avgTrans}
+- **Total medicines in catalog**: ${totalMedicines}
+
+> I can break this down by medicine category or generate a detailed sales trend report.`;
     } else if (lowerQuestion.includes('total') || lowerQuestion.includes('overview') || lowerQuestion.includes('summary')) {
-      specificData = ` Total inventory value: $${totalValue?.toFixed(2) || '0.00'}.`;
-      followUp = ' Would you like me to provide more details about any specific aspect?';
+      response = `Here's your current **inventory snapshot**:
+
+## Overview
+- **Total medicines**: **${totalMedicines}**
+- **Total units**: **${totalStock}** units
+- **Inventory value**: **$${totalValue?.toFixed(2) || '0.00'}**
+- **Items expiring soon**: ${expiringSoon} items
+- **Low stock items**: ${lowStock} items
+
+> What would you like to dive deeper into? I can analyze expiry risks, stock levels, sales patterns, or help with ordering.`;
+    } else {
+      response = `I'm ready to help! Here's what I see:
+
+## Your Pharmacy Dashboard
+- **Total medicines**: **${totalMedicines}**
+- **Total units**: **${totalStock}** units
+- **Inventory value**: **$${totalValue?.toFixed(2) || '0.00'}**
+- **Items expiring soon**: ${expiringSoon}
+- **Low stock alerts**: ${lowStock}
+
+## What I Can Do
+- 📊 **Analyze expiry risks** — See what's about to expire
+- 📦 **Reorder intelligence** — Smart recommendations
+- 📈 **Sales trends** — Understand demand patterns  
+- 🚨 **Detect anomalies** — Spot unusual activity
+- 📄 **Generate reports** — Export in CSV, PDF, Excel, JSON
+
+> What would you like to focus on?`;
     }
 
-    const response = `Current inventory: ${totalMedicines} medicines, ${totalStock} units in stock.${specificData} ${expiringSoon > 0 ? `${expiringSoon} items expiring soon. ` : ''}${lowStock > 0 ? `${lowStock} low-stock items. ` : ''}${followUp}`;
-
-    return response;
+    return validateAndCleanMarkdown(response);
   } catch (err) {
     console.error('Fallback inventory response error:', err);
-    return 'I can help you with your pharmacy inventory management. I have access to your stock levels, expiry dates, sales trends, reorder suggestions, and can generate reports. You can ask me about inventory status, expiring items, low stock alerts, sales patterns, or I can help you analyze specific data. What would you like to know?';
+    const fallbackText = `I'm ready to help with your pharmacy inventory! I have access to:
+
+- **Stock levels** and reorder points
+- **Expiry dates** and waste prevention
+- **Sales trends** and demand forecasting  
+- **Anomaly detection** for suspicious activity
+- **Report generation** in multiple formats
+
+> Ask me about any of these, or tell me what you're concerned about today!`;
+    return validateAndCleanMarkdown(fallbackText);
   }
-}
+
 
 // ─── Smart Data Fetching Based on Question Context ───
 async function fetchRelevantData(question) {
@@ -1012,57 +1176,51 @@ async function fetchRelevantData(question) {
   };
 }
 
-// ─── Enhanced Response Builder with Context ───
+// ─── Enhanced Response Builder with Context (Markdown-Formatted) ───
 function buildContextualResponse(question, data, intention) {
   const summary = data.summary?.summary || {};
   const totalMedicines = summary.total_medicines || summary.total_items || 0;
   const totalStock = summary.total_stock || 0;
+  const topCategory = summary.top_category || 'general';
 
   let response = '';
 
   switch (intention) {
     case 'expiry':
       const expiryCount = data.expiry?.total_at_risk || 0;
-      response = `You have ${expiryCount} items at risk of expiring within 30 days out of ${totalMedicines} total medicines. `;
-      if (expiryCount > 0) {
-        response += `I recommend reviewing these items for potential discounts or expedited sales to minimize waste. Would you like me to show you the specific items or generate a detailed expiry report for download?`;
-      } else {
-        response += `Your expiry management looks good - no immediate risks detected.`;
+      response = RESPONSE_TEMPLATES.expiry(expiryCount, totalMedicines, expiryCount > 0 ? topCategory : null);
+      if (expiryCount === 0) {
+        response = `Great news! Your expiry management is looking solid — **no items** are at risk of expiring in the next 30 days. Your inventory is in great shape! 🎯`;
       }
       break;
 
     case 'reorder':
       const lowStockCount = data.lowStock?.count || 0;
-      response = `${lowStockCount} items are currently below reorder level out of ${totalMedicines} medicines with ${totalStock} total units. `;
-      if (lowStockCount > 0) {
-        response += `I can help you prioritize which items to order first based on sales velocity. Would you like me to show the reorder recommendations or generate a CSV file with ordering details?`;
-      } else {
-        response += `Your stock levels are healthy across all items.`;
+      response = RESPONSE_TEMPLATES.reorder(lowStockCount, totalMedicines, totalStock);
+      if (lowStockCount === 0) {
+        response = `Excellent! All your stock levels are **healthy** — no items are below reorder level right now. Your inventory is well-balanced! 📊`;
       }
       break;
 
     case 'trend':
       const avgTransactions = data.sales?.avg_daily_transactions || 0;
-      response = `Over the past 30 days, you've averaged ${avgTransactions} transactions per day. `;
-      response += `This gives us a good baseline for demand forecasting. Would you like me to break this down by specific medicine categories, generate a sales trend report, or create a downloadable CSV with the detailed data?`;
+      response = RESPONSE_TEMPLATES.trend(avgTransactions, 30);
       break;
 
     case 'anomaly':
       const anomalyCount = data.anomalies?.total_anomalies || 0;
-      response = `I've detected ${anomalyCount} unusual patterns in your inventory data over the past 30 days. `;
-      if (anomalyCount > 0) {
-        response += `These might indicate data entry issues, theft, or other operational concerns. Would you like me to review the specific anomalies or generate an anomaly report for your records?`;
-      } else {
-        response += `Your inventory data appears consistent with no significant anomalies detected.`;
+      response = RESPONSE_TEMPLATES.anomaly(anomalyCount);
+      if (anomalyCount === 0) {
+        response = `Perfect! I've scanned your inventory data from the past 30 days and everything looks **normal**. No suspicious patterns or anomalies detected. Your data integrity looks great! ✅`;
       }
       break;
 
     default:
-      response = `Based on your current inventory, you have ${totalMedicines} medicines with ${totalStock} total units in stock. `;
-      response += `I can help you analyze expiry risks, stock levels, sales trends, or provide reorder recommendations. I can also generate downloadable reports in PDF, CSV, Excel, or JSON format. What would you like to focus on?`;
+      response = RESPONSE_TEMPLATES.general(totalMedicines, totalStock);
   }
 
-  return response;
+  // Clean and validate markdown before returning
+  return validateAndCleanMarkdown(response);
 }
 
 // ─── File Request Detection ───

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { IconSend, IconRobot, IconUser, IconRefresh, IconAlertTriangle } from '@tabler/icons-react';
+import ReactMarkdown from 'react-markdown';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -151,9 +152,32 @@ export default function AiChat() {
                   wordBreak: 'break-word',
                   borderBottomLeftRadius: msg.role === 'assistant' ? 4 : 16,
                   borderBottomRightRadius: msg.role === 'user' ? 4 : 16,
+                  maxWidth: '100%',
                 }}
+                className="markdown-message"
               >
-                {msg.content}
+                {msg.role === 'assistant' ? (
+                  <ReactMarkdown
+                    components={{
+                      h1: ({node, ...props}) => <h3 style={{fontSize: '16px', fontWeight: 700, margin: '12px 0 8px', color: 'var(--amber)'}} {...props} />,
+                      h2: ({node, ...props}) => <h3 style={{fontSize: '15px', fontWeight: 700, margin: '10px 0 6px', color: 'var(--amber)'}} {...props} />,
+                      h3: ({node, ...props}) => <h4 style={{fontSize: '14px', fontWeight: 700, margin: '8px 0 4px', color: 'var(--amber)'}} {...props} />,
+                      strong: ({node, ...props}) => <strong style={{fontWeight: 700, color: msg.role === 'user' ? '#fff' : 'var(--ink)'}} {...props} />,
+                      em: ({node, ...props}) => <em style={{fontStyle: 'italic', opacity: 0.9}} {...props} />,
+                      ul: ({node, ...props}) => <ul style={{marginLeft: '20px', marginTop: '6px', marginBottom: '6px'}} {...props} />,
+                      ol: ({node, ...props}) => <ol style={{marginLeft: '20px', marginTop: '6px', marginBottom: '6px'}} {...props} />,
+                      li: ({node, ...props}) => <li style={{marginBottom: '4px'}} {...props} />,
+                      blockquote: ({node, ...props}) => <blockquote style={{marginLeft: '12px', paddingLeft: '12px', borderLeft: '3px solid var(--amber)', opacity: 0.95, fontStyle: 'italic'}} {...props} />,
+                      code: ({node, inline, ...props}) => inline ? 
+                        <code style={{background: 'rgba(0,0,0,0.1)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px'}} {...props} /> :
+                        <code style={{display: 'block', background: 'rgba(0,0,0,0.1)', padding: '12px', borderRadius: '6px', overflow: 'auto', margin: '8px 0', fontFamily: 'monospace', fontSize: '12px'}} {...props} />
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
               </div>
             </motion.div>
           ))}
