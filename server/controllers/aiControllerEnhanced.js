@@ -262,52 +262,34 @@ async function getAvailableFunctions(req, res) {
 async function generateDownloadableFile(req, res) {
   try {
     const { file_type, content, filename } = req.body;
-
     if (!file_type || !content) {
       return res.status(400).json({ error: 'file_type and content are required' });
     }
 
     const exportCtrl = require('./exportController');
-    let result;
+    const BINARY = ['pdf', 'excel', 'xlsx', 'word', 'docx'];
 
-    switch (file_type) {
-      case 'csv':
-        result = exportCtrl.buildReportExport(content, 'csv');
-        break;
-      case 'excel':
-        result = exportCtrl.buildReportExport(content, 'excel');
-        break;
-      case 'json':
-        result = exportCtrl.buildReportExport(content, 'json');
-        break;
-      case 'txt':
-        result = exportCtrl.buildReportExport(content, 'txt');
-        break;
-      case 'pdf':
-        result = await exportCtrl.buildPdfBuffer(content);
-        return res
-          .setHeader('Content-Type', 'application/pdf')
-          .setHeader('Content-Disposition', `attachment; filename="${filename || 'report.pdf'}"`)
-          .send(result);
-      default:
-        return res.status(400).json({ error: 'Unsupported file type' });
+    if (BINARY.includes(file_type)) {
+      const { buffer, contentType, filename: outName } = await exportCtrl.buildBinaryExport(content, file_type, filename);
+      await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${outName}`, req);
+      return res
+        .setHeader('Content-Type', contentType)
+        .setHeader('Content-Disposition', `attachment; filename="${outName}"`)
+        .send(buffer);
     }
 
-    await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${filename}`, req);
-
+    const result = exportCtrl.buildReportExport(content, file_type);
+    await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${result.filename}`, req);
     return res.json({
       success: true,
       file_type,
       filename: result.filename || filename,
       content: result.body,
-      content_type: result.contentType
+      content_type: result.contentType,
     });
   } catch (err) {
     console.error('File generation failed:', err);
-    res.status(500).json({
-      error: 'Failed to generate file',
-      detail: err.message
-    });
+    res.status(500).json({ error: 'Failed to generate file', detail: err.message });
   }
 }
 
@@ -416,7 +398,8 @@ async function chatModern(req, res) {
           timestamp: result.timestamp,
           conversation_turn: Math.floor(context.getHistory().length / 2),
           topics: context.metadata.topics,
-          file_request: result.file_request || null
+          file_request:  result.file_request  || null,
+          file_requests: result.file_requests || null,
         });
       }
     } catch (modernErr) {

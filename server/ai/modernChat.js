@@ -6,7 +6,7 @@
 
 const { GoogleGenAI, HarmCategory, HarmBlockThreshold } = require('@google/genai');
 const { buildSystemPrompt, buildGeminiTools, detectIntention, callFunction } = require('./geminiClient');
-const { extractGeneratedText, buildFallbackInventoryResponse, detectFileRequest } = require('./responseBuilder');
+const { extractGeneratedText, buildFallbackInventoryResponse, detectFileRequest, detectGeneratedContent } = require('./responseBuilder');
 
 // ─── Model fallback chain (newest → oldest) ───
 const MODEL_CHAIN = [
@@ -16,6 +16,7 @@ const MODEL_CHAIN = [
   'gemini-3.5-flash-lite',
   'gemini-3.1-pro-preview',
   'gemini-3.1-flash-lite',
+  'gemini-2.5-pro',
   'gemini-2.5-flash',
   'gemini-2.0-flash',
   'gemini-1.5-flash',
@@ -149,16 +150,24 @@ async function chatWithFileGeneration(question, userId, context = null, imageBas
   const requestedFileType = detectFileRequest(question);
   const standardResponse  = await modernChat(question, userId, context, imageBase64, mimeType);
 
-  if (requestedFileType) {
+  // 1. AI embedded one or more file blocks — surface all of them
+  const generatedFiles = detectGeneratedContent(standardResponse.response, question);
+  if (generatedFiles.length > 0) {
     return {
       ...standardResponse,
-      file_request: {
-        detected:          true,
-        file_type:         requestedFileType,
-        hint:              `I detected you want a ${requestedFileType.toUpperCase()} file. Use the file generation endpoint with your current data to create a downloadable ${requestedFileType} file.`,
-        endpoint:          '/api/ai/generate-file',
-        available_formats: ['csv', 'excel', 'pdf', 'json', 'txt'],
-      },
+      file_requests: generatedFiles,           // array: one entry per fenced block
+      file_request:  generatedFiles[0],        // backwards-compat single field
+    };
+  }
+
+  // 2. Question asked for a file but AI didn't embed content — client will call /generate-file
+  if (requestedFileType) {
+    const { deriveFilename } = require('./responseBuilder');
+    const fallback = { detected: true, file_type: requestedFileType, content: null, filename: deriveFilename(question, requestedFileType) };
+    return {
+      ...standardResponse,
+      file_requests: [fallback],
+      file_request:  fallback,
     };
   }
 

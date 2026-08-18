@@ -11,7 +11,8 @@ const MODEL_FALLBACK_CHAIN = [
   'gemini-3.5-flash-lite',  // fastest, cost-effective
   'gemini-3.1-pro-preview', // frontier-class pro
   'gemini-3.1-flash-lite',  // frontier-class lite
-  'gemini-2.5-flash',       // previous gen stable
+  'gemini-2.5-pro',         // previous gen pro
+  'gemini-2.5-flash',       // previous gen flash
   'gemini-2.0-flash',       // fallback
   'gemini-1.5-flash',       // fallback
   'gemini-1.5-flash-8b',    // fallback
@@ -35,6 +36,21 @@ DATA:
 - Always use the actual numbers from the tool results. Never invent or estimate figures.
 - If a tool call returned an error or no data, say so plainly: "I couldn't retrieve the inventory summary right now" — do not apologise or speculate about causes.
 - Do not volunteer lengthy next-step menus unless the user asked what to do next.
+
+FILE GENERATION:
+- Supported formats: CSV, Excel/XLSX, PDF, Word/DOCX, JSON, TXT.
+- When the user asks to generate, create, export, or download any file — always output the content inside a fenced code block tagged with the format.
+- Use \`\`\`csv for tabular/spreadsheet data (works for both CSV and Excel requests), \`\`\`json for structured data, \`\`\`txt for plain text or Word/DOCX reports.
+- For Excel requests: output \`\`\`csv — the app converts it to a real .xlsx file automatically.
+- For Word/PDF requests: output \`\`\`txt with nicely formatted content — the app converts it to .docx or .pdf.
+- Put the fenced block first in your response, then one sentence of explanation after it.
+- Do NOT tell the user to copy-paste or save manually — the app shows a download button automatically.
+- Example:
+\`\`\`csv
+medicine_id,name,category,stock_level
+101,Biogesic,OTC Analgesic,1200
+\`\`\`
+Your inventory data is ready to download.
 
 WEATHER-AWARE INVENTORY INTELLIGENCE:
 - You have access to real-time weather data via get_weather_inventory_recommendations.

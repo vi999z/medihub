@@ -38,30 +38,76 @@ const MD_COMPONENTS = {
 };
 
 // ─── Download button ───
+const MIME_MAP = {
+  csv:   'text/csv; charset=utf-8',
+  txt:   'text/plain; charset=utf-8',
+  json:  'application/json; charset=utf-8',
+};
+
+// Binary formats (excel, word, pdf) come back as binary responses from the server
+// and are handled separately — they never go through triggerDownload directly.
+function triggerDownload(data, fileType, filename) {
+  const mime = MIME_MAP[fileType] || 'application/octet-stream';
+  const content = data instanceof ArrayBuffer || data instanceof Uint8Array
+    ? data
+    : (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+  const blob = new Blob([content], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const BINARY_TYPES = new Set(['excel', 'xlsx', 'word', 'docx', 'pdf']);
+
 function DownloadButton({ fileRequest, messageContent }) {
   const { addToast } = useToast();
   const [busy, setBusy] = useState(false);
+  const fileType = fileRequest.file_type;
+  const filename = fileRequest.filename || `medihub_export.${fileType}`;
 
   async function handleDownload() {
     setBusy(true);
     try {
-      const res = await api.post('/ai/generate-file', {
-        file_type: fileRequest.file_type,
-        content: { title: 'AI Report', rows: [], summary: {}, data: messageContent },
-        filename: `medihub_${fileRequest.file_type}_export`
+      const isBinary = BINARY_TYPES.has(fileType);
+
+      if (fileRequest.content && !isBinary) {
+        // Text content already extracted — download directly
+        triggerDownload(fileRequest.content, fileType, filename);
+        addToast(`Downloaded ${filename}`, 'success');
+        return;
+      }
+
+      // Binary formats (xlsx, docx, pdf) or no inline content — call the server
+      // The server streams a binary buffer so use fetch directly (axios would need responseType)
+      const token = document.cookie.match(/token=([^;]+)/)?.[1]
+        || localStorage.getItem('token')
+        || sessionStorage.getItem('token');
+
+      const res = await fetch('/api/ai/generate-file', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          file_type: fileType,
+          // Pass the AI-generated text content (will be parsed server-side)
+          content: fileRequest.content || messageContent || '',
+          filename,
+        }),
       });
-      const { content, content_type, filename } = res.data;
-      const blob = new Blob(
-        [typeof content === 'string' ? content : JSON.stringify(content, null, 2)],
-        { type: content_type || 'text/plain' }
-      );
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename || `medihub_export.${fileRequest.file_type}`;
-      a.click();
-      URL.revokeObjectURL(url);
-      addToast(`Downloaded ${a.download}`, 'success');
+
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+
+      const contentDisp = res.headers.get('content-disposition') || '';
+      const serverName  = contentDisp.match(/filename="?([^"]+)"?/)?.[1] || filename;
+
+      const buffer = await res.arrayBuffer();
+      triggerDownload(buffer, fileType, serverName);
+      addToast(`Downloaded ${serverName}`, 'success');
     } catch {
       addToast('Download failed. Please try again.', 'error');
     } finally {
@@ -183,6 +229,7 @@ export default function AiChat() {
   // Conversation history state
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
+  const activeConvIdRef = useRef(null);   // always mirrors activeConvId synchronously
   const [convLoading, setConvLoading] = useState(true);
 
   // ─── Scroll to bottom on new messages / streaming ───
@@ -217,6 +264,7 @@ export default function AiChat() {
     try {
       const res = await api.get(`/ai/conversations/${id}`);
       setMessages(res.data.messages?.length ? res.data.messages : BLANK_MESSAGES);
+      activeConvIdRef.current = id;
       setActiveConvId(id);
     } catch {
       addToast('Could not load conversation', 'error');
@@ -225,6 +273,7 @@ export default function AiChat() {
 
   async function newChat() {
     setMessages(BLANK_MESSAGES);
+    activeConvIdRef.current = null;
     setActiveConvId(null);
     setInput('');
     setAttachedImage(null);
@@ -315,14 +364,18 @@ export default function AiChat() {
       const assistantMsg = {
         role: 'assistant',
         content: data?.response || 'AI service returned an empty response. Please try again.',
-        file_request: data?.file_request || (data?.export ? { detected: true, file_type: data.export.type } : null),
+        // Prefer the array; fall back to wrapping the single field; last resort: export legacy
+        file_requests: data?.file_requests
+          || (data?.file_request ? [data.file_request] : null)
+          || (data?.export ? [{ detected: true, file_type: data.export.type, filename: `medihub_export.${data.export.type}` }] : null),
       };
       const finalMessages = [...nextMessages, assistantMsg];
       setMessages(finalMessages);
       setStreamingText('');
 
-      const { id: savedId, title: savedTitle } = await saveConversation(finalMessages, activeConvId);
-      if (savedId && savedId !== activeConvId) {
+      const { id: savedId, title: savedTitle } = await saveConversation(finalMessages, activeConvIdRef.current);
+      if (savedId && savedId !== activeConvIdRef.current) {
+        activeConvIdRef.current = savedId;
         setActiveConvId(savedId);
         setConversations(prev => {
           if (prev.some(c => c.id === savedId)) return prev;
@@ -472,8 +525,12 @@ export default function AiChat() {
                 {msg.role === 'assistant' ? (
                   <>
                     <ReactMarkdown components={MD_COMPONENTS}>{msg.content}</ReactMarkdown>
-                    {msg.file_request?.detected && (
-                      <DownloadButton fileRequest={msg.file_request} messageContent={msg.content} />
+                    {msg.file_requests?.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                        {msg.file_requests.map((fr, i) => (
+                          <DownloadButton key={i} fileRequest={fr} messageContent={msg.content} />
+                        ))}
+                      </div>
                     )}
                   </>
                 ) : (

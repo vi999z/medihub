@@ -67,7 +67,8 @@ async function getConversation(req, res) {
 // Body: { id? (existing), title, messages: [{role, content, timestamp}] }
 async function saveConversation(req, res) {
   try {
-    const { id, title, messages } = req.body;
+    const { title, messages } = req.body;
+    const id = req.params.id || req.body.id; // PUT supplies id via URL param; POST has no id
     if (!Array.isArray(messages)) return res.status(400).json({ error: 'messages must be an array' });
 
     const safeTitle = (title || 'New Conversation').slice(0, 255);

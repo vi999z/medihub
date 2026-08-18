@@ -226,24 +226,84 @@ function buildContextualResponse(question, data, intention) {
 }
 
 // ─── File Request Detector ───
+// Returns the requested file type, or null if no file intent detected.
 function detectFileRequest(question) {
-  const lowerQuestion = question.toLowerCase();
+  const q = question.toLowerCase();
 
-  const filePatterns = {
-    csv: ['csv', 'spreadsheet', 'download file', 'export to csv'],
-    pdf: ['pdf', 'report file', 'download report', 'pdf report'],
-    excel: ['excel', 'xlsx', 'microsoft excel'],
-    json: ['json', 'data file', 'api data', 'structured data'],
-    txt: ['text file', 'txt', 'plain text', 'text document']
-  };
+  // Explicit format keywords — highest priority
+  if (/\b(csv|comma.?separated)\b/.test(q)) return 'csv';
+  if (/\b(excel|xlsx|spreadsheet|xls)\b/.test(q)) return 'excel';
+  if (/\b(word|docx|microsoft word|doc)\b/.test(q)) return 'word';
+  if (/\b(pdf|pdf report)\b/.test(q)) return 'pdf';
+  if (/\b(json|structured data|api data)\b/.test(q)) return 'json';
+  if (/\b(txt|plain.?text|text file|text document)\b/.test(q)) return 'txt';
 
-  for (const [fileType, patterns] of Object.entries(filePatterns)) {
-    if (patterns.some(pattern => lowerQuestion.includes(pattern))) {
-      return fileType;
-    }
-  }
+  // Natural generation phrases — verb + file-like noun
+  const genVerbs  = ['generate', 'create', 'make', 'produce', 'give me', 'provide', 'export', 'download', 'output', 'write', 'build', 'prepare', 'show me'];
+  const fileNouns = ['file', 'report', 'list', 'table', 'dataset', 'inventory', 'summary', 'log', 'sheet', 'sample'];
+  if (genVerbs.some(v => q.includes(v)) && fileNouns.some(n => q.includes(n))) return 'csv';
 
   return null;
+}
+
+// ─── Derive a clean filename from the user's question ───
+// e.g. "give me a sample inventory file" → "sample_inventory"
+function deriveFilename(question, fileType) {
+  const stopWords = new Set([
+    'a','an','the','me','my','us','our','for','of','in','on','to','at','with',
+    'give','make','create','generate','produce','provide','export','download',
+    'output','write','build','prepare','show','get','can','you','please','i',
+    'want','need','file','data','report','sample','fully','made','as','is','it',
+    'csv','json','txt','excel','xlsx','pdf','xls',
+  ]);
+  const words = question
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !stopWords.has(w));
+
+  const slug = words.slice(0, 5).join('_') || 'medihub_export';
+  return `${slug}.${fileType}`;
+}
+
+// ─── Auto-detect ALL generated file blocks in an AI response ───
+// Returns an array of { file_type, content, filename } objects — one per fenced block.
+// Returns [] if the response has no downloadable content.
+function detectGeneratedContent(responseText, question = '') {
+  if (!responseText) return [];
+
+  const results = [];
+  // Match every fenced block: ```<lang>\n<content>```
+  const re = /```([\w]*)\s*\n([\s\S]*?)```/g;
+  let match;
+
+  while ((match = re.exec(responseText)) !== null) {
+    const tag   = match[1].toLowerCase();
+    const block = match[2].trim();
+    if (!block) continue;
+
+    // Determine file type from tag or content heuristic
+    let fileType = null;
+    if (['csv', 'json', 'txt', 'excel'].includes(tag)) {
+      fileType = tag;
+    } else {
+      // Untagged or unknown tag — sniff content
+      try { JSON.parse(block); fileType = 'json'; } catch {}
+      if (!fileType) {
+        const lines = block.split('\n').filter(Boolean);
+        if (lines.length >= 2 && lines[0].includes(',')) fileType = 'csv';
+      }
+      if (!fileType) fileType = 'txt';
+    }
+
+    results.push({
+      file_type: fileType,
+      content:   block,
+      filename:  deriveFilename(question, fileType),
+    });
+  }
+
+  return results;
 }
 
 module.exports = {
@@ -252,5 +312,7 @@ module.exports = {
   buildFallbackInventoryResponse,
   fetchRelevantData,
   buildContextualResponse,
-  detectFileRequest
+  detectFileRequest,
+  detectGeneratedContent,
+  deriveFilename,
 };
