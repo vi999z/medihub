@@ -357,14 +357,14 @@ function extractGeneratedText(responseData) {
   }
 
   if (responseData?.promptFeedback?.blockReason) {
-    return `The request was blocked by the safety filter, so I’m switching to a safer alternative. Please rephrase the question or ask for a quick inventory summary.`;
+    return 'The request was blocked by the safety filter, so I’m switching to a quick inventory summary instead.';
   }
 
   if (responseData?.candidates?.length) {
-    return 'I can help with a quick inventory summary instead. Try asking for stock levels, expiry items, or low-stock alerts.';
+    return 'I can give you a quick inventory summary instead. Ask about stock levels, expiring items, or low-stock alerts.';
   }
 
-  return 'I’m having trouble generating a detailed answer right now. Ask for a quick inventory summary or rephrase the question.';
+  return 'I’m having trouble generating a full answer right now, so I’m giving you a quick inventory summary instead.';
 }
 
 async function buildFallbackInventoryResponse(question) {
@@ -376,9 +376,9 @@ async function buildFallbackInventoryResponse(question) {
     const expiringSoon = summary.expiring_soon ?? 0;
     const lowStock = summary.low_stock_count ?? summary.low_stock ?? 0;
 
-    return `I’m unable to provide a detailed AI answer right now, but here is the current inventory snapshot: ${totalMedicines} medicines, ${totalStock} units in stock, ${expiringSoon} items expiring soon, and ${lowStock} low-stock items. Ask for a specific report or trend and I’ll narrow it down.`;
+    return `Quick inventory snapshot: ${totalMedicines} medicines, ${totalStock} units in stock, ${expiringSoon} items expiring soon, and ${lowStock} low-stock items. I can also break this down by expiry, reorder risk, or sales trends.`;
   } catch (err) {
-    return 'I’m unable to provide a detailed AI answer right now. Please rephrase the question or ask for a quick inventory summary.';
+    return 'Quick inventory summary: I can help with current stock, expiry risk, or low-stock alerts. Ask for a specific report and I’ll narrow it down.';
   }
 }
 
@@ -458,7 +458,7 @@ async function modernChat(question, userId, context = null) {
 
         const data = await response.json();
         const aiResponse = extractGeneratedText(data);
-        const isRecoveryText = /quick inventory summary|rephrase the question|safer alternative|I’m having trouble generating a detailed answer|blocked by the safety filter/i.test(aiResponse);
+        const isRecoveryText = /quick inventory summary|switching to a quick inventory summary|safer alternative|having trouble generating a full answer|blocked by the safety filter/i.test(aiResponse);
         const finalResponse = isRecoveryText ? await buildFallbackInventoryResponse(question) : aiResponse;
 
         if (context) {
