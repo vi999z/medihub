@@ -315,7 +315,6 @@ export default function AiChat() {
         },
         body: JSON.stringify({
           question: userMessage,
-          stream: true,
           ...(image ? { image_base64: image.base64, mime_type: image.mimeType } : {}),
         }),
         signal: controller.signal,
