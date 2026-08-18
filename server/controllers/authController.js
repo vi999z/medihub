@@ -57,18 +57,26 @@ async function login(req, res) {
 }
 
 // POST /api/auth/logout
+// No verifyToken on this route — logout must always succeed even when the
+// token is expired or absent. We do a best-effort decode for the audit log;
+// failure is silently ignored and the cookie is cleared either way.
 async function logout(req, res) {
-  // Clear the cookie by overwriting it with an already-expired one.
+  const token = req.cookies?.medihub_token;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      await logAudit(decoded.id, 'logout', `${decoded.email} logged out`, req).catch(() => {});
+    } catch {
+      // expired or invalid — skip audit log, still clear the cookie
+    }
+  }
+
   res.clearCookie('medihub_token', {
     httpOnly: true,
     sameSite: 'Lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
   });
-
-  if (req.user) {
-    await logAudit(req.user.id, 'logout', `${req.user.email} logged out`, req).catch(() => {});
-  }
 
   res.json({ ok: true });
 }

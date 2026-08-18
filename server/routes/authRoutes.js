@@ -4,9 +4,10 @@ const { login, register, me, logout } = require('../controllers/authController')
 const { verifyToken, requireRole } = require('../middleware/auth');
 
 router.post('/login', login);
-// logout: verifyToken is applied so the audit log can record who logged out,
-// but the cookie is cleared regardless of whether the token is still valid.
-router.post('/logout', verifyToken, logout);
+// logout must NOT require a valid token — the whole point is clearing an
+// expired or missing session. The handler does its own best-effort decode
+// for the audit log and always clears the cookie regardless.
+router.post('/logout', logout);
 router.post('/register', verifyToken, requireRole('admin'), register); // admin-only
 router.get('/me', verifyToken, me);
 

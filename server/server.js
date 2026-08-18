@@ -16,11 +16,21 @@ const aiRoutesEnhanced = require('./routes/aiRoutesEnhanced');
 
 const app = express();
 // credentials:true is required for the browser to send the HttpOnly session
-// cookie cross-origin (e.g. Vite dev server on :5173 → API on :5000).
-// CORS spec disallows credentials with a wildcard origin, so we use the
-// explicit FRONTEND_ORIGIN env var (falls back to localhost dev default).
+// cookie on cross-origin requests (Vite dev on :5173/:5174 → API on :5000).
+// In dev we accept any localhost port so Vite port-increment never breaks auth.
+// In production set FRONTEND_ORIGIN to your exact domain.
 app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // curl / Postman / same-origin
+    if (process.env.NODE_ENV === 'production') {
+      return callback(null, origin === process.env.FRONTEND_ORIGIN);
+    }
+    // Development: allow any localhost or 127.0.0.1 on any port
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
 }));
 app.use(cookieParser());
