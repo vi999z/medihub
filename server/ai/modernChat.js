@@ -39,9 +39,10 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
     const tools = buildGeminiTools();
 
     const selectedModels = [
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-flash',
       'gemini-2.0-flash',
       'gemini-1.5-flash',
-      'gemini-1.5-pro',
     ];
 
     let lastError = null;
@@ -73,7 +74,9 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
           continue;
         }
 
-        const firstData = await firstResponse.json();
+        const firstText = await firstResponse.text();
+        let firstData;
+        try { firstData = JSON.parse(firstText); } catch { lastError = new Error(`Model ${modelName} returned invalid JSON`); continue; }
         const candidate = firstData?.candidates?.[0];
         const parts = candidate?.content?.parts || [];
 
@@ -120,7 +123,9 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
             continue;
           }
 
-          const secondData = await secondResponse.json();
+          const secondText = await secondResponse.text();
+          let secondData;
+          try { secondData = JSON.parse(secondText); } catch { lastError = new Error(`Model ${modelName} returned invalid JSON on function response`); continue; }
           const finalText = extractGeneratedText(secondData);
           const finalResponse = finalText || await buildFallbackInventoryResponse(question);
 

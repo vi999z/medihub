@@ -183,7 +183,7 @@ function detectIntention(question) {
 
 // ─── Model Selection ───
 async function selectAvailableModel(apiKey) {
-  return 'gemini-2.0-flash';
+  return 'gemini-2.5-flash';
 }
 
 module.exports = {
