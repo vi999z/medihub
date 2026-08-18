@@ -11,14 +11,14 @@ export function AuthProvider({ children }) {
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
+    // Register the 401 logout callback BEFORE hydrate() fires any API call,
+    // so an expired token always results in a clean redirect to /login.
     api.setAuthLogout(() => {
       setUser(null);
       setAuthReady(true);
       window.location.href = '/login';
     });
-  }, []);
 
-  useEffect(() => {
     async function hydrate() {
       const token = localStorage.getItem('medihub_token');
       if (!token) {
@@ -36,6 +36,9 @@ export function AuthProvider({ children }) {
         localStorage.removeItem('medihub_token');
         localStorage.removeItem('medihub_user');
         setUser(null);
+        // Safety net: if the 401 interceptor didn't redirect (e.g. network error),
+        // ensure we still clear state and send the user to login.
+        window.location.href = '/login';
       } finally {
         setAuthReady(true);
       }

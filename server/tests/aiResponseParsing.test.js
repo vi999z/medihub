@@ -15,13 +15,30 @@ test('extractGeneratedText reads normal Google candidate text responses', () => 
   assert.equal(extractGeneratedText(payload), 'Inventory looks healthy.');
 });
 
-test('extractGeneratedText handles blocked responses with useful feedback', () => {
+test('extractGeneratedText returns null for blocked responses', () => {
   const payload = {
     promptFeedback: {
       blockReason: 'SAFETY'
     }
   };
 
-  assert.match(extractGeneratedText(payload), /blocked|safety|quick summary|inventory snapshot/i);
-  assert.doesNotMatch(extractGeneratedText(payload), /unable to provide a detailed AI answer|Please rephrase the question or ask for a quick inventory summary/i);
+  // Blocked responses return null so callers fall through to buildFallbackInventoryResponse
+  assert.equal(extractGeneratedText(payload), null);
+});
+
+test('extractGeneratedText returns null when candidates have no text parts', () => {
+  const payload = {
+    candidates: [{
+      content: {
+        parts: [{ functionCall: { name: 'get_inventory_summary', args: {} } }]
+      }
+    }]
+  };
+
+  assert.equal(extractGeneratedText(payload), null);
+});
+
+test('extractGeneratedText returns null for empty response', () => {
+  assert.equal(extractGeneratedText({}), null);
+  assert.equal(extractGeneratedText(null), null);
 });

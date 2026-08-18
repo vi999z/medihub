@@ -171,6 +171,7 @@ export default function Layout({ children }) {
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
   const pageTitle = useMemo(() => ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub', [location.pathname]);
+  const visibleItems = user?.role === 'admin' ? ALL_ITEMS : NAV_ITEMS;
 
   useEffect(() => {
     const title = pageTitle === 'MediHub' ? 'MediHub' : `${pageTitle} · MediHub`;
@@ -183,7 +184,7 @@ export default function Layout({ children }) {
         <div className="sidebar-logo"><span className="dot" />MEDI<span>HUB</span></div>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {Object.entries(
-            ALL_ITEMS.reduce((acc, item) => {
+            visibleItems.reduce((acc, item) => {
               if (!acc[item.section]) acc[item.section] = [];
               acc[item.section].push(item);
               return acc;
