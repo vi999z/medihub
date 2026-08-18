@@ -137,8 +137,19 @@ export default function Notifications() {
         )}
 
         {!loading && !error && visibleNotifications.length === 0 && (
-          <div className="empty-state">
-            <BellRing size={16} /> {notifications.length === 0 ? 'No alerts yet.' : 'No alerts match the current filters.'}
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr></thead>
+              <tbody>
+                <tr className="empty-row">
+                  <td colSpan={5}>
+                    <div className="empty-state compact-empty-state">
+                      <BellRing size={16} /> {notifications.length === 0 ? 'No alerts yet.' : 'No alerts match the current filters.'}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
 

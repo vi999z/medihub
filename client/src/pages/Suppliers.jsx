@@ -187,8 +187,19 @@ export default function Suppliers() {
         )}
 
         {!loading && !error && visibleSuppliers.length === 0 && (
-          <div className="empty-state">
-            {suppliers.length === 0 ? 'No suppliers yet. Add your first one above.' : `No suppliers match "${search}".`}
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
+              <tbody>
+                <tr className="empty-row">
+                  <td colSpan={user.role === 'admin' ? 6 : 5}>
+                    <div className="empty-state compact-empty-state">
+                      {suppliers.length === 0 ? 'No suppliers yet. Add your first one above.' : `No suppliers match "${search}".`}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
 

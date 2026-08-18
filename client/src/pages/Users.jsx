@@ -156,7 +156,20 @@ export default function Users() {
         )}
 
         {!loading && !error && visibleUsers.length === 0 && (
-          <div className="empty-state">No accounts match “{search}”.</div>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                <tr className="empty-row">
+                  <td colSpan={5}>
+                    <div className="empty-state compact-empty-state">No accounts match “{search}”.</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         )}
 
         {loading && (

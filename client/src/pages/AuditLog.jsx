@@ -77,7 +77,20 @@ export default function AuditLog() {
         )}
 
         {!loading && !error && visibleLogs.length === 0 && (
-          <div className="empty-state">{logs.length === 0 ? 'No activity recorded yet.' : `No entries match "${search}".`}</div>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
+              <tbody>
+                <tr className="empty-row">
+                  <td colSpan={4}>
+                    <div className="empty-state compact-empty-state">
+                      {logs.length === 0 ? 'No activity recorded yet.' : `No entries match "${search}".`}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         )}
 
         {loading && (

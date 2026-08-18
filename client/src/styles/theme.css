@@ -291,6 +291,8 @@ input, select, textarea { font-family: var(--font-body); }
 }
 
 .empty-state { padding: 40px 20px; border-radius: 14px; color: var(--steel); background: transparent; text-align: center; }
+.compact-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 180px; padding: 28px 20px; }
+.empty-row td { background: #fff; }
 
 .filter-tile { text-align: left; border: 1px solid var(--border); cursor: pointer; }
 .filter-tile.active { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(165,100,23,0.14); }
@@ -317,11 +319,12 @@ input, select, textarea { font-family: var(--font-body); }
 .group-header.static { cursor: default; }
 .group-title { flex: 1; text-align: left; }
 
-.table-scroll { max-height: 460px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; width: 100%; }
+.table-scroll { max-height: 460px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; width: 100%; background: #fff; }
 .data-table { table-layout: auto; width: 100%; border-collapse: separate; border-spacing: 0; }
 .data-table th, .data-table td { white-space: normal; }
 .data-table th { padding: 16px 20px; font-size: 11px; }
 .data-table td { padding: 18px 20px; font-size: 14px; }
+.data-table tbody tr.empty-row td { padding: 0; }
 .data-table.sticky-head th { position: sticky; top: 0; z-index: 1; background: var(--surface-strong); }
 .data-table tr.row-warning td { background: transparent; }
 .data-table tr.row-critical td { background: transparent; }

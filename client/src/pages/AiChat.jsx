@@ -22,6 +22,7 @@ export default function AiChat() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const abortControllerRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
 
   const scrollToBottom = () => {
@@ -32,6 +33,15 @@ export default function AiChat() {
     scrollToBottom();
   }, [messages]);
 
+  function abortCurrentRequest() {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
+    addToast('Request stopped', 'info');
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!input.trim() || loading) return;
@@ -41,6 +51,9 @@ export default function AiChat() {
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setLoading(true);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       // Check if user is authenticated
       const token = localStorage.getItem('medihub_token');
@@ -49,15 +62,21 @@ export default function AiChat() {
       }
       
       console.log('Sending AI chat request with token:', token ? 'Present' : 'Missing');
-      const res = await api.post('/ai/chat', { question: userMessage });
+      const res = await api.post('/ai/chat', { question: userMessage }, { signal: controller.signal });
       setMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
     } catch (err) {
+      if (err.name === 'CanceledError' || err.name === 'AbortError') {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Request stopped by user.', isError: true }]);
+        return;
+      }
+
       console.error('Chat error:', err);
       const errorMsg = err.response?.data?.error || err.message || 'Failed to get response. Please try again.';
       setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }]);
       addToast(errorMsg, 'error');
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   }
 
@@ -209,7 +228,7 @@ export default function AiChat() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about inventory, expiry, stock levels..."
+              placeholder={loading ? 'AI request in progress...' : 'Ask about inventory, expiry, stock levels...'}
               disabled={loading}
               style={{
                 flex: 1,
@@ -229,14 +248,25 @@ export default function AiChat() {
                 e.target.style.boxShadow = 'none';
               }}
             />
-            <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="btn btn-primary"
-              style={{ borderRadius: 24, padding: '12px 20px' }}
-            >
-              <IconSend size={16} />
-            </button>
+            {loading ? (
+              <button
+                type="button"
+                onClick={abortCurrentRequest}
+                className="btn btn-danger"
+                style={{ borderRadius: 24, padding: '12px 20px', background: '#b42318', color: '#fff' }}
+              >
+                Stop
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                className="btn btn-primary"
+                style={{ borderRadius: 24, padding: '12px 20px' }}
+              >
+                <IconSend size={16} />
+              </button>
+            )}
           </form>
         </div>
       </div>

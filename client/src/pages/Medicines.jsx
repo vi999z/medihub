@@ -444,12 +444,33 @@ export default function Medicines() {
         )}
 
         {!loading && !error && visibleMedicines.length === 0 && (
-          <div className="empty-state">
-            <FileWarning size={18} style={{ marginBottom: 6 }} />
-            <div>No medicines match the current filters.</div>
-            {filtersActive && (
-              <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
-            )}
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Category</th>
+                  <th>Strength</th>
+                  <th>Stock</th>
+                  <th>Status</th>
+                  <th>Nearest expiry</th>
+                  {user.role === 'admin' && <th>Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="empty-row">
+                  <td colSpan={user.role === 'admin' ? 7 : 6}>
+                    <div className="empty-state compact-empty-state">
+                      <FileWarning size={18} style={{ marginBottom: 6 }} />
+                      <div>No medicines match the current filters.</div>
+                      {filtersActive && (
+                        <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
 

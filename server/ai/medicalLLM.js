@@ -357,107 +357,138 @@ function extractGeneratedText(responseData) {
   }
 
   if (responseData?.promptFeedback?.blockReason) {
-    return `I’m unable to provide an answer because the request was blocked by the safety filter (${responseData.promptFeedback.blockReason}). Please rephrase the question.`;
+    return `The request was blocked by the safety filter, so I’m switching to a safer alternative. Please rephrase the question or ask for a quick inventory summary.`;
   }
 
   if (responseData?.candidates?.length) {
-    return 'The model returned an empty response. Please try a different phrasing or ask for a summary of the inventory data.';
+    return 'I can help with a quick inventory summary instead. Try asking for stock levels, expiry items, or low-stock alerts.';
   }
 
-  return 'I couldn’t generate a response from the AI service right now. Please try again or ask a simpler inventory question.';
+  return 'I’m having trouble generating a detailed answer right now. Ask for a quick inventory summary or rephrase the question.';
+}
+
+async function buildFallbackInventoryResponse(question) {
+  try {
+    const data = await getInventorySummary();
+    const summary = data?.summary || {};
+    const totalMedicines = summary.total_medicines ?? summary.total_items ?? 0;
+    const totalStock = summary.total_stock ?? 0;
+    const expiringSoon = summary.expiring_soon ?? 0;
+    const lowStock = summary.low_stock_count ?? summary.low_stock ?? 0;
+
+    return `I’m unable to provide a detailed AI answer right now, but here is the current inventory snapshot: ${totalMedicines} medicines, ${totalStock} units in stock, ${expiringSoon} items expiring soon, and ${lowStock} low-stock items. Ask for a specific report or trend and I’ll narrow it down.`;
+  } catch (err) {
+    return 'I’m unable to provide a detailed AI answer right now. Please rephrase the question or ask for a quick inventory summary.';
+  }
 }
 
 async function modernChat(question, userId, context = null) {
   try {
-    // Detect user's intention
     const intention = detectIntention(question);
-    
-    // Build conversation context if provided
+
     let contextStr = '';
     if (context && context.getHistory().length > 0) {
       contextStr = context.getContext();
     }
 
-    // Build system prompt with modern prompting techniques
-    const systemPrompt = buildSystemPrompt(contextStr, intention);
-
-    // Prepare the messages array (like modern LLMs)
+    const baseSystemPrompt = buildSystemPrompt(contextStr, intention);
     const messages = [];
-    
+
     if (context && context.getHistory().length > 0) {
-      // Add conversation history for context
       const history = context.getHistory();
       for (const msg of history) {
-        messages.push({
-          role: msg.role,
-          content: msg.content
-        });
+        messages.push({ role: msg.role, content: msg.content });
       }
     }
 
-    // Add current user question
-    messages.push({
-      role: 'user',
-      content: question
-    });
+    messages.push({ role: 'user', content: question });
 
     console.log(`[AI] Processing question with intention: ${intention}`);
     console.log(`[AI] Conversation history length: ${messages.length}`);
 
-    // Call Google AI with modern parameters
     const apiKey = process.env.GOOGLE_AI_API_KEY;
     if (!apiKey) {
       throw new Error('AI service not configured');
     }
 
-    // Select best available model from fallback chain
-    const selectedModel = await selectAvailableModel(apiKey);
+    const selectedModels = [
+      await selectAvailableModel(apiKey),
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash'
+    ];
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: systemPrompt }],
-            role: 'system'
-          },
-          contents: messages.map(msg => ({
-            role: msg.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: msg.content }]
-          })),
-          generationConfig: {
-            maxOutputTokens: 400,  // Reduced from 1000 for speed (still good quality)
-            temperature: 0.5,      // Reduced from 0.7 for focused responses
-            // Removed topP and topK for faster processing
-          },
-          safetySettings: [
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
-          ]
-        })
+    let lastError = null;
+
+    for (const modelName of [...new Set(selectedModels)]) {
+      try {
+        const recoveryPrompt = `${baseSystemPrompt}\n\nIMPORTANT: If the request is ambiguous or the model output would be empty, answer using the pharmacy inventory snapshot instead of refusing. Focus on concise data-driven help.`;
+
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: {
+                parts: [{ text: recoveryPrompt }],
+                role: 'system'
+              },
+              contents: messages.map(msg => ({
+                role: msg.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: msg.content }]
+              })),
+              generationConfig: {
+                maxOutputTokens: 400,
+                temperature: 0.5,
+              },
+              safetySettings: [
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
+              ]
+            })
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          lastError = new Error(`API error (${response.status}): ${errorText}`);
+          continue;
+        }
+
+        const data = await response.json();
+        const aiResponse = extractGeneratedText(data);
+        const isRecoveryText = /quick inventory summary|rephrase the question|safer alternative|I’m having trouble generating a detailed answer|blocked by the safety filter/i.test(aiResponse);
+        const finalResponse = isRecoveryText ? await buildFallbackInventoryResponse(question) : aiResponse;
+
+        if (context) {
+          context.addMessage('user', question);
+          context.addMessage('assistant', finalResponse);
+        }
+
+        return {
+          response: finalResponse,
+          intention,
+          model: modelName,
+          timestamp: new Date().toISOString()
+        };
+      } catch (err) {
+        console.warn(`[AI] Model ${modelName} failed:`, err.message);
+        lastError = err;
       }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API error (${response.status}): ${errorText}`);
     }
 
-    const data = await response.json();
-    const aiResponse = extractGeneratedText(data);
+    const recoveryResponse = await buildFallbackInventoryResponse(question);
 
-    // Update context if provided
     if (context) {
       context.addMessage('user', question);
-      context.addMessage('assistant', aiResponse);
+      context.addMessage('assistant', recoveryResponse);
     }
 
     return {
-      response: aiResponse,
+      response: recoveryResponse,
       intention,
-      model: selectedModel,
+      model: selectedModels[0],
       timestamp: new Date().toISOString()
     };
 
@@ -476,5 +507,6 @@ module.exports = {
   buildSystemPrompt,
   selectAvailableModel,
   MODEL_FALLBACK_CHAIN,
-  extractGeneratedText
+  extractGeneratedText,
+  buildFallbackInventoryResponse
 };

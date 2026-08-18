@@ -162,11 +162,22 @@ export default function Transactions() {
         )}
 
         {!loading && !error && visibleTransactions.length === 0 && (
-          <div className="empty-state">
-            <div>{transactions.length === 0 ? 'No stock movements recorded yet.' : 'No movements match the current filters.'}</div>
-            {filtersActive && (
-              <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
-            )}
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr></thead>
+              <tbody>
+                <tr className="empty-row">
+                  <td colSpan={6}>
+                    <div className="empty-state compact-empty-state">
+                      <div>{transactions.length === 0 ? 'No stock movements recorded yet.' : 'No movements match the current filters.'}</div>
+                      {filtersActive && (
+                        <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
 
@@ -190,7 +201,7 @@ export default function Transactions() {
           </div>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && visibleTransactions.length > 0 && (
           <div className="table-scroll">
             <table className="data-table">
               <thead><tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr></thead>
