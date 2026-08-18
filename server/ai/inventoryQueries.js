@@ -10,15 +10,20 @@ const { detectAnomalies } = require('./anomalyDetection');
 const { getWeatherContext, buildWeatherRecommendations } = require('./weatherService');
 
 async function getInventorySummary() {
-  const [summary] = await pool.query('SELECT * FROM summary_view');
-  const [categoryData] = await pool.query(
-    'SELECT category, COUNT(*) as count, SUM(quantity_remaining) as total_quantity FROM medicines JOIN batches ON medicines.id = batches.medicine_id WHERE batches.status = "active" GROUP BY category'
-  );
-  return {
-    summary: summary[0] || {},
-    by_category: categoryData || [],
-    timestamp: new Date().toISOString()
-  };
+  try {
+    const [summary] = await pool.query('SELECT * FROM summary_view');
+    const [categoryData] = await pool.query(
+      'SELECT category, COUNT(*) as count, SUM(quantity_remaining) as total_quantity FROM medicines JOIN batches ON medicines.id = batches.medicine_id WHERE batches.status = "active" GROUP BY category'
+    );
+    return {
+      summary: summary[0] || {},
+      by_category: categoryData || [],
+      timestamp: new Date().toISOString()
+    };
+  } catch (err) {
+    console.error('[DB] getInventorySummary failed:', err.message);
+    return { summary: {}, by_category: [], timestamp: new Date().toISOString(), error: err.message };
+  }
 }
 
 async function getExpiryAnalysis(daysWindow) {

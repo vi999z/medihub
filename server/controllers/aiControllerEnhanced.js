@@ -455,7 +455,7 @@ Answer questions about inventory based on this data:
 Keep responses concise, conversational, and data-driven. If data is empty, provide helpful suggestions about what data would be needed.`;
 
     // Try working models in order
-    const models = ['gemini-3.1-flash-lite', 'gemini-3.1-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+    const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
     let lastError = null;
 
     for (const model of models) {
