@@ -1138,7 +1138,7 @@ async function buildFallbackInventoryResponse(question) {
 > Ask me about any of these, or tell me what you're concerned about today!`;
     return validateAndCleanMarkdown(fallbackText);
   }
-
+}
 
 // ─── Smart Data Fetching Based on Question Context ───
 async function fetchRelevantData(question) {
