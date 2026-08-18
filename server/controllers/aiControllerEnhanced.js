@@ -4,7 +4,7 @@
  * Replaces the basic Google AI calls with sophisticated reasoning and context awareness
  */
 
-const { modernChat, ConversationContext, detectIntention, buildSystemPrompt } = require('../ai/medicalLLM');
+const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand, analyzeEfficiency, chatWithFileGeneration } = require('../ai/medicalLLM');
 const { explainAnomaly, explainExpiryRisk, explainReorderRecommendation, generatePharmacyHealthReport } = require('../ai/modelExplainer');
 const { streamGeminiResponse } = require('../ai/streamingHandler');
 const { trainAndPersist, scoreActiveBatches } = require('../ai/expiryRiskModel');
@@ -142,6 +142,231 @@ async function getPharmacyHealthReport(req, res) {
   }
 }
 
+// ─── Generative AI Report Generation ───
+async function generateAIReport(req, res) {
+  try {
+    const { report_type = 'comprehensive' } = req.body;
+
+    const result = await generateReport(report_type);
+
+    if (result.error) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    await logAudit(req.user.id, 'ai_report_generated', `Report type: ${report_type}`, req);
+
+    res.json({
+      report: result,
+      generated_at: new Date().toISOString(),
+      generated_by: req.user.id
+    });
+  } catch (err) {
+    console.error('AI report generation failed:', err);
+    res.status(500).json({
+      error: 'Failed to generate AI report',
+      detail: err.message
+    });
+  }
+}
+
+// ─── Strategy Generation ───
+async function generateStrategy(req, res) {
+  try {
+    const { strategy_type = 'cost_optimization' } = req.body;
+
+    const result = await createStrategy(strategy_type);
+
+    if (result.error) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    await logAudit(req.user.id, 'ai_strategy_generated', `Strategy type: ${strategy_type}`, req);
+
+    res.json({
+      strategy: result,
+      generated_at: new Date().toISOString(),
+      generated_by: req.user.id
+    });
+  } catch (err) {
+    console.error('Strategy generation failed:', err);
+    res.status(500).json({
+      error: 'Failed to generate strategy',
+      detail: err.message
+    });
+  }
+}
+
+// ─── Demand Forecasting ───
+async function forecastDemand(req, res) {
+  try {
+    const { forecast_period = 90 } = req.body;
+
+    const result = await forecastDemand(forecast_period);
+
+    if (result.error) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    await logAudit(req.user.id, 'ai_demand_forecast', `Period: ${forecast_period} days`, req);
+
+    res.json({
+      forecast: result,
+      generated_at: new Date().toISOString(),
+      generated_by: req.user.id
+    });
+  } catch (err) {
+    console.error('Demand forecasting failed:', err);
+    res.status(500).json({
+      error: 'Failed to generate demand forecast',
+      detail: err.message
+    });
+  }
+}
+
+// ─── Efficiency Analysis ───
+async function analyzeEfficiency(req, res) {
+  try {
+    const { focus_area = 'overall' } = req.body;
+
+    const result = await analyzeEfficiency(focus_area);
+
+    if (result.error) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    await logAudit(req.user.id, 'ai_efficiency_analysis', `Focus: ${focus_area}`, req);
+
+    res.json({
+      analysis: result,
+      generated_at: new Date().toISOString(),
+      generated_by: req.user.id
+    });
+  } catch (err) {
+    console.error('Efficiency analysis failed:', err);
+    res.status(500).json({
+      error: 'Failed to analyze efficiency',
+      detail: err.message
+    });
+  }
+}
+
+// ─── Available AI Functions (for frontend discovery) ───
+async function getAvailableFunctions(req, res) {
+  res.json({
+    functions: AVAILABLE_FUNCTIONS,
+    count: Object.keys(AVAILABLE_FUNCTIONS).length
+  });
+}
+
+// ─── Generate Downloadable File ───
+async function generateDownloadableFile(req, res) {
+  try {
+    const { file_type, content, filename } = req.body;
+
+    if (!file_type || !content) {
+      return res.status(400).json({ error: 'file_type and content are required' });
+    }
+
+    const exportCtrl = require('./exportController');
+    let result;
+
+    switch (file_type) {
+      case 'csv':
+        result = exportCtrl.buildReportExport(content, 'csv');
+        break;
+      case 'excel':
+        result = exportCtrl.buildReportExport(content, 'excel');
+        break;
+      case 'json':
+        result = exportCtrl.buildReportExport(content, 'json');
+        break;
+      case 'txt':
+        result = exportCtrl.buildReportExport(content, 'txt');
+        break;
+      case 'pdf':
+        result = await exportCtrl.buildPdfBuffer(content);
+        return res
+          .setHeader('Content-Type', 'application/pdf')
+          .setHeader('Content-Disposition', `attachment; filename="${filename || 'report.pdf'}"`)
+          .send(result);
+      default:
+        return res.status(400).json({ error: 'Unsupported file type' });
+    }
+
+    await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${filename}`, req);
+
+    return res.json({
+      success: true,
+      file_type,
+      filename: result.filename || filename,
+      content: result.body,
+      content_type: result.contentType
+    });
+  } catch (err) {
+    console.error('File generation failed:', err);
+    res.status(500).json({
+      error: 'Failed to generate file',
+      detail: err.message
+    });
+  }
+}
+
+// ─── AI-Generated Report with Download ───
+async function generateReportWithDownload(req, res) {
+  try {
+    const { report_type = 'comprehensive', format = 'pdf' } = req.body;
+
+    // Generate the report using AI
+    const reportResult = await callFunction('generate_report', { report_type });
+
+    if (reportResult.error) {
+      return res.status(500).json({ error: reportResult.error });
+    }
+
+    // Convert to downloadable format
+    const exportCtrl = require('./exportController');
+    let fileResult;
+
+    switch (format) {
+      case 'pdf':
+        const pdfBuffer = await exportCtrl.buildPdfBuffer(reportResult);
+        return res
+          .setHeader('Content-Type', 'application/pdf')
+          .setHeader('Content-Disposition', `attachment; filename="${report_type}_report.pdf"`)
+          .send(pdfBuffer);
+      case 'csv':
+        fileResult = exportCtrl.buildReportExport(reportResult, 'csv');
+        break;
+      case 'excel':
+        fileResult = exportCtrl.buildReportExport(reportResult, 'excel');
+        break;
+      case 'json':
+        fileResult = exportCtrl.buildReportExport(reportResult, 'json');
+        break;
+      default:
+        fileResult = exportCtrl.buildReportExport(reportResult, 'csv');
+    }
+
+    await logAudit(req.user.id, 'ai_report_download', `Report: ${report_type}, format: ${format}`, req);
+
+    return res.json({
+      success: true,
+      report: reportResult,
+      download: {
+        filename: fileResult.filename,
+        content: fileResult.body,
+        content_type: fileResult.contentType
+      }
+    });
+  } catch (err) {
+    console.error('Report generation with download failed:', err);
+    res.status(500).json({
+      error: 'Failed to generate report with download',
+      detail: err.message
+    });
+  }
+}
+
 // ─── Modern Chat with Conversation History & Function Calling ───
 async function chatModern(req, res) {
   try {
@@ -173,8 +398,8 @@ async function chatModern(req, res) {
 
         return streamGeminiResponse(question, systemPrompt, res);
       } else {
-        // Regular response mode (faster)
-        const result = await modernChat(question, userId, context);
+        // Regular response mode (faster) with file generation support
+        const result = await chatWithFileGeneration(question, userId, context);
 
         // Log interaction
         await logAudit(
@@ -190,7 +415,8 @@ async function chatModern(req, res) {
           model: result.model,
           timestamp: result.timestamp,
           conversation_turn: Math.floor(context.getHistory().length / 2),
-          topics: context.metadata.topics
+          topics: context.metadata.topics,
+          file_request: result.file_request || null
         });
       }
     } catch (modernErr) {
@@ -248,8 +474,8 @@ Keep responses concise, conversational, and data-driven. If data is empty, provi
                 parts: [{ text: question }]
               }],
               generationConfig: {
-                maxOutputTokens: 800,
-                temperature: 0.7
+                maxOutputTokens: 2048,  // Increased for generative responses
+                temperature: 0.7       // Balanced for creative and analytical tasks
               }
             })
           }
@@ -398,6 +624,17 @@ module.exports = {
   getConversationInfo,
   getExpiryRiskEnhanced,
   getAnomaliesEnhanced,
+
+  // Generative AI endpoints
+  generateAIReport,
+  generateStrategy,
+  forecastDemand,
+  analyzeEfficiency,
+  getAvailableFunctions,
+
+  // File generation endpoints
+  generateDownloadableFile,
+  generateReportWithDownload,
 
   // Backward compatible endpoints
   getExpiryRisk,

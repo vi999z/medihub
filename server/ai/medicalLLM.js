@@ -9,18 +9,17 @@ const { scoreActiveBatches } = require('./expiryRiskModel');
 const { getReorderSuggestions } = require('./demandForecastModel');
 const { detectAnomalies } = require('./anomalyDetection');
 
-// ─── Model Configuration with Fallback Chain ───
+// ─── Model Configuration with Fallback Chain (Generative AI Optimized) ───
 const MODEL_FALLBACK_CHAIN = [
-  'gemini-3.1-flash-lite',  // Lighter, fast model with less congestion
-  'gemini-2.5-flash',       // Previous generation, stable and widely supported
-  'gemini-2.0-flash',       // Another stable option
-  'gemini-1.5-flash',       // Original fallback
-  'gemini-1.5-pro',         // More capable option
-  'gemini-pro'              // Final fallback
+  'gemini-3.1-flash-lite',  // Fast, capable for most generative tasks
+  'gemini-2.5-flash',       // Good balance of speed and capability
+  'gemini-2.0-flash',       // Stable for complex reasoning
+  'gemini-1.5-pro',         // More capable for creative tasks
+  'gemini-pro'              // Fallback with broad capabilities
 ];
 
-// ─── Medical Domain Expertise System (Optimized for Speed) ───
-const MEDICAL_INSTRUCTIONS = `You are MediHub AI, a fast pharmacy inventory assistant.
+// ─── Medical Domain Expertise System (Generative AI) ───
+const MEDICAL_INSTRUCTIONS = `You are MediHub AI, an advanced generative AI assistant specialized in pharmacy management and healthcare operations.
 
 ANSWER CONCISELY (1-2 sentences max unless details are requested):
 - Give direct answer first
@@ -34,8 +33,8 @@ KEEP IT SHORT. NO LENGTHY EXPLANATIONS.
 
 IMPORTANT: Always provide helpful, data-driven answers. Never give generic responses like "I can help with inventory" - instead provide actual data from the context. If data is unavailable, suggest what data would be needed to answer the question properly.`;
 
-// ─── Function Calling System ───
-// These are the "tools" the AI can invoke to query data
+// ─── Function Calling System (Enhanced for Generative AI) ───
+// These are the "tools" the AI can invoke to query data and perform actions
 const AVAILABLE_FUNCTIONS = {
   get_inventory_summary: {
     description: 'Get overall inventory metrics (total value, item count, categories)',
@@ -68,6 +67,22 @@ const AVAILABLE_FUNCTIONS = {
   get_batch_details: {
     description: 'Get detailed information about specific batches',
     params: [{ name: 'medicine_id', type: 'number', description: 'Medicine to analyze' }]
+  },
+  generate_report: {
+    description: 'Generate comprehensive reports with analysis and recommendations',
+    params: [{ name: 'report_type', type: 'string', description: 'Type of report: inventory, expiry, sales, performance, comprehensive' }]
+  },
+  create_strategy: {
+    description: 'Create strategic plans for inventory optimization, cost reduction, or operational improvement',
+    params: [{ name: 'strategy_type', type: 'string', description: 'Type of strategy: cost_optimization, waste_reduction, stock_efficiency, supplier_diversification' }]
+  },
+  forecast_demand: {
+    description: 'Generate demand forecasts and predict future stock needs',
+    params: [{ name: 'forecast_period', type: 'number', description: 'Days to forecast (default: 90)' }]
+  },
+  analyze_efficiency: {
+    description: 'Analyze operational efficiency and identify improvement opportunities',
+    params: [{ name: 'focus_area', type: 'string', description: 'Area to analyze: overall, purchasing, storage, dispensing' }]
   }
 };
 
@@ -91,6 +106,14 @@ async function callFunction(name, params = {}) {
         return await getSupplierPerformance(params.supplier_id);
       case 'get_batch_details':
         return await getBatchDetails(params.medicine_id);
+      case 'generate_report':
+        return await generateReport(params.report_type || 'comprehensive');
+      case 'create_strategy':
+        return await createStrategy(params.strategy_type || 'cost_optimization');
+      case 'forecast_demand':
+        return await forecastDemand(params.forecast_period || 90);
+      case 'analyze_efficiency':
+        return await analyzeEfficiency(params.focus_area || 'overall');
       default:
         return { error: `Function ${name} not found` };
     }
@@ -252,6 +275,465 @@ async function getBatchDetails(medicineId) {
   );
   
   return { batches: batches || [], medicine_id: medicineId };
+}
+
+// ─── Generative AI Functions ───
+
+async function generateReport(reportType) {
+  try {
+    const [summary, expiry, lowStock, sales, anomalies] = await Promise.all([
+      getInventorySummary(),
+      getExpiryAnalysis(30),
+      getLowStockItems(10),
+      getSalesTrends(30),
+      getAnomalyAnalysis()
+    ]);
+
+    let report = {
+      type: reportType,
+      generated_at: new Date().toISOString(),
+      summary: summary.summary || {},
+      data: {
+        expiry: expiry,
+        lowStock: lowStock,
+        sales: sales,
+        anomalies: anomalies
+      }
+    };
+
+    // Generate analysis based on report type
+    switch (reportType) {
+      case 'inventory':
+        report.analysis = generateInventoryAnalysis(summary, lowStock);
+        break;
+      case 'expiry':
+        report.analysis = generateExpiryAnalysis(expiry, summary);
+        break;
+      case 'sales':
+        report.analysis = generateSalesAnalysis(sales, summary);
+        break;
+      case 'comprehensive':
+        report.analysis = generateComprehensiveAnalysis(summary, expiry, lowStock, sales, anomalies);
+        break;
+      default:
+        report.analysis = generateComprehensiveAnalysis(summary, expiry, lowStock, sales, anomalies);
+    }
+
+    return report;
+  } catch (err) {
+    console.error('Report generation error:', err);
+    return { error: err.message };
+  }
+}
+
+function generateInventoryAnalysis(summary, lowStock) {
+  const totalMedicines = summary.summary?.total_medicines || 0;
+  const totalStock = summary.summary?.total_stock || 0;
+  const lowStockCount = lowStock?.count || 0;
+
+  return {
+    total_items: totalMedicines,
+    total_units: totalStock,
+    health_score: calculateInventoryHealth(totalMedicines, totalStock, lowStockCount),
+    recommendations: generateInventoryRecommendations(lowStock),
+    risk_level: lowStockCount > 5 ? 'HIGH' : lowStockCount > 2 ? 'MEDIUM' : 'LOW'
+  };
+}
+
+function generateExpiryAnalysis(expiry, summary) {
+  const atRisk = expiry?.total_at_risk || 0;
+  const totalMedicines = summary.summary?.total_medicines || 0;
+
+  return {
+    items_at_risk: atRisk,
+    risk_percentage: totalMedicines > 0 ? (atRisk / totalMedicines * 100).toFixed(1) : 0,
+    urgency_level: atRisk > 10 ? 'CRITICAL' : atRisk > 5 ? 'HIGH' : atRisk > 2 ? 'MEDIUM' : 'LOW',
+    recommendations: generateExpiryRecommendations(atRisk),
+    potential_loss: estimatePotentialLoss(expiry)
+  };
+}
+
+function generateSalesAnalysis(sales, summary) {
+  const avgTransactions = sales?.avg_daily_transactions || 0;
+  const totalStock = summary.summary?.total_stock || 0;
+
+  return {
+    daily_avg: avgTransactions,
+    velocity_score: calculateVelocityScore(avgTransactions, totalStock),
+    trend_analysis: analyzeSalesTrend(sales?.daily_trends || []),
+    recommendations: generateSalesRecommendations(avgTransactions)
+  };
+}
+
+function generateComprehensiveAnalysis(summary, expiry, lowStock, sales, anomalies) {
+  return {
+    overall_health: calculateOverallHealth(summary, expiry, lowStock, sales, anomalies),
+    key_insights: generateKeyInsights(summary, expiry, lowStock, sales, anomalies),
+    prioritized_actions: generatePrioritizedActions(summary, expiry, lowStock, sales, anomalies),
+    opportunities: identifyOpportunities(summary, expiry, lowStock, sales, anomalies)
+  };
+}
+
+async function createStrategy(strategyType) {
+  const [summary, sales, expiry] = await Promise.all([
+    getInventorySummary(),
+    getSalesTrends(90),
+    getExpiryAnalysis(60)
+  ]);
+
+  let strategy = {
+    type: strategyType,
+    created_at: new Date().toISOString(),
+    current_state: summary.summary || {},
+    plan: []
+  };
+
+  switch (strategyType) {
+    case 'cost_optimization':
+      strategy.plan = generateCostOptimizationStrategy(summary, sales);
+      break;
+    case 'waste_reduction':
+      strategy.plan = generateWasteReductionStrategy(expiry, summary);
+      break;
+    case 'stock_efficiency':
+      strategy.plan = generateStockEfficiencyStrategy(summary, sales);
+      break;
+    default:
+      strategy.plan = generateCostOptimizationStrategy(summary, sales);
+  }
+
+  return strategy;
+}
+
+async function forecastDemand(forecastPeriod) {
+  const [sales, lowStock] = await Promise.all([
+    getSalesTrends(30),
+    getLowStockItems(20)
+  ]);
+
+  const avgDailySales = sales?.avg_daily_transactions || 0;
+  const trends = sales?.daily_trends || [];
+
+  return {
+    forecast_period: forecastPeriod,
+    current_baseline: avgDailySales,
+    predicted_growth: calculatePredictedGrowth(trends),
+    stock_recommendations: generateStockRecommendations(lowStock, avgDailySales, forecastPeriod),
+    confidence_level: calculateConfidenceLevel(trends.length)
+  };
+}
+
+async function analyzeEfficiency(focusArea) {
+  const [summary, anomalies, sales] = await Promise.all([
+    getInventorySummary(),
+    getAnomalyAnalysis(),
+    getSalesTrends(30)
+  ]);
+
+  return {
+    focus_area: focusArea,
+    overall_score: calculateEfficiencyScore(summary, anomalies, sales),
+    bottlenecks: identifyBottlenecks(summary, anomalies, sales),
+    improvement_opportunities: generateImprovementOpportunities(summary, anomalies, sales),
+    quick_wins: identifyQuickWins(summary, anomalies, sales)
+  };
+}
+
+// ─── Helper Functions for Generative AI ───
+
+function calculateInventoryHealth(totalMedicines, totalStock, lowStockCount) {
+  if (totalMedicines === 0) return 0;
+  const healthScore = ((totalMedicines - lowStockCount) / totalMedicines) * 100;
+  return Math.round(healthScore);
+}
+
+function generateInventoryRecommendations(lowStock) {
+  const recommendations = [];
+  const count = lowStock?.count || 0;
+
+  if (count > 5) {
+    recommendations.push('Immediate action required: Review and expedite reorders for critical items');
+    recommendations.push('Consider implementing automated reorder triggers');
+  } else if (count > 2) {
+    recommendations.push('Schedule review of low-stock items within 48 hours');
+    recommendations.push('Prioritize high-demand items for immediate replenishment');
+  } else {
+    recommendations.push('Continue monitoring stock levels');
+    recommendations.push('Review reorder point settings for optimal efficiency');
+  }
+
+  return recommendations;
+}
+
+function generateExpiryRecommendations(atRisk) {
+  const recommendations = [];
+
+  if (atRisk > 10) {
+    recommendations.push('URGENT: Implement discount strategy for items expiring within 30 days');
+    recommendations.push('Consider expediting sales through promotional campaigns');
+    recommendations.push('Review ordering patterns to prevent future overstocking');
+  } else if (atRisk > 5) {
+    recommendations.push('Review expiring items for potential returns or transfers');
+    recommendations.push('Implement first-expiry-first-out dispensing protocol');
+  } else {
+    recommendations.push('Continue monitoring expiry dates');
+    recommendations.push('Review procurement quantities to match demand');
+  }
+
+  return recommendations;
+}
+
+function estimatePotentialLoss(expiry) {
+  const expiringBatches = expiry?.expiring_soon || [];
+  let estimatedLoss = 0;
+
+  expiringBatches.forEach(batch => {
+    const daysToExpiry = batch.days_until_expiry || 0;
+    const quantity = batch.quantity || 0;
+    if (daysToExpiry <= 30) {
+      estimatedLoss += quantity * 0.8; // 80% potential loss
+    } else if (daysToExpiry <= 60) {
+      estimatedLoss += quantity * 0.5; // 50% potential loss
+    }
+  });
+
+  return Math.round(estimatedLoss);
+}
+
+function calculateVelocityScore(avgTransactions, totalStock) {
+  if (totalStock === 0) return 0;
+  const velocity = (avgTransactions / totalStock) * 100;
+  return Math.min(Math.round(velocity), 100);
+}
+
+function analyzeSalesTrend(trends) {
+  if (trends.length < 7) return 'insufficient_data';
+
+  const recentWeek = trends.slice(0, 7).reduce((sum, t) => sum + (t.transaction_count || 0), 0);
+  const previousWeek = trends.slice(7, 14).reduce((sum, t) => sum + (t.transaction_count || 0), 0);
+
+  if (recentWeek > previousWeek * 1.1) return 'increasing';
+  if (recentWeek < previousWeek * 0.9) return 'decreasing';
+  return 'stable';
+}
+
+function generateSalesRecommendations(avgTransactions) {
+  const recommendations = [];
+
+  if (avgTransactions > 50) {
+    recommendations.push('High transaction volume: Consider expanding inventory capacity');
+    recommendations.push('Review staffing levels to handle current demand');
+  } else if (avgTransactions < 10) {
+    recommendations.push('Low transaction volume: Review marketing and customer engagement');
+    recommendations.push('Consider stock optimization to reduce carrying costs');
+  } else {
+    recommendations.push('Maintain current operational levels');
+    recommendations.push('Continue monitoring trends for optimization opportunities');
+  }
+
+  return recommendations;
+}
+
+function calculateOverallHealth(summary, expiry, lowStock, sales, anomalies) {
+  const inventoryHealth = calculateInventoryHealth(
+    summary.summary?.total_medicines || 0,
+    summary.summary?.total_stock || 0,
+    lowStock?.count || 0
+  );
+
+  const expiryHealth = 100 - ((expiry?.total_at_risk || 0) / (summary.summary?.total_medicines || 1) * 100);
+  const anomalyScore = 100 - ((anomalies?.total_anomalies || 0) * 5);
+
+  return Math.round((inventoryHealth + expiryHealth + anomalyScore) / 3);
+}
+
+function generateKeyInsights(summary, expiry, lowStock, sales, anomalies) {
+  const insights = [];
+
+  if (lowStock?.count > 5) {
+    insights.push('Multiple items require immediate reordering to prevent stockouts');
+  }
+
+  if (expiry?.total_at_risk > 10) {
+    insights.push('Significant expiry risk requires immediate attention to minimize waste');
+  }
+
+  if (sales?.avg_daily_transactions > 30) {
+    insights.push('High sales velocity indicates strong demand and opportunity for growth');
+  }
+
+  if (anomalies?.total_anomalies > 5) {
+    insights.push('Multiple anomalies detected that may require operational review');
+  }
+
+  return insights;
+}
+
+function generatePrioritizedActions(summary, expiry, lowStock, sales, anomalies) {
+  const actions = [];
+
+  if (expiry?.total_at_risk > 5) {
+    actions.push({ priority: 'CRITICAL', action: 'Address expiring items through discount sales or returns' });
+  }
+
+  if (lowStock?.count > 3) {
+    actions.push({ priority: 'HIGH', action: 'Expedite reorders for critical low-stock items' });
+  }
+
+  if (anomalies?.total_anomalies > 3) {
+    actions.push({ priority: 'MEDIUM', action: 'Investigate and resolve operational anomalies' });
+  }
+
+  if (sales?.avg_daily_transactions < 15) {
+    actions.push({ priority: 'LOW', action: 'Review and enhance customer engagement strategies' });
+  }
+
+  return actions;
+}
+
+function identifyOpportunities(summary, expiry, lowStock, sales, anomalies) {
+  const opportunities = [];
+
+  if (sales?.avg_daily_transactions > 20) {
+    opportunities.push('Expand inventory for high-demand items to capture more sales');
+  }
+
+  if (expiry?.total_at_risk < 3) {
+    opportunities.push('Current expiry management is excellent - consider maintaining current practices');
+  }
+
+  if (lowStock?.count < 2) {
+    opportunities.push('Optimize reorder points to reduce carrying costs while maintaining service levels');
+  }
+
+  return opportunities;
+}
+
+function generateCostOptimizationStrategy(summary, sales) {
+  return [
+    { step: 1, action: 'Analyze current procurement costs and identify high-cost items', timeline: 'Week 1' },
+    { step: 2, action: 'Review supplier contracts for negotiation opportunities', timeline: 'Week 2' },
+    { step: 3, action: 'Implement bulk ordering for frequently used items', timeline: 'Week 3' },
+    { step: 4, action: 'Establish cost monitoring and reporting system', timeline: 'Week 4' }
+  ];
+}
+
+function generateWasteReductionStrategy(expiry, summary) {
+  return [
+    { step: 1, action: 'Implement first-expiry-first-out dispensing protocol', timeline: 'Immediate' },
+    { step: 2, action: 'Review and adjust ordering quantities based on actual demand', timeline: 'Week 1' },
+    { step: 3, action: 'Establish early warning system for items approaching expiry', timeline: 'Week 2' },
+    { step: 4, action: 'Create partnerships for returns or transfers of excess stock', timeline: 'Week 3' }
+  ];
+}
+
+function generateStockEfficiencyStrategy(summary, sales) {
+  return [
+    { step: 1, action: 'Analyze current stock levels against sales velocity', timeline: 'Week 1' },
+    { step: 2, action: 'Implement dynamic reorder points based on demand patterns', timeline: 'Week 2' },
+    { step: 3, action: 'Establish safety stock levels for critical items', timeline: 'Week 3' },
+    { step: 4, action: 'Implement regular stock optimization reviews', timeline: 'Week 4' }
+  ];
+}
+
+function calculatePredictedGrowth(trends) {
+  if (trends.length < 4) return 'insufficient_data';
+
+  const recent = trends.slice(0, 7).reduce((sum, t) => sum + (t.transaction_count || 0), 0);
+  const older = trends.slice(7, 14).reduce((sum, t) => sum + (t.transaction_count || 0), 0);
+
+  const growthRate = ((recent - older) / older) * 100;
+  return growthRate.toFixed(1) + '%';
+}
+
+function generateStockRecommendations(lowStock, avgDailySales, forecastPeriod) {
+  const recommendations = [];
+
+  if (lowStock?.count > 0) {
+    lowStock.low_stock_items?.slice(0, 5).forEach(item => {
+      const currentStock = item.current_stock || 0;
+      const reorderLevel = item.reorder_level || 10;
+      const dailyAvg = item.daily_avg_sales || 1;
+
+      const projectedNeed = Math.ceil((dailyAvg * forecastPeriod) - currentStock);
+      if (projectedNeed > 0) {
+        recommendations.push({
+          item: item.medicine_name,
+          current_stock: currentStock,
+          recommended_order: Math.max(projectedNeed, reorderLevel * 2),
+          urgency: currentStock < reorderLevel ? 'HIGH' : 'MEDIUM'
+        });
+      }
+    });
+  }
+
+  return recommendations;
+}
+
+function calculateConfidenceLevel(dataPoints) {
+  if (dataPoints < 7) return 'LOW';
+  if (dataPoints < 14) return 'MEDIUM';
+  return 'HIGH';
+}
+
+function calculateEfficiencyScore(summary, anomalies, sales) {
+  const anomalyDeduction = (anomalies?.total_anomalies || 0) * 5;
+  const salesBonus = Math.min((sales?.avg_daily_transactions || 0) * 0.5, 20);
+  const baseScore = 80;
+
+  return Math.max(0, Math.min(100, Math.round(baseScore + salesBonus - anomalyDeduction)));
+}
+
+function identifyBottlenecks(summary, anomalies, sales) {
+  const bottlenecks = [];
+
+  if (anomalies?.total_anomalies > 3) {
+    bottlenecks.push('Data entry inconsistencies affecting inventory accuracy');
+  }
+
+  if (sales?.avg_daily_transactions < 10) {
+    bottlenecks.push('Low sales velocity may indicate service or stock availability issues');
+  }
+
+  if (summary.summary?.low_stock_count > 5) {
+    bottlenecks.push('Frequent stockouts disrupting operations');
+  }
+
+  return bottlenecks;
+}
+
+function generateImprovementOpportunities(summary, anomalies, sales) {
+  const opportunities = [];
+
+  if (anomalies?.total_anomalies > 0) {
+    opportunities.push('Implement data validation and quality control processes');
+  }
+
+  if (sales?.avg_daily_transactions > 20) {
+    opportunities.push('Expand inventory capacity to meet growing demand');
+  }
+
+  opportunities.push('Implement automated reorder triggers based on demand patterns');
+  opportunities.push('Establish regular efficiency review and optimization cycles');
+
+  return opportunities;
+}
+
+function identifyQuickWins(summary, anomalies, sales) {
+  const quickWins = [];
+
+  if (summary.summary?.low_stock_count > 2) {
+    quickWins.push('Expedite reorders for top 3 low-stock items');
+  }
+
+  if (anomalies?.total_anomalies > 0) {
+    quickWins.push('Review and resolve recent data entry anomalies');
+  }
+
+  quickWins.push('Review and optimize reorder point settings');
+  quickWins.push('Implement daily stock level monitoring dashboard');
+
+  return quickWins;
 }
 
 // ─── Conversation History & Context Management (Enhanced) ───
@@ -422,9 +904,9 @@ function detectIntention(question) {
   return 'general_inquiry';
 }
 
-// ─── Model Selection with Fallback (Optimized for Speed) ───
+// ─── Model Selection with Fallback (Enhanced for Generative AI) ───
 async function selectAvailableModel(apiKey) {
-  // Use the working models we identified earlier
+  // Use models that support generative capabilities
   return 'gemini-3.1-flash-lite';
 }
 
@@ -543,7 +1025,7 @@ function buildContextualResponse(question, data, intention) {
       const expiryCount = data.expiry?.total_at_risk || 0;
       response = `You have ${expiryCount} items at risk of expiring within 30 days out of ${totalMedicines} total medicines. `;
       if (expiryCount > 0) {
-        response += `I recommend reviewing these items for potential discounts or expedited sales to minimize waste. Would you like me to show you the specific items?`;
+        response += `I recommend reviewing these items for potential discounts or expedited sales to minimize waste. Would you like me to show you the specific items or generate a detailed expiry report for download?`;
       } else {
         response += `Your expiry management looks good - no immediate risks detected.`;
       }
@@ -553,7 +1035,7 @@ function buildContextualResponse(question, data, intention) {
       const lowStockCount = data.lowStock?.count || 0;
       response = `${lowStockCount} items are currently below reorder level out of ${totalMedicines} medicines with ${totalStock} total units. `;
       if (lowStockCount > 0) {
-        response += `I can help you prioritize which items to order first based on sales velocity. Would you like to see the reorder recommendations?`;
+        response += `I can help you prioritize which items to order first based on sales velocity. Would you like me to show the reorder recommendations or generate a CSV file with ordering details?`;
       } else {
         response += `Your stock levels are healthy across all items.`;
       }
@@ -562,14 +1044,14 @@ function buildContextualResponse(question, data, intention) {
     case 'trend':
       const avgTransactions = data.sales?.avg_daily_transactions || 0;
       response = `Over the past 30 days, you've averaged ${avgTransactions} transactions per day. `;
-      response += `This gives us a good baseline for demand forecasting. Would you like me to break this down by specific medicine categories or time periods?`;
+      response += `This gives us a good baseline for demand forecasting. Would you like me to break this down by specific medicine categories, generate a sales trend report, or create a downloadable CSV with the detailed data?`;
       break;
 
     case 'anomaly':
       const anomalyCount = data.anomalies?.total_anomalies || 0;
       response = `I've detected ${anomalyCount} unusual patterns in your inventory data over the past 30 days. `;
       if (anomalyCount > 0) {
-        response += `These might indicate data entry issues, theft, or other operational concerns. Would you like me to review the specific anomalies?`;
+        response += `These might indicate data entry issues, theft, or other operational concerns. Would you like me to review the specific anomalies or generate an anomaly report for your records?`;
       } else {
         response += `Your inventory data appears consistent with no significant anomalies detected.`;
       }
@@ -577,10 +1059,58 @@ function buildContextualResponse(question, data, intention) {
 
     default:
       response = `Based on your current inventory, you have ${totalMedicines} medicines with ${totalStock} total units in stock. `;
-      response += `I can help you analyze expiry risks, stock levels, sales trends, or provide reorder recommendations. What would you like to focus on?`;
+      response += `I can help you analyze expiry risks, stock levels, sales trends, or provide reorder recommendations. I can also generate downloadable reports in PDF, CSV, Excel, or JSON format. What would you like to focus on?`;
   }
 
   return response;
+}
+
+// ─── File Request Detection ───
+function detectFileRequest(question) {
+  const lowerQuestion = question.toLowerCase();
+
+  const filePatterns = {
+    csv: ['csv', 'excel', 'spreadsheet', 'download file', 'export to csv'],
+    pdf: ['pdf', 'report file', 'download report', 'pdf report'],
+    excel: ['excel', 'xlsx', 'spreadsheet', 'microsoft excel'],
+    json: ['json', 'data file', 'api data', 'structured data'],
+    txt: ['text file', 'txt', 'plain text', 'text document']
+  };
+
+  for (const [fileType, patterns] of Object.entries(filePatterns)) {
+    if (patterns.some(pattern => lowerQuestion.includes(pattern))) {
+      return fileType;
+    }
+  }
+
+  return null;
+}
+
+// ─── Enhanced Chat with File Generation ───
+async function chatWithFileGeneration(question, userId, context = null) {
+  const requestedFileType = detectFileRequest(question);
+  const intention = detectIntention(question);
+
+  // Get the standard AI response first
+  const standardResponse = await modernChat(question, userId, context);
+
+  // If user requested a file, enhance the response
+  if (requestedFileType) {
+    const fileHint = `I detected you want a ${requestedFileType.toUpperCase()} file. You can use the file generation endpoint with your current data to create a downloadable ${requestedFileType} file. Would you like me to help you generate that now?`;
+
+    return {
+      ...standardResponse,
+      file_request: {
+        detected: true,
+        file_type: requestedFileType,
+        hint: fileHint,
+        endpoint: `/api/ai/generate-file`,
+        available_formats: ['csv', 'excel', 'pdf', 'json', 'txt']
+      }
+    };
+  }
+
+  return standardResponse;
 }
 
 async function modernChat(question, userId, context = null) {
@@ -648,8 +1178,8 @@ async function modernChat(question, userId, context = null) {
                 parts: [{ text: msg.content }]
               })),
               generationConfig: {
-                maxOutputTokens: 400,
-                temperature: 0.5,
+                maxOutputTokens: 2048,  // Increased for generative responses
+                temperature: 0.7,       // Higher temperature for more creative responses
               },
               safetySettings: [
                 { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
@@ -715,5 +1245,11 @@ module.exports = {
   selectAvailableModel,
   MODEL_FALLBACK_CHAIN,
   extractGeneratedText,
-  buildFallbackInventoryResponse
+  buildFallbackInventoryResponse,
+  generateReport,
+  createStrategy,
+  forecastDemand,
+  analyzeEfficiency,
+  detectFileRequest,
+  chatWithFileGeneration
 };
