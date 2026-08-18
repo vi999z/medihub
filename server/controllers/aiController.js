@@ -195,11 +195,11 @@ async function chat(req, res) {
     console.log('Fetching database data...');
     // Gather relevant data from existing endpoints
     const [summary, expiring, lowStock, trend, categoryData, expiryRisk, reorderSuggestions, anomalies] = await Promise.all([
-      pool.query('SELECT * FROM summary_view').then(r => r[0] || {}).catch(e => { console.error('Summary view error:', e); return {}; }),
-      pool.query('SELECT * FROM batches WHERE status = \'active\' AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) ORDER BY expiry_date ASC LIMIT 10').then(r => r).catch(e => { console.error('Expiring batches error:', e); return []; }),
-      pool.query('SELECT * FROM low_stock_view LIMIT 10').then(r => r).catch(e => { console.error('Low stock view error:', e); return []; }),
-      pool.query('SELECT * FROM sales_trend_view ORDER BY date DESC LIMIT 30').then(r => r).catch(e => { console.error('Sales trend view error:', e); return []; }),
-      pool.query('SELECT category, COUNT(*) as count FROM medicines GROUP BY category').then(r => r).catch(e => { console.error('Category query error:', e); return []; }),
+      pool.query('SELECT * FROM summary_view').then(r => r[0]?.[0] || {}).catch(e => { console.error('Summary view error:', e); return {}; }),
+      pool.query('SELECT * FROM batches WHERE status = \'active\' AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) ORDER BY expiry_date ASC LIMIT 10').then(r => r[0] || []).catch(e => { console.error('Expiring batches error:', e); return []; }),
+      pool.query('SELECT * FROM low_stock_view LIMIT 10').then(r => r[0] || []).catch(e => { console.error('Low stock view error:', e); return []; }),
+      pool.query('SELECT * FROM sales_trend_view ORDER BY date DESC LIMIT 30').then(r => r[0] || []).catch(e => { console.error('Sales trend view error:', e); return []; }),
+      pool.query('SELECT category, COUNT(*) as count FROM medicines GROUP BY category').then(r => r[0] || []).catch(e => { console.error('Category query error:', e); return []; }),
       scoreActiveBatches().catch(e => { console.error('Expiry risk error:', e); return []; }),
       getReorderSuggestions().catch(e => { console.error('Reorder suggestions error:', e); return []; }),
       detectAnomalies(30).catch(e => { console.error('Anomalies error:', e); return []; }),
@@ -344,7 +344,9 @@ ${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData
               }),
             });
             if (retryResponse.ok) {
-              const retryData = await retryResponse.json();
+              const retryText = await retryResponse.text();
+              let retryData;
+              try { retryData = JSON.parse(retryText); } catch { continue; }
               const aiResponse = retryData.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
               console.log(`Retry successful for ${model}`);
 
@@ -368,7 +370,15 @@ ${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData
         throw new Error(`Google AI API error: ${response.status} - ${errorText}`);
       }
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error(`Invalid JSON from model ${model}:`, responseText.substring(0, 200));
+        lastError = new Error(`Model ${model} returned invalid JSON`);
+        continue;
+      }
       console.log(`Google AI API response received from ${model}`);
       const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
 
