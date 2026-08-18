@@ -171,7 +171,7 @@ export default function Batches() {
           <h1>Batches</h1>
           <p>{loading ? 'Loading batches…' : `${visibleBatches.length} of ${batches.length} batches shown, sorted by nearest expiry`}</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div className="page-header-actions">
           <button className="btn btn-secondary" onClick={handleExport}>
             <Download size={15} /> Export CSV
           </button>
@@ -272,11 +272,12 @@ export default function Batches() {
         )}
 
         {loading && (
-          <table className="data-table">
-            <thead>
-              <tr><th>Medicine</th><th>Batch</th><th>Expiry</th><th>Remaining</th><th>Status</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr><th>Medicine</th><th>Batch</th><th>Expiry</th><th>Remaining</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
               {[1, 2, 3, 4].map((i) => (
                 <tr key={i}>
                   <td><Skeleton height={16} /></td>
@@ -288,11 +289,12 @@ export default function Batches() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
 
         {!loading && !error && (
-          <div className="table-scroll">
+          <div className="table-wrapper">
             <table className="data-table">
               <thead>
                 <tr><th>Medicine</th><th>Batch</th><th>Expiry</th><th>Remaining</th><th>Status</th><th>Actions</th></tr>

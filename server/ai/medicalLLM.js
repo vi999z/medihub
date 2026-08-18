@@ -11,7 +11,6 @@ const { detectAnomalies } = require('./anomalyDetection');
 
 // ─── Model Configuration with Fallback Chain ───
 const MODEL_FALLBACK_CHAIN = [
-  'gemini-3.6-flash',       // Latest model with best performance
   'gemini-3.1-flash-lite',  // Lighter, fast model with less congestion
   'gemini-2.5-flash',       // Previous generation, stable and widely supported
   'gemini-2.0-flash',       // Another stable option
@@ -31,7 +30,9 @@ ANSWER CONCISELY (1-2 sentences max unless details are requested):
 FORMAT: Use PLAIN TEXT ONLY. NO MARKDOWN. No asterisks, no bold, no special formatting.
 NO ** symbols. NO # headers. Just plain clean text.
 
-KEEP IT SHORT. NO LENGTHY EXPLANATIONS.`;
+KEEP IT SHORT. NO LENGTHY EXPLANATIONS.
+
+IMPORTANT: Always provide helpful, data-driven answers. Never give generic responses like "I can help with inventory" - instead provide actual data from the context. If data is unavailable, suggest what data would be needed to answer the question properly.`;
 
 // ─── Function Calling System ───
 // These are the "tools" the AI can invoke to query data
@@ -253,20 +254,61 @@ async function getBatchDetails(medicineId) {
   return { batches: batches || [], medicine_id: medicineId };
 }
 
-// ─── Conversation History & Context Management (Optimized for Speed) ───
+// ─── Conversation History & Context Management (Enhanced) ───
 class ConversationContext {
-  constructor(userId, maxTurns = 2) {  // Reduced from 5 to 2 for speed
+  constructor(userId, maxTurns = 5) {
     this.userId = userId;
     this.maxTurns = maxTurns;
     this.history = [];
-    this.metadata = {};
+    this.metadata = {
+      topics: [],
+      preferredStyle: 'concise',
+      lastQueryType: null,
+      interactionCount: 0
+    };
   }
 
   addMessage(role, content) {
     this.history.push({ role, content, timestamp: new Date() });
+    this.metadata.interactionCount++;
+
+    // Track topics from user messages
+    if (role === 'user') {
+      const topics = this.extractTopics(content);
+      topics.forEach(topic => {
+        if (!this.metadata.topics.includes(topic)) {
+          this.metadata.topics.push(topic);
+        }
+      });
+    }
+
+    // Maintain conversation limit
     if (this.history.length > this.maxTurns * 2) {
       this.history.shift();
     }
+  }
+
+  extractTopics(text) {
+    const keywords = {
+      'inventory': ['inventory', 'stock', 'quantity', 'count'],
+      'expiry': ['expir', 'shelf life', 'waste', 'expire'],
+      'sales': ['sales', 'sold', 'revenue', 'transaction'],
+      'orders': ['order', 'purchase', 'supplier', 'delivery'],
+      'pricing': ['price', 'cost', 'profit', 'margin'],
+      'analytics': ['trend', 'analytics', 'report', 'statistics'],
+      'alerts': ['alert', 'warning', 'low stock', 'critical']
+    };
+
+    const topics = [];
+    const lowerText = text.toLowerCase();
+
+    for (const [topic, words] of Object.entries(keywords)) {
+      if (words.some(word => lowerText.includes(word))) {
+        topics.push(topic);
+      }
+    }
+
+    return topics;
   }
 
   getHistory() {
@@ -277,12 +319,40 @@ class ConversationContext {
   }
 
   getContext() {
-    return this.history.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
+    if (this.history.length === 0) return '';
+
+    const recent = this.history.slice(-4);
+    const context = recent.map(m => `${m.role}: ${m.content}`).join('\n');
+
+    if (this.metadata.topics.length > 0) {
+      return `${context}\n\nTopics discussed: ${this.metadata.topics.join(', ')}`;
+    }
+
+    return context;
   }
 
   summarize() {
     if (this.history.length < 2) return '';
-    return `Previous conversation context: User has been asking about ${this.metadata.topics?.join(', ') || 'pharmacy inventory'}`;
+
+    const topicSummary = this.metadata.topics.length > 0
+      ? `User has been asking about ${this.metadata.topics.join(', ')}`
+      : 'User has been asking about pharmacy inventory';
+
+    return `Previous conversation context: ${topicSummary}. This is conversation turn ${this.metadata.interactionCount}.`;
+  }
+
+  setPreferredStyle(style) {
+    this.metadata.preferredStyle = style;
+  }
+
+  getPreferredStyle() {
+    return this.metadata.preferredStyle;
+  }
+
+  clear() {
+    this.history = [];
+    this.metadata.topics = [];
+    this.metadata.interactionCount = 0;
   }
 }
 
@@ -296,8 +366,20 @@ ${Object.entries(AVAILABLE_FUNCTIONS).map(([name, info]) =>
 ).join('\n')}`;
 
   if (detectedIntention) {
-    prompt += `\n\nQUESTION TYPE: ${detectedIntention}
-Focus your response on this domain.`;
+    const intentionHints = {
+      expiry: 'Focus on expiry dates, shelf life, and waste prevention.',
+      reorder: 'Focus on stock levels, reorder points, and ordering strategies.',
+      anomaly: 'Focus on unusual patterns, discrepancies, and potential issues.',
+      trend: 'Focus on patterns over time, consumption rates, and demand forecasting.',
+      performance: 'Focus on supplier reliability, delivery times, and quality metrics.',
+      analysis: 'Provide comprehensive analysis with insights and recommendations.',
+      pricing: 'Focus on costs, margins, and profitability.',
+      forecasting: 'Focus on predictions, future needs, and capacity planning.',
+      general: 'Be conversational and helpful while being prepared to access pharmacy data if needed.'
+    };
+
+    prompt += `\n\nQUESTION TYPE: ${detectedIntention.toUpperCase()}
+${intentionHints[detectedIntention] || intentionHints.general}`;
   }
 
   if (context) {
@@ -315,19 +397,24 @@ ${context}`;
   return prompt;
 }
 
-// ─── Intention Detection (understand what user is really asking) ───
+// ─── Intention Detection (enhanced with more patterns) ───
 function detectIntention(question) {
   const keywords = {
-    expiry: ['expir', 'shelf life', 'waste', 'discard', 'spoil'],
-    reorder: ['order', 'reorder', 'stock', 'low', 'out of stock', 'purchase'],
-    anomaly: ['unusual', 'anomal', 'strange', 'discrepanc', 'missin', 'theft', 'suspicious'],
-    trend: ['trend', 'pattern', 'sales', 'consumption', 'velocity', 'demand'],
-    performance: ['supplier', 'delivery', 'quality', 'performan'],
-    analysis: ['analyze', 'analyze', 'insight', 'recommend', 'advice', 'suggest'],
+    expiry: ['expir', 'shelf life', 'waste', 'discard', 'spoil', 'expired', 'expiry date'],
+    reorder: ['order', 'reorder', 'stock', 'low', 'out of stock', 'purchase', 'restock'],
+    anomaly: ['unusual', 'anomal', 'strange', 'discrepanc', 'missin', 'theft', 'suspicious', 'unexpected'],
+    trend: ['trend', 'pattern', 'sales', 'consumption', 'velocity', 'demand', 'history', 'over time'],
+    performance: ['supplier', 'delivery', 'quality', 'performan', 'reliability'],
+    analysis: ['analyze', 'analyze', 'insight', 'recommend', 'advice', 'suggest', 'report', 'summary'],
+    pricing: ['price', 'cost', 'profit', 'margin', 'revenue', 'pricing'],
+    forecasting: ['forecast', 'predict', 'future', 'project', 'estimate', 'need'],
+    general: ['hello', 'hi', 'help', 'what', 'how', 'who', 'can you']
   };
 
+  const lowerQuestion = question.toLowerCase();
+
   for (const [intention, kws] of Object.entries(keywords)) {
-    if (kws.some(kw => question.toLowerCase().includes(kw))) {
+    if (kws.some(kw => lowerQuestion.includes(kw))) {
       return intention;
     }
   }
@@ -337,9 +424,8 @@ function detectIntention(question) {
 
 // ─── Model Selection with Fallback (Optimized for Speed) ───
 async function selectAvailableModel(apiKey) {
-  // For speed: return fastest model immediately instead of testing
-  // In production with low quota: revert to testing if rate limited
-  return 'gemini-3.6-flash';
+  // Use the working models we identified earlier
+  return 'gemini-3.1-flash-lite';
 }
 
 // ─── Main Chat Function with Modern LLM Capabilities ───
@@ -373,13 +459,128 @@ async function buildFallbackInventoryResponse(question) {
     const summary = data?.summary || {};
     const totalMedicines = summary.total_medicines ?? summary.total_items ?? 0;
     const totalStock = summary.total_stock ?? 0;
+    const totalValue = summary.total_value ?? 0;
     const expiringSoon = summary.expiring_soon ?? 0;
     const lowStock = summary.low_stock_count ?? summary.low_stock ?? 0;
 
-    return `Quick inventory snapshot: ${totalMedicines} medicines, ${totalStock} units in stock, ${expiringSoon} items expiring soon, and ${lowStock} low-stock items. I can also break this down by expiry, reorder risk, or sales trends.`;
+    // Get more specific data based on question
+    let specificData = '';
+    let followUp = '';
+    const lowerQuestion = question.toLowerCase();
+
+    if (lowerQuestion.includes('expir') || lowerQuestion.includes('shelf')) {
+      const expiryData = await getExpiryAnalysis(30);
+      specificData = ` ${expiryData.total_at_risk} items are at risk of expiring within 30 days.`;
+      followUp = ' Would you like me to show you which specific items are expiring?';
+    } else if (lowerQuestion.includes('stock') || lowerQuestion.includes('inventory')) {
+      const lowStockData = await getLowStockItems(5);
+      specificData = ` ${lowStockData.count} items are below reorder level.`;
+      followUp = ' I can help you identify which items need reordering.';
+    } else if (lowerQuestion.includes('sales') || lowerQuestion.includes('trend')) {
+      const salesData = await getSalesTrends(30);
+      specificData = ` Average of ${salesData.avg_daily_transactions} transactions per day over the last 30 days.`;
+      followUp = ' I can break this down by specific medicines or time periods.';
+    } else if (lowerQuestion.includes('total') || lowerQuestion.includes('overview') || lowerQuestion.includes('summary')) {
+      specificData = ` Total inventory value: $${totalValue?.toFixed(2) || '0.00'}.`;
+      followUp = ' Would you like me to provide more details about any specific aspect?';
+    }
+
+    const response = `Current inventory: ${totalMedicines} medicines, ${totalStock} units in stock.${specificData} ${expiringSoon > 0 ? `${expiringSoon} items expiring soon. ` : ''}${lowStock > 0 ? `${lowStock} low-stock items. ` : ''}${followUp}`;
+
+    return response;
   } catch (err) {
-    return 'Quick inventory summary: I can help with current stock, expiry risk, or low-stock alerts. Ask for a specific report and I’ll narrow it down.';
+    console.error('Fallback inventory response error:', err);
+    return 'I can help you with your pharmacy inventory management. I have access to your stock levels, expiry dates, sales trends, reorder suggestions, and can generate reports. You can ask me about inventory status, expiring items, low stock alerts, sales patterns, or I can help you analyze specific data. What would you like to know?';
   }
+}
+
+// ─── Smart Data Fetching Based on Question Context ───
+async function fetchRelevantData(question) {
+  const lowerQuestion = question.toLowerCase();
+  const dataPromises = [];
+
+  // Always fetch basic summary
+  dataPromises.push(getInventorySummary());
+
+  // Context-aware data fetching
+  if (lowerQuestion.includes('expir') || lowerQuestion.includes('shelf')) {
+    dataPromises.push(getExpiryAnalysis(30));
+  }
+  if (lowerQuestion.includes('stock') || lowerQuestion.includes('low') || lowerQuestion.includes('reorder')) {
+    dataPromises.push(getLowStockItems(10));
+  }
+  if (lowerQuestion.includes('sales') || lowerQuestion.includes('trend') || lowerQuestion.includes('revenue')) {
+    dataPromises.push(getSalesTrends(30));
+  }
+  if (lowerQuestion.includes('anomal') || lowerQuestion.includes('unusual') || lowerQuestion.includes('strange')) {
+    dataPromises.push(getAnomalyAnalysis());
+  }
+  if (lowerQuestion.includes('order') || lowerQuestion.includes('suggest') || lowerQuestion.includes('forecast')) {
+    dataPromises.push(getReorderRecommendations(true));
+  }
+
+  const results = await Promise.all(dataPromises);
+  return {
+    summary: results[0],
+    expiry: results[1],
+    lowStock: results[2],
+    sales: results[3],
+    anomalies: results[4],
+    recommendations: results[5]
+  };
+}
+
+// ─── Enhanced Response Builder with Context ───
+function buildContextualResponse(question, data, intention) {
+  const summary = data.summary?.summary || {};
+  const totalMedicines = summary.total_medicines || summary.total_items || 0;
+  const totalStock = summary.total_stock || 0;
+
+  let response = '';
+
+  switch (intention) {
+    case 'expiry':
+      const expiryCount = data.expiry?.total_at_risk || 0;
+      response = `You have ${expiryCount} items at risk of expiring within 30 days out of ${totalMedicines} total medicines. `;
+      if (expiryCount > 0) {
+        response += `I recommend reviewing these items for potential discounts or expedited sales to minimize waste. Would you like me to show you the specific items?`;
+      } else {
+        response += `Your expiry management looks good - no immediate risks detected.`;
+      }
+      break;
+
+    case 'reorder':
+      const lowStockCount = data.lowStock?.count || 0;
+      response = `${lowStockCount} items are currently below reorder level out of ${totalMedicines} medicines with ${totalStock} total units. `;
+      if (lowStockCount > 0) {
+        response += `I can help you prioritize which items to order first based on sales velocity. Would you like to see the reorder recommendations?`;
+      } else {
+        response += `Your stock levels are healthy across all items.`;
+      }
+      break;
+
+    case 'trend':
+      const avgTransactions = data.sales?.avg_daily_transactions || 0;
+      response = `Over the past 30 days, you've averaged ${avgTransactions} transactions per day. `;
+      response += `This gives us a good baseline for demand forecasting. Would you like me to break this down by specific medicine categories or time periods?`;
+      break;
+
+    case 'anomaly':
+      const anomalyCount = data.anomalies?.total_anomalies || 0;
+      response = `I've detected ${anomalyCount} unusual patterns in your inventory data over the past 30 days. `;
+      if (anomalyCount > 0) {
+        response += `These might indicate data entry issues, theft, or other operational concerns. Would you like me to review the specific anomalies?`;
+      } else {
+        response += `Your inventory data appears consistent with no significant anomalies detected.`;
+      }
+      break;
+
+    default:
+      response = `Based on your current inventory, you have ${totalMedicines} medicines with ${totalStock} total units in stock. `;
+      response += `I can help you analyze expiry risks, stock levels, sales trends, or provide reorder recommendations. What would you like to focus on?`;
+  }
+
+  return response;
 }
 
 async function modernChat(question, userId, context = null) {
@@ -389,6 +590,11 @@ async function modernChat(question, userId, context = null) {
     let contextStr = '';
     if (context && context.getHistory().length > 0) {
       contextStr = context.getContext();
+    }
+
+    // Add user message to context before building prompt
+    if (context) {
+      context.addMessage('user', question);
     }
 
     const baseSystemPrompt = buildSystemPrompt(contextStr, intention);
@@ -401,7 +607,10 @@ async function modernChat(question, userId, context = null) {
       }
     }
 
-    messages.push({ role: 'user', content: question });
+    // If it's the first message or no history, add the question
+    if (messages.length === 0 || messages[messages.length - 1].role !== 'user') {
+      messages.push({ role: 'user', content: question });
+    }
 
     console.log(`[AI] Processing question with intention: ${intention}`);
     console.log(`[AI] Conversation history length: ${messages.length}`);
@@ -412,7 +621,7 @@ async function modernChat(question, userId, context = null) {
     }
 
     const selectedModels = [
-      await selectAvailableModel(apiKey),
+      'gemini-3.1-flash-lite',
       'gemini-2.5-flash',
       'gemini-2.0-flash',
       'gemini-1.5-flash'
@@ -462,7 +671,6 @@ async function modernChat(question, userId, context = null) {
         const finalResponse = isRecoveryText ? await buildFallbackInventoryResponse(question) : aiResponse;
 
         if (context) {
-          context.addMessage('user', question);
           context.addMessage('assistant', finalResponse);
         }
 
@@ -481,7 +689,6 @@ async function modernChat(question, userId, context = null) {
     const recoveryResponse = await buildFallbackInventoryResponse(question);
 
     if (context) {
-      context.addMessage('user', question);
       context.addMessage('assistant', recoveryResponse);
     }
 

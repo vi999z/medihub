@@ -91,7 +91,7 @@ export default function Notifications() {
           <h1>Alerts</h1>
           <p>{loading ? 'Loading alerts…' : `${unreadCount} unread of ${notifications.length}`}</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div className="page-header-actions">
           <button className="btn btn-secondary" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
@@ -137,8 +137,8 @@ export default function Notifications() {
         )}
 
         {!loading && !error && visibleNotifications.length === 0 && (
-          <div className="table-scroll">
-            <table className="data-table">
+          <div className="table-wrapper">
+            <table className="data-table notification-table">
               <thead><tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr></thead>
               <tbody>
                 <tr className="empty-row">
@@ -154,8 +154,8 @@ export default function Notifications() {
         )}
 
         {loading && (
-          <div className="table-scroll">
-            <table className="data-table">
+          <div className="table-wrapper">
+            <table className="data-table notification-table">
               <thead><tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr></thead>
               <tbody>
                 {[1, 2, 3, 4].map((i) => (
@@ -173,18 +173,18 @@ export default function Notifications() {
         )}
 
         {!loading && !error && (
-          <div className="table-scroll">
-            <table className="data-table">
+          <div className="table-wrapper">
+            <table className="data-table notification-table">
               <thead><tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr></thead>
               <StaggeredList staggerDelay={0.03}>
                 <tbody>
                   {visibleNotifications.map((n) => (
                     <tr key={n.id} style={{ opacity: n.is_read ? 0.6 : 1 }}>
                       <td><span className={`status-pill ${severityPill(n.severity)}`}>{n.severity}</span></td>
-                      <td>{n.message}</td>
+                      <td className="message-cell">{n.message}</td>
                       <td style={{ textTransform: 'capitalize' }}>{n.type}</td>
                       <td>{new Date(n.created_at).toLocaleString()}</td>
-                      <td>
+                      <td className="actions-cell">
                         {!n.is_read && (
                           <button className="btn-icon" onClick={() => markRead(n.id)} title="Mark as read">
                             <CheckCheck size={14} />

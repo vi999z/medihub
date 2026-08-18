@@ -3,6 +3,112 @@ const { pool } = require('../config/db');
 const { getReorderSuggestions } = require('../ai/demandForecastModel');
 const { detectAnomalies } = require('../ai/anomalyDetection');
 const { logAudit } = require('../utils/auditLogger');
+const { buildReportExport, buildPdfBuffer, getSupportedExportTypes } = require('./exportController');
+
+// Helper function to convert data to rows array for exports
+function toRowsArray(data) {
+  if (Array.isArray(data?.rows)) return data.rows;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data)) return data;
+  return [];
+}
+
+// Generate comprehensive pharmacy health report
+function generatePharmacyHealthReport(data) {
+  const report = {
+    title: 'Pharmacy Health Report',
+    generated_at: new Date().toISOString(),
+    summary: {},
+    rows: [],
+    recommendations: [],
+    trend: []
+  };
+
+  // Add summary statistics
+  if (data.summary) {
+    report.summary = {
+      total_medicines: data.summary.total_medicines || 0,
+      total_batches: data.summary.total_batches || 0,
+      total_value: data.summary.total_value || 0,
+      expiring_soon: data.summary.expiring_soon || 0,
+      low_stock: data.summary.low_stock || 0
+    };
+  }
+
+  // Add expiring items as rows
+  if (Array.isArray(data.expiring) && data.expiring.length > 0) {
+    data.expiring.forEach(item => {
+      report.rows.push({
+        type: 'expiring',
+        medicine_name: item.medicine_name || item.name,
+        batch_number: item.batch_number,
+        expiry_date: item.expiry_date,
+        quantity: item.quantity,
+        days_until_expiry: item.days_until_expiry
+      });
+    });
+    report.recommendations.push(`Review ${data.expiring.length} items expiring within 30 days`);
+  }
+
+  // Add low stock items as rows
+  if (Array.isArray(data.lowStock) && data.lowStock.length > 0) {
+    data.lowStock.forEach(item => {
+      report.rows.push({
+        type: 'low_stock',
+        medicine_name: item.medicine_name || item.name,
+        current_stock: item.current_stock || item.quantity,
+        minimum_stock: item.minimum_stock || item.min_stock,
+        reorder_level: item.reorder_level
+      });
+    });
+    report.recommendations.push(`Consider reordering ${data.lowStock.length} low stock items`);
+  }
+
+  // Add sales trend data
+  if (Array.isArray(data.trend) && data.trend.length > 0) {
+    report.trend = data.trend.map(item => ({
+      date: item.date,
+      total_sales: item.total_sales || item.units_sold || 0,
+      transaction_count: item.transaction_count || 0
+    }));
+  }
+
+  // Add expiry risk data
+  if (Array.isArray(data.expiryRisk) && data.expiryRisk.length > 0) {
+    data.expiryRisk.forEach(item => {
+      report.rows.push({
+        type: 'expiry_risk',
+        medicine_name: item.medicine_name,
+        risk_score: item.risk_score,
+        batch_number: item.batch_number,
+        expiry_date: item.expiry_date
+      });
+    });
+  }
+
+  // Add reorder suggestions
+  if (Array.isArray(data.reorderSuggestions) && data.reorderSuggestions.length > 0) {
+    data.reorderSuggestions.forEach(item => {
+      report.recommendations.push(`Reorder ${item.medicine_name}: suggested quantity ${item.suggested_quantity}`);
+    });
+  }
+
+  // Add anomaly data
+  if (Array.isArray(data.anomalies) && data.anomalies.length > 0) {
+    data.anomalies.forEach(item => {
+      report.rows.push({
+        type: 'anomaly',
+        description: item.description,
+        severity: item.severity,
+        detected_at: item.detected_at
+      });
+    });
+    report.recommendations.push(`Investigate ${data.anomalies.length} detected anomalies`);
+  }
+
+  return report;
+}
 
 // GET /api/ai/expiry-risk
 async function getExpiryRisk(req, res) {
@@ -116,7 +222,28 @@ async function chat(req, res) {
 
     // Detect if question is pharmacy-related
     const pharmacyKeywords = ['inventory', 'medicine', 'stock', 'expiry', 'sales', 'pharmacy', 'drug', 'medication', 'batch', 'transaction', 'supplier', 'order'];
+
+    // Detect export requests
+    const exportKeywords = {
+      csv: ['csv', 'excel', 'spreadsheet', 'xls', 'export'],
+      pdf: ['pdf', 'report', 'document'],
+      txt: ['text', 'txt', 'summary', 'plain text'],
+      json: ['json', 'api', 'structured data', 'data export'],
+      chart: ['chart', 'graph', 'visual', 'analytics', 'dashboard']
+    };
+
+    const detectExportType = (text) => {
+      const lowerText = text.toLowerCase();
+      for (const [type, keywords] of Object.entries(exportKeywords)) {
+        if (keywords.some(keyword => lowerText.includes(keyword))) {
+          return type;
+        }
+      }
+      return null;
+    };
+
     const isPharmacyRelated = pharmacyKeywords.some(keyword => question.toLowerCase().includes(keyword));
+    const requestedExportType = detectExportType(question);
 
     // Construct the system prompt with real data
     const systemPrompt = `You are a helpful AI assistant for a pharmacy inventory management system called MediHub.
@@ -139,6 +266,16 @@ PHARMACY DATA RULES:
 - For empty/missing data, give natural responses like "I don't have sales data recorded yet" instead of empty tables
 - ONLY create tables/charts when there is actual meaningful data to display
 - Never create empty tables with "No data available" placeholders
+
+EXPORT CAPABILITIES:
+- When users request exports (CSV, Excel, PDF, TXT, JSON, Charts), prepare structured data for export
+- For CSV/Excel: Create row-based data with clear headers
+- For PDF: Structure with title, summary, and recommendations
+- For TXT: Plain text summaries with bullet points
+- For JSON: Structured data with metadata
+- For Charts: Provide labels and datasets for visualization
+- Automatically detect export keywords: csv, excel, spreadsheet, pdf, report, text, json, chart, graph, visual
+- Generate comprehensive pharmacy health reports with all relevant data
 
 CONTEXT: ${isPharmacyRelated ? 'This is a pharmacy-related question. Use the inventory data below.' : 'This is a general conversation question. Be helpful and conversational without forcing pharmacy data into your response.'}
 
@@ -208,7 +345,7 @@ ${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData
             });
             if (retryResponse.ok) {
               const retryData = await retryResponse.json();
-              const aiResponse = require('../ai/medicalLLM').extractGeneratedText(retryData);
+              const aiResponse = retryData.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
               console.log(`Retry successful for ${model}`);
 
               await logAudit(req.user.id, 'ai_chat', `Question: ${question.substring(0, 100)}...`, req);
@@ -233,7 +370,45 @@ ${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData
 
       const data = await response.json();
       console.log(`Google AI API response received from ${model}`);
-      const aiResponse = require('../ai/medicalLLM').extractGeneratedText(data);
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+
+      // If user requested an export, process it
+      if (requestedExportType) {
+        console.log(`Export request detected: ${requestedExportType}`);
+
+        // Generate comprehensive pharmacy health report
+        const exportData = generatePharmacyHealthReport(filteredData);
+
+        try {
+          const exportResult = buildReportExport(exportData, requestedExportType);
+
+          // Log the export generation
+          await logAudit(
+            req.user.id,
+            'ai_export',
+            `Generated ${requestedExportType} export: ${exportResult.filename}`,
+            req
+          );
+
+          return res.json({
+            response: aiResponse,
+            export: {
+              type: requestedExportType,
+              filename: exportResult.filename,
+              contentType: exportResult.contentType,
+              data: exportResult.body,
+              downloadUrl: `/api/ai/report/export?type=${requestedExportType}`
+            }
+          });
+        } catch (exportError) {
+          console.error('Export generation failed:', exportError);
+          // Still return the AI response even if export fails
+          return res.json({
+            response: aiResponse,
+            exportError: 'Failed to generate export file'
+          });
+        }
+      }
 
       // If we got here, the model worked
       console.log(`Successfully used model: ${model}`);

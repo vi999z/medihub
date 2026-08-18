@@ -18,9 +18,14 @@ const conversationContexts = new Map();
 
 function getUserContext(userId) {
   if (!conversationContexts.has(userId)) {
-    conversationContexts.set(userId, new ConversationContext(userId));
+    conversationContexts.set(userId, new ConversationContext(userId, 5)); // Increased to 5 turns for better context
   }
   return conversationContexts.get(userId);
+}
+
+// ─── Clear conversation for a user ───
+function clearUserContext(userId) {
+  conversationContexts.delete(userId);
 }
 
 // ─── Enhanced Expiry Risk with Explanations ───
@@ -165,7 +170,7 @@ async function chatModern(req, res) {
           context.getContext(),
           detectIntention(question)
         );
-        
+
         return streamGeminiResponse(question, systemPrompt, res);
       } else {
         // Regular response mode (faster)
@@ -184,12 +189,13 @@ async function chatModern(req, res) {
           intention: result.intention,
           model: result.model,
           timestamp: result.timestamp,
-          conversation_turn: context.getHistory().length / 2
+          conversation_turn: Math.floor(context.getHistory().length / 2),
+          topics: context.metadata.topics
         });
       }
     } catch (modernErr) {
       console.warn('[AI] Modern approach failed, falling back to basic mode:', modernErr.message);
-      
+
       // Fallback to simpler approach
       return fallbackChat(question, userId, apiKey, req, res, context);
     }
@@ -206,53 +212,97 @@ async function chatModern(req, res) {
 // ─── Fallback Chat (basic mode if modern fails) ───
 async function fallbackChat(question, userId, apiKey, req, res, context) {
   try {
-    const [summary, expiring] = await Promise.all([
+    const [summary, expiring, lowStock, trend] = await Promise.all([
       pool.query('SELECT * FROM summary_view').then(r => r[0] || {}).catch(() => ({})),
       pool.query('SELECT * FROM batches WHERE status = "active" AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) ORDER BY expiry_date ASC LIMIT 10').catch(() => []),
+      pool.query('SELECT * FROM low_stock_view LIMIT 10').catch(() => []),
+      pool.query('SELECT * FROM sales_trend_view ORDER BY date DESC LIMIT 30').catch(() => []),
     ]);
 
-    const systemPrompt = `You are a helpful pharmacy AI assistant for MediHub. 
-Answer questions about inventory based on this data: ${JSON.stringify({ summary, expiring })}
-Keep responses concise and data-driven.`;
+    const systemPrompt = `You are a helpful pharmacy AI assistant for MediHub.
+Answer questions about inventory based on this data:
+- Summary: ${JSON.stringify(summary)}
+- Expiring soon: ${JSON.stringify(expiring)}
+- Low stock: ${JSON.stringify(lowStock)}
+- Sales trend: ${JSON.stringify(trend)}
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: systemPrompt }]
-          },
-          contents: [{
-            role: 'user',
-            parts: [{ text: question }]
-          }],
-          generationConfig: {
-            maxOutputTokens: 800,
-            temperature: 0.7
+Keep responses concise, conversational, and data-driven. If data is empty, provide helpful suggestions about what data would be needed.`;
+
+    // Try working models in order
+    const models = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+    let lastError = null;
+
+    for (const model of models) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: {
+                parts: [{ text: systemPrompt }]
+              },
+              contents: [{
+                role: 'user',
+                parts: [{ text: question }]
+              }],
+              generationConfig: {
+                maxOutputTokens: 800,
+                temperature: 0.7
+              }
+            })
           }
-        })
-      }
-    );
+        );
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          lastError = new Error(`API error (${response.status}): ${errorText}`);
+          console.warn(`Fallback model ${model} failed:`, lastError.message);
+          continue;
+        }
+
+        const data = await response.json();
+        const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+
+        if (context) {
+          context.addMessage('user', question);
+          context.addMessage('assistant', aiResponse);
+        }
+
+        await logAudit(userId, 'ai_chat_fallback', `Question: ${question.substring(0, 100)}...`, req);
+
+        return res.json({
+          response: aiResponse,
+          model: model,
+          mode: 'fallback',
+          timestamp: new Date().toISOString()
+        });
+      } catch (modelErr) {
+        console.warn(`Fallback model ${model} error:`, modelErr.message);
+        lastError = modelErr;
+      }
     }
 
-    const data = await response.json();
-    const aiResponse = require('../ai/medicalLLM').extractGeneratedText(data);
+    // If all models failed, use a smart fallback response
+    const summaryData = summary || {};
+    const totalMedicines = summaryData.total_medicines || summaryData.total_items || 0;
+    const totalStock = summaryData.total_stock || 0;
+    const expiringCount = Array.isArray(expiring) ? expiring.length : 0;
+    const lowStockCount = Array.isArray(lowStock) ? lowStock.length : 0;
+
+    const fallbackResponse = `Based on your inventory data: you have ${totalMedicines} medicines with ${totalStock} total units in stock. ${expiringCount > 0 ? `${expiringCount} items are expiring within 30 days. ` : ''}${lowStockCount > 0 ? `${lowStockCount} items are below reorder level. ` : ''}I can provide more detailed analysis if you ask about specific areas like expiry dates, sales trends, or reorder recommendations.`;
 
     if (context) {
       context.addMessage('user', question);
-      context.addMessage('assistant', aiResponse);
+      context.addMessage('assistant', fallbackResponse);
     }
 
-    await logAudit(userId, 'ai_chat_fallback', `Question: ${question.substring(0, 100)}...`, req);
+    await logAudit(userId, 'ai_chat_fallback_local', `Question: ${question.substring(0, 100)}...`, req);
 
     return res.json({
-      response: aiResponse,
-      model: 'gemini-2.0-flash',
+      response: fallbackResponse,
+      model: 'local_fallback',
       mode: 'fallback',
       timestamp: new Date().toISOString()
     });
@@ -348,13 +398,16 @@ module.exports = {
   getConversationInfo,
   getExpiryRiskEnhanced,
   getAnomaliesEnhanced,
-  
+
   // Backward compatible endpoints
   getExpiryRisk,
   train,
   getReorderSuggestionsHandler,
   getAnomalies,
-  
+
+  // Utility functions
+  clearUserContext,
+
   // Legacy name for compatibility
   chat: chatModern
 };

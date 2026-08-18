@@ -2,6 +2,14 @@ const PDFDocument = require('pdfkit');
 
 const SUPPORTED_EXPORT_TYPES = ['csv', 'excel', 'pdf', 'txt', 'json', 'chart'];
 
+// Helper function moved to top for PDF generation
+function toRowsArray(reportData) {
+  if (Array.isArray(reportData?.rows)) return reportData.rows;
+  if (Array.isArray(reportData?.items)) return reportData.items;
+  if (Array.isArray(reportData?.data)) return reportData.data;
+  return [];
+}
+
 function getSupportedExportTypes() {
   return [...SUPPORTED_EXPORT_TYPES];
 }
@@ -13,13 +21,6 @@ function escapeCsvValue(value) {
 
   const text = String(value);
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-function toRowsArray(reportData) {
-  if (Array.isArray(reportData?.rows)) return reportData.rows;
-  if (Array.isArray(reportData?.items)) return reportData.items;
-  if (Array.isArray(reportData?.data)) return reportData.data;
-  return [];
 }
 
 function toCsvBody(reportData) {
@@ -102,26 +103,68 @@ function buildPdfBuffer(reportData) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', (error) => reject(error));
 
+    // Header
     doc.fontSize(18).text(reportData?.title || 'Pharmacy Health Report', { align: 'center' });
+    doc.fontSize(10).text(`Generated: ${new Date().toLocaleDateString()}`, { align: 'center' });
     doc.moveDown();
 
+    // Summary section
     const summary = reportData?.summary || {};
     const entries = Object.entries(summary);
     if (entries.length > 0) {
-      doc.fontSize(12).text('Summary', { underline: true });
+      doc.fontSize(14).fillColor('blue').text('Executive Summary', { underline: true });
+      doc.fillColor('black').fontSize(11);
       entries.forEach(([key, value]) => {
-        doc.text(`${key.replace(/_/g, ' ')}: ${value}`);
+        doc.text(`${key.replace(/_/g, ' ').toUpperCase()}: ${value}`);
       });
       doc.moveDown();
     }
 
+    // Data tables section
+    const rows = toRowsArray(reportData);
+    if (rows.length > 0) {
+      doc.fontSize(14).fillColor('blue').text('Detailed Data', { underline: true });
+      doc.fillColor('black').fontSize(10);
+
+      // Create table
+      const headers = [...new Set(rows.flatMap((row) => Object.keys(row || {})))];
+      const tableTop = doc.y;
+      const rowHeight = 20;
+      const colWidth = (doc.page.width - 100) / headers.length;
+
+      // Draw headers
+      headers.forEach((header, i) => {
+        doc.rect(50 + i * colWidth, tableTop, colWidth, rowHeight).fillAndStroke('#f0f0f0', '#000');
+        doc.fillColor('black').text(header, 55 + i * colWidth, tableTop + 5, { width: colWidth - 10 });
+      });
+
+      // Draw rows
+      rows.slice(0, 20).forEach((row, rowIndex) => {
+        const y = tableTop + rowHeight + (rowIndex + 1) * rowHeight;
+        headers.forEach((header, colIndex) => {
+          doc.rect(50 + colIndex * colWidth, y, colWidth, rowHeight).stroke();
+          doc.text(String(row?.[header] || ''), 55 + colIndex * colWidth, y + 5, { width: colWidth - 10 });
+        });
+      });
+
+      if (rows.length > 20) {
+        doc.text(`... and ${rows.length - 20} more rows`, 50, doc.y + 10);
+      }
+      doc.moveDown();
+    }
+
+    // Recommendations section
     const recommendations = Array.isArray(reportData?.recommendations) ? reportData.recommendations : [];
     if (recommendations.length > 0) {
-      doc.fontSize(12).text('Recommendations', { underline: true });
+      doc.fontSize(14).fillColor('blue').text('Recommendations', { underline: true });
+      doc.fillColor('black').fontSize(11);
       recommendations.forEach((item, index) => {
-        doc.text(`${index + 1}. ${item}`);
+        doc.text(`${index + 1}. ${item}`, { indent: 10 });
       });
     }
+
+    // Footer
+    doc.fontSize(8).fillColor('gray').text('MediHub Pharmacy Management System', { align: 'center' });
 
     doc.end();
   });
@@ -144,10 +187,11 @@ function buildReportExport(reportData, type = 'csv') {
         body: toCsvBody(reportData),
       };
     case 'pdf':
+      // PDF is handled separately in the route handler
       return {
         contentType: 'application/pdf',
         filename: `${(reportData?.title || 'report').replace(/\s+/g, '_').toLowerCase()}.pdf`,
-        body: Buffer.from('%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF'),
+        requiresAsync: true // Signal that this needs async handling
       };
     case 'txt':
       return {
@@ -193,7 +237,7 @@ async function generateReportExport(req, res) {
       const pdfBuffer = await buildPdfBuffer(reportData);
       return res
         .setHeader('Content-Type', 'application/pdf')
-        .setHeader('Content-Disposition', `attachment; filename=${(reportData?.title || 'report').replace(/\s+/g, '_').toLowerCase()}.pdf`)
+        .setHeader('Content-Disposition', `attachment; filename="${(reportData?.title || 'report').replace(/\s+/g, '_').toLowerCase()}.pdf"`)
         .send(pdfBuffer);
     }
 
@@ -202,13 +246,13 @@ async function generateReportExport(req, res) {
     if (typeof result.body === 'string') {
       return res
         .setHeader('Content-Type', result.contentType)
-        .setHeader('Content-Disposition', `attachment; filename=${result.filename}`)
+        .setHeader('Content-Disposition', `attachment; filename="${result.filename}"`)
         .send(result.body);
     }
 
     return res
       .setHeader('Content-Type', result.contentType)
-      .setHeader('Content-Disposition', `attachment; filename=${result.filename}`)
+      .setHeader('Content-Disposition', `attachment; filename="${result.filename}"`)
       .json(result.body);
   } catch (error) {
     console.error('Report export generation failed:', error);

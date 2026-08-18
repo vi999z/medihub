@@ -285,7 +285,7 @@ export default function Medicines() {
             {loading ? 'Loading catalog…' : `${visibleMedicines.length} of ${medicines.length} products shown`}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div className="page-header-actions">
           <button className="btn btn-secondary" onClick={handleExport}>
             <Download size={15} /> Export CSV
           </button>
@@ -444,7 +444,7 @@ export default function Medicines() {
         )}
 
         {!loading && !error && visibleMedicines.length === 0 && (
-          <div className="table-scroll">
+          <div className="table-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
@@ -475,7 +475,7 @@ export default function Medicines() {
         )}
 
         {loading && (
-          <div className="table-scroll">
+          <div className="table-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
@@ -524,7 +524,7 @@ export default function Medicines() {
                 </div>
               )}
               {!isCollapsed && (
-                <div className="table-scroll">
+                <div className="table-wrapper">
                   <table className="data-table sticky-head">
                     <thead>
                       <tr>
