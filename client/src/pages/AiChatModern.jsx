@@ -285,11 +285,6 @@ export default function AiChatModern() {
     setStreaming(false);
 
     try {
-      const token = localStorage.getItem('medihub_token');
-      if (!token) {
-        throw new Error('You are not logged in. Please log in to use AI chat.');
-      }
-
       const exportType = detectExportType(userMessage);
       if (exportType) {
         const started = await triggerExportDownload(userMessage);
@@ -379,10 +374,8 @@ export default function AiChatModern() {
 
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('medihub_token')}`
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         signal: controller.signal,
         body: JSON.stringify(streamBody)
       });

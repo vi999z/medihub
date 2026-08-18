@@ -33,11 +33,12 @@ async function resetSystem(req, res) {
 
 async function wipeAllData(req, res) {
   await pool.query('DELETE FROM stock_transactions');
+  await pool.query('DELETE FROM notifications');
   await pool.query('DELETE FROM batches');
   await pool.query('DELETE FROM medicines');
   await pool.query('DELETE FROM suppliers');
   await pool.query('DELETE FROM ai_models').catch(() => {}); // table only exists once a model has been trained
-  res.json({ message: 'All medicines, suppliers, batches, transactions and AI training history cleared.' });
+  res.json({ message: 'All medicines, suppliers, batches, transactions, notifications and AI training history cleared.' });
 }
 
 module.exports = { clearTransactions, clearLogs, removeExpiredBatches, resetSystem, wipeAllData };

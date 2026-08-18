@@ -108,7 +108,8 @@ function TopBar({ pageTitle }) {
     navigate(`/medicines?q=${encodeURIComponent(query.trim())}`);
   }
 
-  function handleLogout() { logout(); navigate('/login'); }
+  // Pass `navigate` so AuthContext uses React Router instead of a hard reload.
+  function handleLogout() { logout(navigate); }
 
   return (
     <header className="topbar">

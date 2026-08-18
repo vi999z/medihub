@@ -4,6 +4,15 @@ const userModel = require('../models/userModel');
 const { pool } = require('../config/db');
 const { logAudit } = require('../utils/auditLogger');
 
+// Converts JWT_EXPIRES_IN strings like "7d", "24h", "3600" into milliseconds
+// so we can give the cookie the same lifetime as the JWT itself.
+function parseDurationMs(str) {
+  const match = String(str || '7d').match(/^(\d+)([smhd]?)$/);
+  if (!match) return 7 * 24 * 60 * 60 * 1000;
+  const n = parseInt(match[1], 10);
+  return n * ({ s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[match[2]] || 1000);
+}
+
 // POST /api/auth/login
 async function login(req, res) {
   const { email, password } = req.body;
@@ -25,15 +34,43 @@ async function login(req, res) {
   const token = jwt.sign(
     { id: user.id, role: user.role, email: user.email },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
 
   await logAudit(user.id, 'login', `${user.email} logged in`, req);
 
+  // Set the token as an HttpOnly, SameSite=Lax cookie.
+  // Domain is intentionally omitted — the browser scopes it to the exact
+  // request host (works correctly for both localhost and production domains).
+  res.cookie('medihub_token', token, {
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: parseDurationMs(process.env.JWT_EXPIRES_IN || '7d'),
+    path: '/',
+  });
+
+  // No longer return the raw token in the body — the cookie carries it.
   res.json({
-    token,
     user: { id: user.id, full_name: user.full_name, email: user.email, role: user.role }
   });
+}
+
+// POST /api/auth/logout
+async function logout(req, res) {
+  // Clear the cookie by overwriting it with an already-expired one.
+  res.clearCookie('medihub_token', {
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+  });
+
+  if (req.user) {
+    await logAudit(req.user.id, 'logout', `${req.user.email} logged out`, req).catch(() => {});
+  }
+
+  res.json({ ok: true });
 }
 
 // POST /api/auth/register  (admin-only — see route protection below)
@@ -66,4 +103,4 @@ async function me(req, res) {
   res.json(user);
 }
 
-module.exports = { login, register, me };
+module.exports = { login, register, me, logout };

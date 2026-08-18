@@ -1,69 +1,74 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import api from '../api/axios';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem('medihub_user');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  // Hold the latest navigate function injected by callers via logout(navigate).
+  // Using a ref avoids re-rendering the provider when it changes.
+  const navigateRef = useRef(null);
 
+  // ── Hydrate session on mount ─────────────────────────────────────────────
+  // The HttpOnly cookie is sent automatically — just call /auth/me.
+  // A 401 means no active session; that is normal, not an error.
   useEffect(() => {
-    // Register the 401 logout callback BEFORE hydrate() fires any API call,
-    // so an expired token always results in a clean redirect to /login.
-    api.setAuthLogout(() => {
-      setUser(null);
-      setAuthReady(true);
-      window.location.href = '/login';
-    });
-
     async function hydrate() {
-      const token = localStorage.getItem('medihub_token');
-      if (!token) {
-        setUser(null);
-        setAuthReady(true);
-        return;
-      }
-
       try {
         const res = await api.get('/auth/me');
-        const nextUser = res.data;
-        localStorage.setItem('medihub_user', JSON.stringify(nextUser));
-        setUser(nextUser);
+        setUser(res.data);
       } catch {
-        localStorage.removeItem('medihub_token');
-        localStorage.removeItem('medihub_user');
         setUser(null);
-        // Safety net: if the 401 interceptor didn't redirect (e.g. network error),
-        // ensure we still clear state and send the user to login.
-        window.location.href = '/login';
       } finally {
         setAuthReady(true);
       }
     }
-
     hydrate();
   }, []);
 
+  // ── 401 interceptor callback ─────────────────────────────────────────────
+  // Registered once; calls logout without a navigate arg so it uses
+  // window.location.replace as a safe fallback outside the Router tree.
+  const logoutFn = useCallback(async (navigate) => {
+    try {
+      await api.post('/auth/logout'); // server clears the cookie
+    } catch {
+      // proceed with client-side cleanup regardless
+    }
+    api.clearAllCache();
+    setUser(null);
+    setAuthReady(true);
+
+    const nav = navigate || navigateRef.current;
+    if (nav) {
+      nav('/login', { replace: true }); // React Router — no hard reload
+    } else {
+      window.location.replace('/login'); // fallback outside Router context
+    }
+  }, []);
+
+  useEffect(() => {
+    api.setAuthLogout(() => logoutFn(null));
+  }, [logoutFn]);
+
+  // ── login ────────────────────────────────────────────────────────────────
   async function login(email, password) {
     const res = await api.post('/auth/login', { email, password });
-    localStorage.setItem('medihub_token', res.data.token);
-    localStorage.setItem('medihub_user', JSON.stringify(res.data.user));
+    // Token is in the HttpOnly cookie — just store the user profile in state.
     setUser(res.data.user);
     return res.data.user;
   }
 
-  function logout() {
-    localStorage.removeItem('medihub_token');
-    localStorage.removeItem('medihub_user');
-    setUser(null);
-    window.location.href = '/login';
+  // ── logout (public) ──────────────────────────────────────────────────────
+  // Call sites pass their `navigate` function so we can use React Router
+  // navigation instead of a hard page reload.
+  function logout(navigate) {
+    return logoutFn(navigate);
   }
 
   return (
-    <AuthContext.Provider value={{ user, authReady, login, logout }}>
+    <AuthContext.Provider value={{ user, authReady, login, logout, navigateRef }}>
       {children}
     </AuthContext.Provider>
   );
@@ -71,4 +76,4 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   return useContext(AuthContext);
-} 
+}

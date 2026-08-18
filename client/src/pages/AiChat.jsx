@@ -306,13 +306,11 @@ export default function AiChat() {
     abortControllerRef.current = controller;
 
     try {
-      // Use streaming mode via /ai/chat-modern with stream:true
-      const response = await fetch('/api/ai/chat-modern', {
+      // Cookie is sent automatically via withCredentials; no Authorization header needed.
+      const response = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('medihub_token')}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           question: userMessage,
           stream: true,
