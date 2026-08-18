@@ -4,7 +4,7 @@
  * Replaces the basic Google AI calls with sophisticated reasoning and context awareness
  */
 
-const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand, analyzeEfficiency, chatWithFileGeneration } = require('../ai/medicalLLM');
+const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand: forecastDemandModel, analyzeEfficiency: analyzeEfficiencyModel, chatWithFileGeneration } = require('../ai/medicalLLM');
 const { explainAnomaly, explainExpiryRisk, explainReorderRecommendation, generatePharmacyHealthReport } = require('../ai/modelExplainer');
 const { streamGeminiResponse } = require('../ai/streamingHandler');
 const { trainAndPersist, scoreActiveBatches } = require('../ai/expiryRiskModel');
@@ -201,7 +201,7 @@ async function forecastDemand(req, res) {
   try {
     const { forecast_period = 90 } = req.body;
 
-    const result = await forecastDemand(forecast_period);
+    const result = await forecastDemandModel(forecast_period);
 
     if (result.error) {
       return res.status(500).json({ error: result.error });
@@ -228,7 +228,7 @@ async function analyzeEfficiency(req, res) {
   try {
     const { focus_area = 'overall' } = req.body;
 
-    const result = await analyzeEfficiency(focus_area);
+    const result = await analyzeEfficiencyModel(focus_area);
 
     if (result.error) {
       return res.status(500).json({ error: result.error });
