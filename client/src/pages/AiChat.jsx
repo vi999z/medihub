@@ -234,15 +234,15 @@ export default function AiChat() {
   }
 
   const saveConversation = useCallback(async (msgs, convId) => {
-    if (msgs.length <= 1) return convId;
+    if (msgs.length <= 1) return { id: convId, title: null };
     const title = msgs.find(m => m.role === 'user')?.content?.slice(0, 60) || 'New Conversation';
     try {
       const res = convId
         ? await api.put(`/ai/conversations/${convId}`, { title, messages: msgs })
         : await api.post('/ai/conversations', { title, messages: msgs });
-      return res.data.id;
+      return { id: res.data.id, title };
     } catch {
-      return convId;
+      return { id: convId, title };
     }
   }, []);
 
@@ -321,10 +321,13 @@ export default function AiChat() {
       setMessages(finalMessages);
       setStreamingText('');
 
-      const savedId = await saveConversation(finalMessages, activeConvId);
+      const { id: savedId, title: savedTitle } = await saveConversation(finalMessages, activeConvId);
       if (savedId && savedId !== activeConvId) {
         setActiveConvId(savedId);
-        loadConversations();
+        setConversations(prev => {
+          if (prev.some(c => c.id === savedId)) return prev;
+          return [{ id: savedId, title: savedTitle, updated_at: new Date().toISOString() }, ...prev];
+        });
       } else {
         setConversations(prev => prev.map(c =>
           c.id === savedId ? { ...c, updated_at: new Date().toISOString() } : c

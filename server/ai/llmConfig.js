@@ -5,15 +5,16 @@
 
 // ─── Model Fallback Chain ───
 const MODEL_FALLBACK_CHAIN = [
-  'gemini-3.7-flash',         // 3.7 Flash — latest, most capable
-  'gemini-3.6-flash',         // 3.6 Flash — balanced speed + multimodal
-  'gemini-3.5-flash',         // 3.5 Flash — legacy, high-throughput
-  'gemini-3.5-flash-lite',    // 3.5 Flash-Lite — fastest, cost-effective
-  'gemini-3.1-flash-lite',    // 3.1 Flash-Lite — frontier-class
-  'gemini-2.5-flash',         // fallback to previous gen
-  'gemini-2.0-flash',         // fallback
-  'gemini-1.5-flash',         // fallback
-  'gemini-1.5-flash-8b',      // fallback
+  'gemini-3.7-flash',       // latest, most capable
+  'gemini-3.6-flash',       // balanced speed + multimodal
+  'gemini-3.5-flash',       // high-throughput
+  'gemini-3.5-flash-lite',  // fastest, cost-effective
+  'gemini-3.1-pro-preview', // frontier-class pro
+  'gemini-3.1-flash-lite',  // frontier-class lite
+  'gemini-2.5-flash',       // previous gen stable
+  'gemini-2.0-flash',       // fallback
+  'gemini-1.5-flash',       // fallback
+  'gemini-1.5-flash-8b',    // fallback
 ];
 
 // ─── Medical Domain Expertise System Prompt ───
