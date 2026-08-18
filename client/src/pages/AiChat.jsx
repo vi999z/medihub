@@ -9,6 +9,7 @@ import ReactMarkdown from 'react-markdown';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import Skeleton from '../components/Skeleton';
+import { parseJsonResponse } from '../utils/responseHelpers';
 
 const STARTER_PROMPTS = [
   "What's expiring this week?",
@@ -322,8 +323,8 @@ export default function AiChat() {
 
       if (!response.ok) {
         // Non-streaming error — parse and show
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Server error ${response.status}`);
+        const errData = await parseJsonResponse(response).catch(() => ({}));
+        throw new Error(errData?.error || `Server error ${response.status}`);
       }
 
       const contentType = response.headers.get('content-type') || '';
@@ -373,7 +374,10 @@ export default function AiChat() {
         }
       } else {
         // ── Regular JSON path (streaming flag ignored by model) ──
-        const data = await response.json();
+        const data = await parseJsonResponse(response).catch(() => {
+          throw new Error('AI service returned an empty or invalid response. Please try again.');
+        });
+
         const assistantMsg = {
           role: 'assistant',
           content: data.response,

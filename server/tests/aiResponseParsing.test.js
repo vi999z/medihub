@@ -42,3 +42,8 @@ test('extractGeneratedText returns null for empty response', () => {
   assert.equal(extractGeneratedText({}), null);
   assert.equal(extractGeneratedText(null), null);
 });
+
+test('empty AI payload is treated as no text content', () => {
+  const payload = { candidates: [{ content: { parts: [{ text: '' }] } }] };
+  assert.equal(extractGeneratedText(payload), null);
+});

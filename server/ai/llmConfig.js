@@ -5,10 +5,14 @@
 
 // ─── Model Fallback Chain ───
 const MODEL_FALLBACK_CHAIN = [
+  'gemini-3.1-flash-lite',
+  'gemini-3.1-flash',
   'gemini-2.5-flash-lite',
   'gemini-2.5-flash',
+  'gemini-2.0-flash-lite',
   'gemini-2.0-flash',
   'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
   'gemini-1.5-pro',
   'gemini-pro'
 ];
