@@ -120,13 +120,8 @@ export default function Transactions() {
         </motion.form>
       )}
 
-      <motion.div 
-        className="card table-card" 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-      >
-        <div className="filter-bar">
+      <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
+        <div className="filter-bar" style={{ margin: 0 }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -152,77 +147,118 @@ export default function Transactions() {
             </button>
           )}
         </div>
+      </div>
 
-        {error && (
-          <div className="empty-state">
-            <strong>Unable to load transactions</strong>
-            <p style={{ margin: '6px 0 0' }}>{error}</p>
-            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
-          </div>
-        )}
+      {error && (
+        <div className="empty-state">
+          <strong>Unable to load transactions</strong>
+          <p style={{ margin: '6px 0 0' }}>{error}</p>
+          <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
+        </div>
+      )}
 
-        {!loading && !error && visibleTransactions.length === 0 && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr></thead>
-              <tbody>
-                <tr className="empty-row">
-                  <td colSpan={6}>
-                    <div className="empty-state compact-empty-state">
-                      <div>{transactions.length === 0 ? 'No stock movements recorded yet.' : 'No movements match the current filters.'}</div>
-                      {filtersActive && (
-                        <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
-                      )}
+      {!loading && !error && visibleTransactions.length === 0 && (
+        <div className="empty-state">
+          <strong>No transactions found</strong>
+          <p style={{ margin: '6px 0 0' }}>{transactions.length === 0 ? 'No stock movements recorded yet.' : 'No movements match the current filters.'}</p>
+          {filtersActive && (
+            <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
+          )}
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="card" style={{ height: '260px' }}>
+              <Skeleton height={16} style={{ marginBottom: '12px' }} />
+              <Skeleton height={16} style={{ marginBottom: '8px' }} />
+              <Skeleton height={16} style={{ marginBottom: '16px' }} />
+              <Skeleton height={16} style={{ marginBottom: '12px' }} />
+              <Skeleton height={40} style={{ borderRadius: '999px' }} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && !error && visibleTransactions.length > 0 && (
+        <motion.div 
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <StaggeredList staggerDelay={0.03}>
+            {visibleTransactions.map((t) => {
+              const isIncrease = t.quantity > 0;
+              const borderColorMap = { 'sale': 'var(--red)', 'adjustment': 'var(--gold)', 'disposal': 'var(--red)', 'return': 'var(--green)' };
+              return (
+                <motion.div
+                  key={t.id}
+                  className="card"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: '16px',
+                    borderTop: `4px solid ${borderColorMap[t.transaction_type] || 'var(--gold)'}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
+                >
+                  {/* Top Row: ID & Type Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <span className="stamp" style={{ fontSize: '11px' }}>ID: {t.id}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: `${borderColorMap[t.transaction_type] || 'var(--gold)'}15`, color: borderColorMap[t.transaction_type] || 'var(--gold)', textTransform: 'capitalize' }}>
+                      {t.transaction_type}
+                    </span>
+                  </div>
+
+                  {/* Middle Content */}
+                  <div style={{ flex: 1, marginBottom: '12px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)', marginBottom: '4px', lineHeight: 1.3 }}>
+                      {t.medicine_name}
                     </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
+                    <div style={{ fontSize: '12px', color: 'var(--steel)', marginBottom: '8px', lineHeight: 1.4 }}>
+                      Batch: <span className="stamp" style={{ fontSize: '11px' }}>{t.batch_number}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                      <div>
+                        <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Quantity</div>
+                        <div style={{ fontWeight: 700, fontSize: '14px', color: isIncrease ? 'var(--green)' : 'var(--red)' }}>
+                          {isIncrease ? '+' : ''}{t.quantity}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Date</div>
+                        <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{new Date(t.created_at).toLocaleDateString()}</div>
+                      </div>
+                    </div>
+                    {t.reason && (
+                      <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)', fontSize: '11px', color: 'var(--steel)' }}>
+                        Reason: <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{t.reason}</span>
+                      </div>
+                    )}
+                  </div>
 
-        {loading && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr></thead>
-              <tbody>
-                {[1, 2, 3, 4].map((i) => (
-                  <tr key={i}>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {!loading && !error && visibleTransactions.length > 0 && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th>Date</th><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>By</th></tr></thead>
-              <StaggeredList staggerDelay={0.03}>
-                <tbody>
-                  {visibleTransactions.map((t) => (
-                    <tr key={t.id}>
-                      <td>{new Date(t.created_at).toLocaleString()}</td>
-                      <td style={{ fontWeight: 500 }}>{t.medicine_name}</td>
-                      <td><span className="stamp">{t.batch_number}</span></td>
-                      <td style={{ textTransform: 'capitalize' }}>{t.transaction_type}</td>
-                      <td style={{ color: t.quantity < 0 ? 'var(--red)' : 'var(--green)' }}>{t.quantity > 0 ? `+${t.quantity}` : t.quantity}</td>
-                      <td>{t.user_name}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </StaggeredList>
-            </table>
-          </div>
-        )}
-      </motion.div>
+                  {/* Bottom Row: Avatar + User + Time */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
+                        {t.user_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.user_name.substring(0, 12)}</div>
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--steel)', whiteSpace: 'nowrap', marginLeft: '8px' }}>
+                      {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </StaggeredList>
+        </motion.div>
+      )}
     </motion.div>
   );
 }
