@@ -15,30 +15,26 @@ export function AuthProvider({ children }) {
 
   // ── logout implementation ────────────────────────────────────────────────
   const logoutFn = useCallback(async (navigate) => {
-    try {
-      await api.post('/auth/logout'); // server expires the cookie
-    } catch {
-      // proceed regardless
-    }
+    localStorage.removeItem('medihub_token');
+    localStorage.removeItem('medihub_user');
     api.clearAllCache();
     setUser(null);
     setAuthReady(true);
 
     const nav = navigate || navigateRef.current;
     if (nav) {
-      nav('/login', { replace: true }); // React Router — stays in-tree, no reload
+      nav('/login', { replace: true }); // React Router — no hard reload
     } else {
       window.location.replace('/login');
     }
   }, []);
 
   // ── 401 interceptor ──────────────────────────────────────────────────────
-  // Registered before hydration so expired-session requests mid-session are
-  // caught. Guarded by hydratingRef so the expected 401 from /auth/me on
-  // first load does NOT trigger a redirect loop.
+  // Guarded by hydratingRef so the expected 401 from /auth/me on first load
+  // (no token in localStorage) does NOT trigger a redirect loop.
   useEffect(() => {
     api.setAuthLogout(() => {
-      if (hydratingRef.current) return; // ignore 401s during initial hydration
+      if (hydratingRef.current) return;
       logoutFn(null);
     });
   }, [logoutFn]);
@@ -46,11 +42,21 @@ export function AuthProvider({ children }) {
   // ── Hydrate session on mount ─────────────────────────────────────────────
   useEffect(() => {
     async function hydrate() {
+      const token = localStorage.getItem('medihub_token');
+      if (!token) {
+        // No token — not logged in, nothing to hydrate
+        hydratingRef.current = false;
+        setAuthReady(true);
+        return;
+      }
       try {
         const res = await api.get('/auth/me');
+        localStorage.setItem('medihub_user', JSON.stringify(res.data));
         setUser(res.data);
       } catch {
-        // 401 = no active session — normal, not an error. Stay on /login.
+        // Token invalid/expired — clear it and stay on /login
+        localStorage.removeItem('medihub_token');
+        localStorage.removeItem('medihub_user');
         setUser(null);
       } finally {
         hydratingRef.current = false;
@@ -63,6 +69,8 @@ export function AuthProvider({ children }) {
   // ── login ────────────────────────────────────────────────────────────────
   async function login(email, password) {
     const res = await api.post('/auth/login', { email, password });
+    localStorage.setItem('medihub_token', res.data.token);
+    localStorage.setItem('medihub_user', JSON.stringify(res.data.user));
     setUser(res.data.user);
     return res.data.user;
   }

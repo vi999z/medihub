@@ -2,9 +2,6 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
-  // Send the HttpOnly session cookie on every request (including cross-origin
-  // requests during Vite dev where the client is on :5173 and API on :5000).
-  withCredentials: true,
 });
 
 const cache = new Map();
@@ -42,9 +39,14 @@ api.clearAllCache = function clearAllCache() {
   cache.clear();
 };
 
-// No manual token injection — the browser sends the HttpOnly cookie automatically.
-// We keep a no-op request interceptor in case middleware is added later.
-api.interceptors.request.use((config) => config);
+// Attach the JWT from localStorage as a Bearer token on every request.
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('medihub_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 let on401Callback = null;
 

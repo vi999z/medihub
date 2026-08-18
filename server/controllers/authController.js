@@ -50,8 +50,8 @@ async function login(req, res) {
     path: '/',
   });
 
-  // No longer return the raw token in the body — the cookie carries it.
   res.json({
+    token,
     user: { id: user.id, full_name: user.full_name, email: user.email, role: user.role }
   });
 }

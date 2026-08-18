@@ -306,11 +306,12 @@ export default function AiChat() {
     abortControllerRef.current = controller;
 
     try {
-      // Cookie is sent automatically via withCredentials; no Authorization header needed.
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('medihub_token')}`,
+        },
         body: JSON.stringify({
           question: userMessage,
           stream: true,

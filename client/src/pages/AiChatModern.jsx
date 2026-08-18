@@ -374,8 +374,10 @@ export default function AiChatModern() {
 
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('medihub_token')}`,
+        },
         signal: controller.signal,
         body: JSON.stringify(streamBody)
       });
