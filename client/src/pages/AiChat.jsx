@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import {
   IconSend, IconRobot, IconUser, IconRefresh, IconPlus,
   IconTrash, IconDownload, IconPencil, IconCheck, IconX,
-  IconMessage,
+  IconMessage, IconPaperclip, IconPhoto,
 } from '@tabler/icons-react';
 import ReactMarkdown from 'react-markdown';
 import api from '../api/axios';
@@ -21,7 +21,7 @@ const BLANK_MESSAGES = [
   { role: 'assistant', content: "Hello! I'm your MediHub AI assistant. Ask me anything about your inventory, expiry dates, stock levels, or sales data." }
 ];
 
-// ─── Markdown renderer config (shared) ───
+// ─── Markdown renderer config ───
 const MD_COMPONENTS = {
   h1: ({ node, ...p }) => <h3 style={{ fontSize: 16, fontWeight: 700, margin: '12px 0 8px', color: 'var(--amber)' }} {...p} />,
   h2: ({ node, ...p }) => <h3 style={{ fontSize: 15, fontWeight: 700, margin: '10px 0 6px', color: 'var(--amber)' }} {...p} />,
@@ -37,7 +37,7 @@ const MD_COMPONENTS = {
     : <code style={{ display: 'block', background: 'rgba(0,0,0,0.08)', padding: 12, borderRadius: 6, overflow: 'auto', margin: '8px 0', fontFamily: 'monospace', fontSize: 12 }} {...p} />,
 };
 
-// ─── Download button shown below an assistant message when AI detected a file request ───
+// ─── Download button ───
 function DownloadButton({ fileRequest, messageContent }) {
   const { addToast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -50,7 +50,6 @@ function DownloadButton({ fileRequest, messageContent }) {
         content: { title: 'AI Report', rows: [], summary: {}, data: messageContent },
         filename: `medihub_${fileRequest.file_type}_export`
       });
-
       const { content, content_type, filename } = res.data;
       const blob = new Blob(
         [typeof content === 'string' ? content : JSON.stringify(content, null, 2)],
@@ -63,7 +62,7 @@ function DownloadButton({ fileRequest, messageContent }) {
       a.click();
       URL.revokeObjectURL(url);
       addToast(`Downloaded ${a.download}`, 'success');
-    } catch (err) {
+    } catch {
       addToast('Download failed. Please try again.', 'error');
     } finally {
       setBusy(false);
@@ -75,25 +74,23 @@ function DownloadButton({ fileRequest, messageContent }) {
       onClick={handleDownload}
       disabled={busy}
       style={{
-        marginTop: 10,
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '7px 14px',
-        borderRadius: 20,
-        border: '1px solid var(--amber)',
-        background: 'var(--amber-tint)',
-        color: 'var(--amber)',
-        fontSize: 12,
-        fontWeight: 600,
-        cursor: busy ? 'wait' : 'pointer',
-        opacity: busy ? 0.7 : 1,
+        marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '7px 14px', borderRadius: 20, border: '1px solid var(--amber)',
+        background: 'var(--amber-tint)', color: 'var(--amber)', fontSize: 12,
+        fontWeight: 600, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1,
         transition: 'opacity 0.2s',
       }}
     >
       <IconDownload size={13} stroke={2} />
       {busy ? 'Preparing…' : `Download ${fileRequest.file_type.toUpperCase()}`}
     </button>
+  );
+}
+
+// ─── Streaming typing cursor ───
+function TypingCursor() {
+  return (
+    <span style={{ display: 'inline-block', width: 2, height: '1em', background: 'var(--amber)', marginLeft: 2, verticalAlign: 'text-bottom', animation: 'blink-cursor 0.9s step-end infinite' }} />
   );
 }
 
@@ -117,16 +114,11 @@ function ConvItem({ conv, active, onSelect, onDelete, onRename }) {
     <div
       onClick={() => !editing && onSelect(conv.id)}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '8px 10px',
-        borderRadius: 10,
-        cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+        borderRadius: 10, cursor: 'pointer',
         background: active ? 'var(--amber-tint)' : 'transparent',
         border: active ? '1px solid var(--amber)' : '1px solid transparent',
-        transition: 'all 0.15s',
-        marginBottom: 2,
+        transition: 'all 0.15s', marginBottom: 2,
       }}
       onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--bg-subtle)'; }}
       onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
@@ -180,22 +172,33 @@ export default function AiChat() {
   const [messages, setMessages] = useState(BLANK_MESSAGES);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState('');  // token-by-token SSE buffer
   const abortControllerRef = useRef(null);
   const messagesEndRef = useRef(null);
 
+  // Image attachment state
+  const [attachedImage, setAttachedImage] = useState(null); // { base64, mimeType, previewUrl }
+  const fileInputRef = useRef(null);
+
   // Conversation history state
   const [conversations, setConversations] = useState([]);
-  const [activeConvId, setActiveConvId] = useState(null); // null = unsaved new chat
+  const [activeConvId, setActiveConvId] = useState(null);
   const [convLoading, setConvLoading] = useState(true);
 
-  // ─── Scroll to bottom on new messages ───
+  // ─── Scroll to bottom on new messages / streaming ───
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, streamingText]);
 
-  // ─── Load conversation list on mount ───
+  useEffect(() => { loadConversations(); }, []);
+
+  // ─── Inject blink-cursor keyframe once ───
   useEffect(() => {
-    loadConversations();
+    if (document.getElementById('ai-chat-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'ai-chat-styles';
+    style.textContent = `@keyframes blink-cursor { 0%,100%{opacity:1} 50%{opacity:0} }`;
+    document.head.appendChild(style);
   }, []);
 
   async function loadConversations() {
@@ -203,13 +206,12 @@ export default function AiChat() {
       const res = await api.get('/ai/conversations');
       setConversations(res.data.conversations || []);
     } catch {
-      // non-fatal — sidebar will just be empty
+      // non-fatal
     } finally {
       setConvLoading(false);
     }
   }
 
-  // ─── Select a saved conversation ───
   async function selectConversation(id) {
     if (id === activeConvId) return;
     try {
@@ -221,16 +223,18 @@ export default function AiChat() {
     }
   }
 
-  // ─── Start a new chat ───
-  function newChat() {
+  async function newChat() {
     setMessages(BLANK_MESSAGES);
     setActiveConvId(null);
     setInput('');
+    setAttachedImage(null);
+    setStreamingText('');
+    // Clear the server-side conversation context so the AI starts fresh
+    try { await api.delete('/ai/conversation'); } catch { /* non-fatal */ }
   }
 
-  // ─── Auto-save after every assistant reply ───
   const saveConversation = useCallback(async (msgs, convId) => {
-    if (msgs.length <= 1) return convId; // don't save the blank opening message alone
+    if (msgs.length <= 1) return convId;
     const title = msgs.find(m => m.role === 'user')?.content?.slice(0, 60) || 'New Conversation';
     try {
       const res = convId
@@ -242,7 +246,6 @@ export default function AiChat() {
     }
   }, []);
 
-  // ─── Delete a conversation ───
   async function deleteConversation(id) {
     try {
       await api.delete(`/ai/conversations/${id}`);
@@ -254,7 +257,6 @@ export default function AiChat() {
     }
   }
 
-  // ─── Rename a conversation ───
   async function renameConversation(id, title) {
     try {
       await api.patch(`/ai/conversations/${id}/rename`, { title });
@@ -264,49 +266,148 @@ export default function AiChat() {
     }
   }
 
-  // ─── Send a message ───
+  // ─── Image attachment ───
+  function handleImageSelect(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { addToast('Only image files are supported', 'error'); return; }
+    if (file.size > 5 * 1024 * 1024) { addToast('Image must be under 5 MB', 'error'); return; }
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target.result;
+      // Strip the data:image/xxx;base64, prefix to get raw base64
+      const base64 = dataUrl.split(',')[1];
+      setAttachedImage({ base64, mimeType: file.type, previewUrl: dataUrl, name: file.name });
+    };
+    reader.readAsDataURL(file);
+    // Reset input so same file can be re-selected
+    e.target.value = '';
+  }
+
+  // ─── Send message (streaming via SSE) ───
   async function handleSubmit(e) {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
     const userMessage = input.trim();
+    const image = attachedImage;
     setInput('');
-    const nextMessages = [...messages, { role: 'user', content: userMessage }];
+    setAttachedImage(null);
+
+    // Append user message (with image preview if any)
+    const userMsg = { role: 'user', content: userMessage, image: image?.previewUrl || null };
+    const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
     setLoading(true);
+    setStreamingText('');
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
     try {
-      const res = await api.post('/ai/chat', { question: userMessage }, { signal: controller.signal });
-      const assistantMsg = {
-        role: 'assistant',
-        content: res.data.response,
-        file_request: res.data.file_request || null,
-      };
-      const finalMessages = [...nextMessages, assistantMsg];
-      setMessages(finalMessages);
+      // Use streaming mode via /ai/chat-modern with stream:true
+      const response = await fetch('/api/ai/chat-modern', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('medihub_token')}`,
+        },
+        body: JSON.stringify({
+          question: userMessage,
+          stream: true,
+          ...(image ? { image_base64: image.base64, mime_type: image.mimeType } : {}),
+        }),
+        signal: controller.signal,
+      });
 
-      // Auto-save and update sidebar
-      const savedId = await saveConversation(finalMessages, activeConvId);
-      if (savedId && savedId !== activeConvId) {
-        setActiveConvId(savedId);
-        // Refresh sidebar list
-        loadConversations();
+      if (!response.ok) {
+        // Non-streaming error — parse and show
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Server error ${response.status}`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+
+      if (contentType.includes('text/event-stream')) {
+        // ── SSE streaming path ──
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let accumulated = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+
+          for (let i = 0; i < lines.length - 1; i++) {
+            const line = lines[i].trim();
+            if (!line.startsWith('data:')) continue;
+            try {
+              const payload = JSON.parse(line.slice(5).trim());
+              if (payload.content) {
+                accumulated += payload.content;
+                setStreamingText(accumulated);
+              }
+              if (payload.status === 'completed') {
+                // streaming done — commit the full message
+                const finalMsg = { role: 'assistant', content: accumulated, file_request: null };
+                const finalMessages = [...nextMessages, finalMsg];
+                setMessages(finalMessages);
+                setStreamingText('');
+                const savedId = await saveConversation(finalMessages, activeConvId);
+                if (savedId && savedId !== activeConvId) {
+                  setActiveConvId(savedId);
+                  loadConversations();
+                } else {
+                  setConversations(prev => prev.map(c =>
+                    c.id === savedId ? { ...c, updated_at: new Date().toISOString() } : c
+                  ));
+                }
+              }
+            } catch { /* malformed SSE chunk — skip */ }
+          }
+          buffer = lines[lines.length - 1];
+        }
       } else {
-        // Update updated_at in local list
-        setConversations(prev => prev.map(c =>
-          c.id === savedId ? { ...c, updated_at: new Date().toISOString() } : c
-        ));
+        // ── Regular JSON path (streaming flag ignored by model) ──
+        const data = await response.json();
+        const assistantMsg = {
+          role: 'assistant',
+          content: data.response,
+          file_request: data.file_request || (data.export ? { detected: true, file_type: data.export.type } : null),
+        };
+        const finalMessages = [...nextMessages, assistantMsg];
+        setMessages(finalMessages);
+        setStreamingText('');
+
+        const savedId = await saveConversation(finalMessages, activeConvId);
+        if (savedId && savedId !== activeConvId) {
+          setActiveConvId(savedId);
+          loadConversations();
+        } else {
+          setConversations(prev => prev.map(c =>
+            c.id === savedId ? { ...c, updated_at: new Date().toISOString() } : c
+          ));
+        }
       }
     } catch (err) {
       if (err.name === 'CanceledError' || err.name === 'AbortError') {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Request stopped.', isError: true }]);
+        // If we have partial streamed text, commit it as a stopped message
+        if (streamingText) {
+          setMessages(prev => [...prev, { role: 'assistant', content: streamingText + ' *(stopped)*', isError: false }]);
+        } else {
+          setMessages(prev => [...prev, { role: 'assistant', content: 'Request stopped.', isError: true }]);
+        }
+        setStreamingText('');
         return;
       }
-      const errorMsg = err.response?.data?.error || err.message || 'Failed to get response. Please try again.';
+      const errorMsg = err.message || 'Failed to get response. Please try again.';
       setMessages(prev => [...prev, { role: 'assistant', content: errorMsg, isError: true }]);
+      setStreamingText('');
       addToast(errorMsg, 'error');
     } finally {
       setLoading(false);
@@ -321,25 +422,19 @@ export default function AiChat() {
     addToast('Request stopped', 'info');
   }
 
+  // ─── Render ───
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: prefersReducedMotion ? 0 : 0.35 }}
-      style={{ display: 'flex', gap: 16, height: 'calc(100vh - 120px)', minHeight: 520 }}
+      style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}
     >
       {/* ── Conversation History Sidebar ── */}
       <div style={{
-        width: 220,
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--surface)',
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border)',
-        padding: '14px 10px',
-        gap: 8,
-        overflow: 'hidden',
+        width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column',
+        background: 'var(--surface)', borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--border)', padding: '14px 10px', gap: 8, overflow: 'hidden',
       }}>
         <button
           className="btn btn-primary"
@@ -382,7 +477,9 @@ export default function AiChat() {
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>AI Assistant</h2>
-            <p style={{ color: 'var(--steel)', margin: 0, fontSize: 12 }}>Ask about inventory, expiry, stock levels, and sales</p>
+            <p style={{ color: 'var(--steel)', margin: 0, fontSize: 12 }}>
+              Ask anything · Attach images · Download reports
+            </p>
           </div>
           <button className="btn btn-secondary" onClick={newChat} style={{ fontSize: 12, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 5 }}>
             <IconRefresh size={13} /> New
@@ -398,8 +495,7 @@ export default function AiChat() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.25 }}
               style={{
-                display: 'flex',
-                gap: 10,
+                display: 'flex', gap: 10,
                 flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
                 maxWidth: '82%',
                 alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
@@ -417,17 +513,23 @@ export default function AiChat() {
 
               {/* Bubble */}
               <div style={{
-                padding: '10px 14px',
-                borderRadius: 14,
-                background: msg.role === 'user' ? 'var(--gradient-primary)' : 'var(--bg-subtle)',
-                color: msg.role === 'user' ? '#fff' : 'var(--ink)',
-                fontSize: 13,
-                lineHeight: 1.55,
-                wordBreak: 'break-word',
+                padding: '10px 14px', borderRadius: 14,
+                background: msg.role === 'user' ? 'var(--gradient-primary)' : msg.isError ? 'var(--bg-error)' : 'var(--bg-subtle)',
+                color: msg.role === 'user' ? '#fff' : msg.isError ? 'var(--red)' : 'var(--ink)',
+                fontSize: 13, lineHeight: 1.55, wordBreak: 'break-word',
                 borderBottomLeftRadius: msg.role === 'assistant' ? 3 : 14,
                 borderBottomRightRadius: msg.role === 'user' ? 3 : 14,
                 maxWidth: '100%',
               }} className="markdown-message">
+                {/* Attached image preview (user messages) */}
+                {msg.image && (
+                  <img
+                    src={msg.image}
+                    alt="attached"
+                    style={{ display: 'block', maxWidth: 200, maxHeight: 150, borderRadius: 8, marginBottom: 8, objectFit: 'cover' }}
+                  />
+                )}
+
                 {msg.role === 'assistant' ? (
                   <>
                     <ReactMarkdown components={MD_COMPONENTS}>{msg.content}</ReactMarkdown>
@@ -442,8 +544,25 @@ export default function AiChat() {
             </motion.div>
           ))}
 
-          {/* Loading skeleton */}
-          {loading && (
+          {/* Streaming response (in-progress) */}
+          {loading && streamingText && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ display: 'flex', gap: 10, maxWidth: '82%', alignSelf: 'flex-start' }}
+            >
+              <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-subtle)' }}>
+                <IconRobot size={16} />
+              </div>
+              <div style={{ padding: '10px 14px', borderRadius: 14, borderBottomLeftRadius: 3, background: 'var(--bg-subtle)', fontSize: 13, lineHeight: 1.55, wordBreak: 'break-word', maxWidth: '100%' }} className="markdown-message">
+                <ReactMarkdown components={MD_COMPONENTS}>{streamingText}</ReactMarkdown>
+                <TypingCursor />
+              </div>
+            </motion.div>
+          )}
+
+          {/* Waiting skeleton (no tokens yet) */}
+          {loading && !streamingText && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <div style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-subtle)' }}>
@@ -454,10 +573,11 @@ export default function AiChat() {
               </div>
             </motion.div>
           )}
+
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Starter prompts (only on fresh chat) */}
+        {/* Starter prompts (fresh chat only) */}
         {messages.length === 1 && !loading && (
           <div style={{ padding: '0 20px 14px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--steel)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
@@ -483,31 +603,82 @@ export default function AiChat() {
           </div>
         )}
 
-        {/* Input */}
+        {/* Image preview strip */}
+        {attachedImage && (
+          <div style={{ padding: '0 16px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ position: 'relative', display: 'inline-flex' }}>
+              <img
+                src={attachedImage.previewUrl}
+                alt="attachment preview"
+                style={{ height: 52, width: 52, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+              />
+              <button
+                onClick={() => setAttachedImage(null)}
+                style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--red)', border: 'none', color: '#fff', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', lineHeight: 1 }}
+              >×</button>
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--steel)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachedImage.name}</span>
+          </div>
+        )}
+
+        {/* Input bar */}
         <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 10 }}>
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleImageSelect}
+          />
+          <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* Attach image button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading}
+              title="Attach image"
+              style={{
+                flexShrink: 0, background: attachedImage ? 'var(--amber-tint)' : 'none',
+                border: attachedImage ? '1px solid var(--amber)' : '1px solid var(--border)',
+                color: attachedImage ? 'var(--amber)' : 'var(--steel)',
+                padding: '9px 10px', borderRadius: 12, display: 'flex', cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              <IconPhoto size={16} stroke={1.8} />
+            </button>
+
             <input
               type="text"
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder={loading ? 'AI is thinking…' : 'Ask about inventory, expiry, stock levels…'}
+              placeholder={loading ? 'AI is thinking…' : 'Ask anything about your pharmacy…'}
               disabled={loading}
               style={{
                 flex: 1, padding: '10px 16px', borderRadius: 22, border: '1px solid var(--border)',
-                fontSize: 13, background: 'var(--bg-subtle)', outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
+                fontSize: 13, background: 'var(--bg-subtle)', outline: 'none',
+                transition: 'border-color 0.2s, box-shadow 0.2s',
               }}
               onFocus={e => { e.target.style.borderColor = 'var(--amber)'; e.target.style.boxShadow = '0 0 0 3px rgba(160,128,80,0.12)'; }}
               onBlur={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}
             />
+
             {loading ? (
-              <button type="button" onClick={abortCurrentRequest}
-                className="btn btn-danger"
-                style={{ borderRadius: 22, padding: '10px 18px', background: '#8b5a5a', color: '#fff', fontSize: 13 }}>
+              <button
+                type="button"
+                onClick={abortCurrentRequest}
+                style={{ flexShrink: 0, borderRadius: 22, padding: '10px 18px', background: '#8b5a5a', color: '#fff', fontSize: 13, border: 'none', cursor: 'pointer' }}
+              >
                 Stop
               </button>
             ) : (
-              <button type="submit" disabled={!input.trim()} className="btn btn-primary"
-                style={{ borderRadius: 22, padding: '10px 18px' }}>
+              <button
+                type="submit"
+                disabled={!input.trim() && !attachedImage}
+                className="btn btn-primary"
+                style={{ flexShrink: 0, borderRadius: 22, padding: '10px 18px' }}
+              >
                 <IconSend size={15} />
               </button>
             )}

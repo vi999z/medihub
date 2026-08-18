@@ -213,7 +213,7 @@ export default function Layout({ children }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: prefersReducedMotion ? 0 : 0.25, ease: [0.4, 0, 0.2, 1] }}
-            style={{ minHeight: '100%' }}
+            style={{ height: '100%' }}
           >
             {children}
           </motion.div>
