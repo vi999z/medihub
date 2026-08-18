@@ -33,6 +33,9 @@ router.put('/conversations/:id', convCtrl.saveConversation);
 router.patch('/conversations/:id/rename', convCtrl.renameConversation);
 router.delete('/conversations/:id', convCtrl.deleteConversation);
 
+// ─── Weather-aware inventory recommendations ───
+router.get('/weather-recommendations', ctrlEnhanced.getWeatherRecommendations);
+
 // ─── Traditional endpoints (backward compatible) ───
 router.get('/reorder-suggestions', ctrlEnhanced.getReorderSuggestionsHandler);
 router.post('/train', requireRole('admin'), ctrlEnhanced.train);

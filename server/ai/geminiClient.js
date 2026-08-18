@@ -13,7 +13,8 @@ const {
   getAnomalyAnalysis,
   getReorderRecommendations,
   getSupplierPerformance,
-  getBatchDetails
+  getBatchDetails,
+  getWeatherInventoryRecommendations,
 } = require('./inventoryQueries');
 const { generateReport, createStrategy, forecastDemand, analyzeEfficiency } = require('./analysisHelpers');
 
@@ -66,6 +67,10 @@ const AVAILABLE_FUNCTIONS = {
   analyze_efficiency: {
     description: 'Analyze operational efficiency and identify improvement opportunities',
     params: [{ name: 'focus_area', type: 'string', description: 'Area to analyze: overall, purchasing, storage, dispensing' }]
+  },
+  get_weather_inventory_recommendations: {
+    description: 'Get weather-aware inventory restocking recommendations based on real-time weather, forecasts, and Philippine seasonal demand patterns. Uses Open-Meteo (free, no API key). Identifies medicines likely to spike in demand (e.g. Biogesic, Neozep during rainy season) and flags potential shortages before they occur.',
+    params: [{ name: 'city', type: 'string', description: 'City to get weather for (default: Manila,PH). Examples: Cebu,PH  Davao,PH  Quezon City,PH  Baguio,PH' }]
   }
 };
 
@@ -84,8 +89,9 @@ async function callFunction(name, params = {}) {
       case 'generate_report':            return await generateReport(params.report_type || 'comprehensive');
       case 'create_strategy':            return await createStrategy(params.strategy_type || 'cost_optimization');
       case 'forecast_demand':            return await forecastDemand(params.forecast_period || 90);
-      case 'analyze_efficiency':         return await analyzeEfficiency(params.focus_area || 'overall');
-      default:                           return { error: `Function ${name} not found` };
+      case 'analyze_efficiency':               return await analyzeEfficiency(params.focus_area || 'overall');
+      case 'get_weather_inventory_recommendations': return await getWeatherInventoryRecommendations(params.city || 'Manila,PH');
+      default:                                 return { error: `Function ${name} not found` };
     }
   } catch (err) {
     console.error(`Function call error (${name}):`, err.message);
@@ -107,6 +113,7 @@ function buildSystemPrompt(context = null, detectedIntention = null) {
       analysis: 'Provide comprehensive analysis with insights and recommendations.',
       pricing: 'Focus on costs, margins, and profitability.',
       forecasting: 'Focus on predictions, future needs, and capacity planning.',
+      weather: 'Focus on weather-driven demand patterns. Use get_weather_inventory_recommendations to pull real-time weather data and seasonal analysis. Highlight medicines likely to see demand spikes (cold/flu, cough remedies, antihistamines, vitamins) and recommend proactive restocking before shortages occur.',
       general: 'Be conversational and helpful while being prepared to access pharmacy data if needed.'
     };
 
@@ -159,6 +166,7 @@ function detectIntention(question) {
     analysis: ['analyze', 'analyse', 'insight', 'recommend', 'advice', 'suggest', 'report', 'summary'],
     pricing: ['price', 'cost', 'profit', 'margin', 'revenue', 'pricing'],
     forecasting: ['forecast', 'predict', 'future', 'project', 'estimate', 'need'],
+    weather: ['weather', 'rain', 'rainy', 'season', 'seasonal', 'typhoon', 'monsoon', 'forecast', 'climate', 'flu season', 'cold season', 'demand spike', 'biogesic', 'neozep', 'bioflu'],
     general: ['hello', 'hi', 'help', 'what', 'how', 'who', 'can you']
   };
 
@@ -175,7 +183,7 @@ function detectIntention(question) {
 
 // ─── Model Selection ───
 async function selectAvailableModel(apiKey) {
-  return 'gemini-3.1-flash-lite';
+  return 'gemini-2.5-flash';
 }
 
 module.exports = {

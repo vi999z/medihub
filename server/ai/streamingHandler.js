@@ -46,6 +46,7 @@ async function streamGeminiResponse(question, systemPrompt, history, context, re
     }
 
     // Call Gemini API with streaming
+    const { buildGeminiTools } = require('./geminiClient');
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:streamGenerateContent?key=${apiKey}`,
       {
@@ -57,8 +58,9 @@ async function streamGeminiResponse(question, systemPrompt, history, context, re
             role: 'system'
           },
           contents: historyContents,
+          tools: buildGeminiTools(),
           generationConfig: {
-            maxOutputTokens: 2048,
+            maxOutputTokens: 8192,
             temperature: 0.7,
           }
         })

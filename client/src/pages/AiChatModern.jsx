@@ -14,6 +14,8 @@ const STARTER_PROMPTS = [
   "What's the total inventory value?",
   "Are there any suspicious transactions?",
   "Generate pharmacy health report",
+  "What medicines should I restock for the rainy season?",
+  "Check weather-driven demand — which items might run out?",
   "Export inventory CSV",
   "Download PDF pharmacy report"
 ];

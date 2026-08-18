@@ -40,6 +40,7 @@ Navigate to http://localhost:3000 and:
   - `GOOGLE_AI_API_KEY`
   - `DATABASE_URL` (already set)
   - `PORT` (already set)
+- [ ] Weather recommendations work with **no extra config** — powered by Open-Meteo (free, no key)
 - [ ] Database connection working
 - [ ] Audit logging working
 

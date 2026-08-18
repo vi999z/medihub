@@ -59,7 +59,7 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
               systemInstruction: { parts: [{ text: baseSystemPrompt }], role: 'system' },
               contents,
               tools,
-              generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
+              generationConfig: { maxOutputTokens: 8192, temperature: 0.7 },
               safetySettings: [
                 { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
                 { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
@@ -106,7 +106,7 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
                 systemInstruction: { parts: [{ text: baseSystemPrompt }], role: 'system' },
                 contents: contentsWithFn,
                 tools,
-                generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
+                generationConfig: { maxOutputTokens: 8192, temperature: 0.7 },
                 safetySettings: [
                   { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
                   { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }

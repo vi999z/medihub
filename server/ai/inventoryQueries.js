@@ -7,6 +7,7 @@ const { pool } = require('../config/db');
 const { scoreActiveBatches } = require('./expiryRiskModel');
 const { getReorderSuggestions } = require('./demandForecastModel');
 const { detectAnomalies } = require('./anomalyDetection');
+const { getWeatherContext, buildWeatherRecommendations } = require('./weatherService');
 
 async function getInventorySummary() {
   const [summary] = await pool.query('SELECT * FROM summary_view');
@@ -162,6 +163,57 @@ async function getBatchDetails(medicineId) {
   return { batches: batches || [], medicine_id: medicineId };
 }
 
+async function getWeatherInventoryRecommendations(city = 'Manila,PH') {
+  // Fetch current stock with daily velocity for all medicines
+  const [medicines] = await pool.query(
+    `SELECT m.id, m.name, m.category, m.reorder_level,
+            COALESCE(SUM(b.quantity_remaining), 0) AS current_stock,
+            COALESCE(
+              AVG(CASE WHEN st.transaction_type = 'sale' THEN ABS(st.quantity) ELSE 0 END),
+              0
+            ) AS daily_velocity
+     FROM medicines m
+     LEFT JOIN batches b ON m.id = b.medicine_id AND b.status = 'active'
+     LEFT JOIN stock_transactions st
+       ON b.id = st.batch_id
+       AND st.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+       AND st.transaction_type = 'sale'
+     GROUP BY m.id, m.name, m.category, m.reorder_level`
+  );
+
+  const weatherContext = await getWeatherContext(city);
+  const recommendations = buildWeatherRecommendations(weatherContext, medicines);
+
+  return {
+    weather: {
+      location: weatherContext.location,
+      country: weatherContext.country,
+      condition: weatherContext.condition,
+      current: weatherContext.current_weather
+        ? {
+            temp_c: weatherContext.current_weather.temp_c,
+            feels_like_c: weatherContext.current_weather.feels_like_c,
+            humidity_pct: weatherContext.current_weather.humidity_pct,
+            wind_kph: weatherContext.current_weather.wind_kph,
+            description: weatherContext.current_weather.description,
+            icon: weatherContext.current_weather.icon,
+          }
+        : null,
+      forecast_5day: weatherContext.forecast_5day,
+      season: weatherContext.season,
+      season_description: weatherContext.season_description,
+      rainy_days_in_forecast: weatherContext.rainy_days_in_forecast,
+      live_data: weatherContext.live_data,
+    },
+    high_demand_categories: weatherContext.high_demand_categories,
+    recommendations,
+    total_items_flagged: recommendations.length,
+    critical_count: recommendations.filter(r => r.urgency === 'critical').length,
+    high_count: recommendations.filter(r => r.urgency === 'high').length,
+    generated_at: weatherContext.generated_at,
+  };
+}
+
 module.exports = {
   getInventorySummary,
   getExpiryAnalysis,
@@ -170,5 +222,6 @@ module.exports = {
   getAnomalyAnalysis,
   getReorderRecommendations,
   getSupplierPerformance,
-  getBatchDetails
+  getBatchDetails,
+  getWeatherInventoryRecommendations,
 };

@@ -551,6 +551,19 @@ async function clearConversation(req, res) {
 }
 
 // ─── Get conversation metadata ───
+// ─── Weather Inventory Recommendations ───────────────────────────────────────
+async function getWeatherRecommendations(req, res) {
+  try {
+    const { getWeatherInventoryRecommendations } = require('../ai/inventoryQueries');
+    const city = req.query.city || 'Manila,PH';
+    const data = await getWeatherInventoryRecommendations(city);
+    res.json(data);
+  } catch (err) {
+    console.error('[Weather] Recommendations error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 async function getConversationInfo(req, res) {
   try {
     const userId = req.user.id;
@@ -635,6 +648,9 @@ module.exports = {
   // File generation endpoints
   generateDownloadableFile,
   generateReportWithDownload,
+
+  // Weather-aware inventory recommendations
+  getWeatherRecommendations,
 
   // Backward compatible endpoints
   getExpiryRisk,

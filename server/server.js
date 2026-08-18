@@ -38,14 +38,13 @@ app.use('/api/maintenance', require('./routes/maintenanceRoutes'));
 
 const clientDist = path.join(__dirname, '../client/dist');
 if (require('fs').existsSync(clientDist)) {
-  app.use(express.static(clientDist, {
-    index: 'index.html',
-    fallthrough: true // Let the next middleware handle if file not found
-  }));
-  // Serve SPA fallback for client-side routing
+  app.use(express.static(clientDist, { index: false, fallthrough: true }));
+  // SPA fallback — any non-API, non-static-asset request serves index.html
+  // so React Router handles the route on hard refresh / direct navigation.
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
-    if (req.path.includes('.')) return next();
+    // Static assets (js, css, images, fonts, etc.) fall through to 404
+    if (/\.\w{1,6}$/.test(req.path)) return next();
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }
