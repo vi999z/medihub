@@ -241,7 +241,7 @@ Keep responses concise and data-driven.`;
     }
 
     const data = await response.json();
-    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+    const aiResponse = require('../ai/medicalLLM').extractGeneratedText(data);
 
     if (context) {
       context.addMessage('user', question);

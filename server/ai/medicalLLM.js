@@ -343,6 +343,30 @@ async function selectAvailableModel(apiKey) {
 }
 
 // ─── Main Chat Function with Modern LLM Capabilities ───
+function extractGeneratedText(responseData) {
+  const candidate = responseData?.candidates?.[0];
+  const parts = candidate?.content?.parts || [];
+  const text = parts
+    .map((part) => part?.text)
+    .filter((part) => typeof part === 'string' && part.trim().length > 0)
+    .join('\n')
+    .trim();
+
+  if (text) {
+    return text;
+  }
+
+  if (responseData?.promptFeedback?.blockReason) {
+    return `I’m unable to provide an answer because the request was blocked by the safety filter (${responseData.promptFeedback.blockReason}). Please rephrase the question.`;
+  }
+
+  if (responseData?.candidates?.length) {
+    return 'The model returned an empty response. Please try a different phrasing or ask for a summary of the inventory data.';
+  }
+
+  return 'I couldn’t generate a response from the AI service right now. Please try again or ask a simpler inventory question.';
+}
+
 async function modernChat(question, userId, context = null) {
   try {
     // Detect user's intention
@@ -422,7 +446,7 @@ async function modernChat(question, userId, context = null) {
     }
 
     const data = await response.json();
-    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+    const aiResponse = extractGeneratedText(data);
 
     // Update context if provided
     if (context) {
@@ -451,5 +475,6 @@ module.exports = {
   detectIntention,
   buildSystemPrompt,
   selectAvailableModel,
-  MODEL_FALLBACK_CHAIN
+  MODEL_FALLBACK_CHAIN,
+  extractGeneratedText
 };

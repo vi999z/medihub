@@ -208,7 +208,7 @@ ${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData
             });
             if (retryResponse.ok) {
               const retryData = await retryResponse.json();
-              const aiResponse = retryData.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+              const aiResponse = require('../ai/medicalLLM').extractGeneratedText(retryData);
               console.log(`Retry successful for ${model}`);
 
               await logAudit(req.user.id, 'ai_chat', `Question: ${question.substring(0, 100)}...`, req);
@@ -233,7 +233,7 @@ ${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData
 
       const data = await response.json();
       console.log(`Google AI API response received from ${model}`);
-      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+      const aiResponse = require('../ai/medicalLLM').extractGeneratedText(data);
 
       // If we got here, the model worked
       console.log(`Successfully used model: ${model}`);
