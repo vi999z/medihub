@@ -9,7 +9,6 @@ import ReactMarkdown from 'react-markdown';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import Skeleton from '../components/Skeleton';
-import { parseJsonResponse } from '../utils/responseHelpers';
 
 const STARTER_PROMPTS = [
   "What's expiring this week?",
@@ -307,94 +306,29 @@ export default function AiChat() {
     abortControllerRef.current = controller;
 
     try {
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('medihub_token')}`,
-        },
-        body: JSON.stringify({
-          question: userMessage,
-          ...(image ? { image_base64: image.base64, mime_type: image.mimeType } : {}),
-        }),
-        signal: controller.signal,
-      });
+      const res = await api.post('/ai/chat', {
+        question: userMessage,
+        ...(image ? { image_base64: image.base64, mime_type: image.mimeType } : {}),
+      }, { signal: controller.signal });
 
-      if (!response.ok) {
-        // Non-streaming error — parse and show
-        const errData = await parseJsonResponse(response).catch(() => ({}));
-        throw new Error(errData?.error || `Server error ${response.status}`);
-      }
+      const data = res.data;
+      const assistantMsg = {
+        role: 'assistant',
+        content: data?.response || 'AI service returned an empty response. Please try again.',
+        file_request: data?.file_request || (data?.export ? { detected: true, file_type: data.export.type } : null),
+      };
+      const finalMessages = [...nextMessages, assistantMsg];
+      setMessages(finalMessages);
+      setStreamingText('');
 
-      const contentType = response.headers.get('content-type') || '';
-
-      if (contentType.includes('text/event-stream')) {
-        // ── SSE streaming path ──
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let accumulated = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-
-          for (let i = 0; i < lines.length - 1; i++) {
-            const line = lines[i].trim();
-            if (!line.startsWith('data:')) continue;
-            try {
-              const payload = JSON.parse(line.slice(5).trim());
-              if (payload.content) {
-                accumulated += payload.content;
-                setStreamingText(accumulated);
-              }
-              if (payload.status === 'completed') {
-                // streaming done — commit the full message
-                const finalMsg = { role: 'assistant', content: accumulated || 'No response received. Please try again.', file_request: null };
-                const finalMessages = [...nextMessages, finalMsg];
-                setMessages(finalMessages);
-                setStreamingText('');
-                const savedId = await saveConversation(finalMessages, activeConvId);
-                if (savedId && savedId !== activeConvId) {
-                  setActiveConvId(savedId);
-                  loadConversations();
-                } else {
-                  setConversations(prev => prev.map(c =>
-                    c.id === savedId ? { ...c, updated_at: new Date().toISOString() } : c
-                  ));
-                }
-              }
-            } catch { /* malformed SSE chunk — skip */ }
-          }
-          buffer = lines[lines.length - 1];
-        }
+      const savedId = await saveConversation(finalMessages, activeConvId);
+      if (savedId && savedId !== activeConvId) {
+        setActiveConvId(savedId);
+        loadConversations();
       } else {
-        // ── Regular JSON path (streaming flag ignored by model) ──
-        const data = await parseJsonResponse(response).catch(() => {
-          throw new Error('AI service returned an empty or invalid response. Please try again.');
-        });
-
-        const assistantMsg = {
-          role: 'assistant',
-          content: data?.response || 'AI service returned an empty response. Please try again.',
-          file_request: data?.file_request || (data?.export ? { detected: true, file_type: data.export.type } : null),
-        };
-        const finalMessages = [...nextMessages, assistantMsg];
-        setMessages(finalMessages);
-        setStreamingText('');
-
-        const savedId = await saveConversation(finalMessages, activeConvId);
-        if (savedId && savedId !== activeConvId) {
-          setActiveConvId(savedId);
-          loadConversations();
-        } else {
-          setConversations(prev => prev.map(c =>
-            c.id === savedId ? { ...c, updated_at: new Date().toISOString() } : c
-          ));
-        }
+        setConversations(prev => prev.map(c =>
+          c.id === savedId ? { ...c, updated_at: new Date().toISOString() } : c
+        ));
       }
     } catch (err) {
       if (err.name === 'CanceledError' || err.name === 'AbortError') {
