@@ -93,7 +93,7 @@ export default function AiInsights() {
         api.get('/ai/anomalies'),
       ]);
       setRisk(r.data || []);
-      setReorder(ro.data || []);
+      setReorder(ro.data?.suggestions || ro.data || []);
       setAnomalies(a.data?.anomalies || []);
     } catch (err) {
       setError(err.response?.data?.error || 'Unable to load AI insights right now.');
