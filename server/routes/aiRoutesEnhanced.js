@@ -19,6 +19,8 @@ router.get('/anomalies', ctrlEnhanced.getAnomaliesEnhanced);
 // AI-generated export formats
 router.get('/report/export', require('../controllers/exportController').generateReportExport);
 router.post('/report/export', require('../controllers/exportController').generateReportExport);
+// Generate a downloadable file from AI-produced data
+router.post('/generate-file', ctrlEnhanced.generateDownloadableFile);
 // In-memory conversation session management
 router.post('/conversation/clear', ctrlEnhanced.clearConversation);
 router.get('/conversation/info', ctrlEnhanced.getConversationInfo);

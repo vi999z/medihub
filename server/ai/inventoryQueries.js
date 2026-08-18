@@ -11,7 +11,7 @@ const { detectAnomalies } = require('./anomalyDetection');
 async function getInventorySummary() {
   const [summary] = await pool.query('SELECT * FROM summary_view');
   const [categoryData] = await pool.query(
-    'SELECT category, COUNT(*) as count, SUM(quantity) as total_quantity FROM medicines JOIN batches ON medicines.id = batches.medicine_id WHERE batches.status = "active" GROUP BY category'
+    'SELECT category, COUNT(*) as count, SUM(quantity_remaining) as total_quantity FROM medicines JOIN batches ON medicines.id = batches.medicine_id WHERE batches.status = "active" GROUP BY category'
   );
   return {
     summary: summary[0] || {},
@@ -22,7 +22,7 @@ async function getInventorySummary() {
 
 async function getExpiryAnalysis(daysWindow) {
   const [expiringBatches] = await pool.query(
-    `SELECT m.name, m.id, b.batch_number, b.quantity, b.expiry_date,
+    `SELECT m.name, m.id, b.batch_number, b.quantity_remaining AS quantity, b.expiry_date,
             DATEDIFF(b.expiry_date, CURDATE()) as days_until_expiry,
             COALESCE(SUM(st.quantity * CASE WHEN st.transaction_type = 'sale' THEN -1 ELSE 1 END), 0) as consumption_rate
      FROM batches b
@@ -46,15 +46,15 @@ async function getExpiryAnalysis(daysWindow) {
 
 async function getLowStockItems(limit) {
   const [lowStock] = await pool.query(
-    `SELECT m.id, m.name, m.category, b.quantity, m.reorder_level, m.min_stock,
-            (m.reorder_level - b.quantity) as quantity_needed,
-            COALESCE(AVG(CASE WHEN st.transaction_type = 'sale' THEN -st.quantity ELSE 0 END), 0) as daily_avg_sales
+    `SELECT m.id, m.name, m.category, SUM(b.quantity_remaining) AS quantity, m.reorder_level,
+            (m.reorder_level - COALESCE(SUM(b.quantity_remaining), 0)) as quantity_needed,
+            COALESCE(AVG(CASE WHEN st.transaction_type = 'sale' THEN ABS(st.quantity) ELSE 0 END), 0) as daily_avg_sales
      FROM medicines m
      LEFT JOIN batches b ON m.id = b.medicine_id AND b.status = 'active'
      LEFT JOIN stock_transactions st ON b.id = st.batch_id AND st.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-     GROUP BY m.id
-     HAVING b.quantity < m.reorder_level OR b.quantity IS NULL
-     ORDER BY (m.reorder_level - COALESCE(b.quantity, 0)) DESC
+     GROUP BY m.id, m.name, m.category, m.reorder_level
+     HAVING quantity < m.reorder_level OR quantity IS NULL
+     ORDER BY quantity_needed DESC
      LIMIT ?`,
     [limit]
   );
@@ -145,7 +145,7 @@ async function getSupplierPerformance(supplierId = null) {
 
 async function getBatchDetails(medicineId) {
   const [batches] = await pool.query(
-    `SELECT b.id, b.batch_number, b.quantity, b.expiry_date, b.date_received, b.status,
+    `SELECT b.id, b.batch_number, b.quantity_remaining AS quantity, b.expiry_date, b.date_received, b.status,
             DATEDIFF(b.expiry_date, CURDATE()) as days_until_expiry,
             m.name as medicine_name,
             COUNT(st.id) as transaction_count,
@@ -154,7 +154,7 @@ async function getBatchDetails(medicineId) {
      JOIN medicines m ON b.medicine_id = m.id
      LEFT JOIN stock_transactions st ON b.id = st.batch_id
      WHERE m.id = ?
-     GROUP BY b.id
+     GROUP BY b.id, b.quantity_remaining, b.expiry_date, b.date_received, b.status, m.name
      ORDER BY b.expiry_date ASC`,
     [medicineId]
   );
