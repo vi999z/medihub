@@ -71,82 +71,146 @@ function MultiplierBadge({ multiplier }) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+function StatTile({ label, value, unit, sub }) {
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid #f0f0f0',
+      borderRadius: 16,
+      padding: '18px 20px',
+      flex: '1 1 140px',
+      minWidth: 130,
+    }}>
+      <div style={{ fontSize: 11, color: '#aaa', fontWeight: 600, marginBottom: 10, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+        {label}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+        <span style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>{value ?? '—'}</span>
+        {unit && <span style={{ fontSize: 13, color: '#888', fontWeight: 500 }}>{unit}</span>}
+      </div>
+      {sub && <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function ForecastStrip({ forecast, loading }) {
+  if (loading) return <Skeleton height={88} radius={16} />;
+  if (!forecast?.length) return null;
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid #f0f0f0',
+      borderRadius: 16,
+      padding: '16px 20px',
+      marginBottom: 20,
+    }}>
+      <div style={{ fontSize: 11, color: '#aaa', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 14 }}>
+        5-Day Forecast
+      </div>
+      <div style={{ display: 'flex', gap: 0 }}>
+        {forecast.slice(0, 5).map((day, i) => (
+          <div key={i} style={{
+            flex: 1, textAlign: 'center', padding: '0 6px',
+            borderRight: i < 4 ? '1px solid #f0f0f0' : 'none',
+          }}>
+            <div style={{ fontSize: 11, color: '#aaa', marginBottom: 8, fontWeight: 600 }}>
+              {new Date(day.date + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'short' }).toUpperCase()}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+              <WeatherIcon condition={day.dominant_condition} size={22} />
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{day.max_temp_c}°</div>
+            {day.min_temp_c != null && (
+              <div style={{ fontSize: 11, color: '#aaa' }}>{day.min_temp_c}°</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CurrentWeatherCard({ weather, loading }) {
-  if (loading) return <Skeleton height={120} radius={16} style={{ marginBottom: 20 }} />;
+  if (loading) return (
+    <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+      <Skeleton height={180} radius={16} style={{ flex: '0 0 240px' }} />
+      <div style={{ flex: 1, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {[1,2,3,4].map(i => <Skeleton key={i} height={100} radius={16} style={{ flex: '1 1 120px' }} />)}
+      </div>
+    </div>
+  );
   if (!weather) return null;
 
   const { condition, current, season, season_description, rainy_days_in_forecast, live_data } = weather;
 
   return (
-    <div className="card" style={{
-      padding: '20px 24px',
-      background: condition === 'Rain' || condition === 'Drizzle' || condition === 'Thunderstorm'
-        ? 'linear-gradient(135deg, #eaf2f8 0%, #d5e8f0 100%)'
-        : condition === 'Clear'
-          ? 'linear-gradient(135deg, #fefcf0 0%, #f8f0d8 100%)'
-          : 'linear-gradient(135deg, #f7f8fa 0%, #eceff4 100%)',
-      marginBottom: 20,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-        <WeatherIcon condition={condition} size={48} />
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-            <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>
-              {weather.location}{weather.country ? `, ${weather.country}` : ''}
-            </span>
+    <div style={{ marginBottom: 20 }}>
+      {/* Top row: hero card + stat tiles */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+
+        {/* Hero — big temp + condition */}
+        <div style={{
+          background: '#fff',
+          border: '1px solid #f0f0f0',
+          borderRadius: 16,
+          padding: '24px 28px',
+          flex: '0 0 220px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          minHeight: 160,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <WeatherIcon condition={condition} size={44} />
             {!live_data && (
-              <span style={{ fontSize: 11, color: 'var(--steel)', background: 'var(--bg-subtle)', borderRadius: 6, padding: '2px 8px' }}>
-                Seasonal estimate
+              <span style={{ fontSize: 10, color: '#aaa', background: '#f5f5f5', borderRadius: 6, padding: '2px 7px' }}>
+                Seasonal est.
               </span>
             )}
           </div>
-          {current && (
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 6 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--ink-soft)' }}>
-                <IconThermometer size={14} /> {current.temp_c}°C (feels {current.feels_like_c}°C)
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--ink-soft)' }}>
-                <IconDroplet size={14} /> {current.humidity_pct}% humidity
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--ink-soft)' }}>
-                <IconWind size={14} /> {current.wind_kph} km/h
-              </span>
-              <span style={{ fontSize: 13, color: 'var(--ink-soft)', textTransform: 'capitalize' }}>
-                {current.description}
-              </span>
+          <div>
+            <div style={{ fontSize: 52, fontWeight: 700, color: '#1a1a1a', lineHeight: 1, marginBottom: 4 }}>
+              {current?.temp_c != null ? `${current.temp_c}°` : '—'}
             </div>
-          )}
-          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--steel)', fontStyle: 'italic' }}>
-            <IconCalendar size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-            {season === 'wet' ? '☔ Wet Season' : '☀️ Dry Season'} — {season_description}
+            <div style={{ fontSize: 13, color: '#888', textTransform: 'capitalize', marginBottom: 6 }}>
+              {current?.description || condition || 'Unknown'}
+            </div>
+            <div style={{ fontSize: 11, color: '#aaa', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <IconMapPin size={11} />
+              {weather.location}{weather.country ? `, ${weather.country}` : ''}
+            </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            5-Day Outlook
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {weather.forecast_5day?.slice(0, 5).map((day, i) => (
-              <div key={i} style={{ textAlign: 'center', minWidth: 40 }}>
-                <div style={{ fontSize: 10, color: 'var(--steel)', marginBottom: 2 }}>
-                  {new Date(day.date + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'short' })}
-                </div>
-                <WeatherIcon condition={day.dominant_condition} size={18} />
-                <div style={{ fontSize: 10, color: day.is_rainy ? '#5a8aaa' : 'var(--steel)', fontWeight: 600, marginTop: 2 }}>
-                  {day.max_temp_c}°
-                </div>
-              </div>
-            ))}
-          </div>
-          {rainy_days_in_forecast > 0 && (
-            <div style={{ fontSize: 12, color: '#5a8aaa', fontWeight: 600 }}>
-              <IconCloudRain size={12} style={{ verticalAlign: 'middle', marginRight: 3 }} />
-              {rainy_days_in_forecast} rainy day{rainy_days_in_forecast > 1 ? 's' : ''} ahead
-            </div>
-          )}
+        {/* Stat tiles */}
+        <div style={{ flex: 1, display: 'flex', gap: 12, flexWrap: 'wrap', alignContent: 'flex-start' }}>
+          <StatTile
+            label="Feels Like"
+            value={current?.feels_like_c != null ? `${current.feels_like_c}°` : '—'}
+            sub="Apparent temperature"
+          />
+          <StatTile
+            label="Humidity"
+            value={current?.humidity_pct}
+            unit="%"
+            sub={current?.humidity_pct >= 80 ? 'High — cold/flu risk up' : current?.humidity_pct >= 60 ? 'Moderate' : 'Low'}
+          />
+          <StatTile
+            label="Wind"
+            value={current?.wind_kph}
+            unit="km/h"
+            sub={condition}
+          />
+          <StatTile
+            label="Season"
+            value={season === 'wet' ? 'Wet' : 'Dry'}
+            sub={rainy_days_in_forecast > 0 ? `${rainy_days_in_forecast} rainy days ahead` : season_description?.split('.')[0]}
+          />
         </div>
       </div>
+
+      {/* 5-day forecast strip */}
+      <ForecastStrip forecast={weather.forecast_5day} loading={false} />
     </div>
   );
 }
