@@ -6,35 +6,19 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
-  // Hold the latest navigate function injected by callers via logout(navigate).
-  // Using a ref avoids re-rendering the provider when it changes.
+  // Tracks whether the initial /auth/me hydration is still in flight.
+  // The 401 interceptor must not fire a redirect during this window —
+  // a 401 from /auth/me is expected when no session exists.
+  const hydratingRef = useRef(true);
+  // Holds the navigate fn passed in by call sites (Layout, etc.)
   const navigateRef = useRef(null);
 
-  // ── Hydrate session on mount ─────────────────────────────────────────────
-  // The HttpOnly cookie is sent automatically — just call /auth/me.
-  // A 401 means no active session; that is normal, not an error.
-  useEffect(() => {
-    async function hydrate() {
-      try {
-        const res = await api.get('/auth/me');
-        setUser(res.data);
-      } catch {
-        setUser(null);
-      } finally {
-        setAuthReady(true);
-      }
-    }
-    hydrate();
-  }, []);
-
-  // ── 401 interceptor callback ─────────────────────────────────────────────
-  // Registered once; calls logout without a navigate arg so it uses
-  // window.location.replace as a safe fallback outside the Router tree.
+  // ── logout implementation ────────────────────────────────────────────────
   const logoutFn = useCallback(async (navigate) => {
     try {
-      await api.post('/auth/logout'); // server clears the cookie
+      await api.post('/auth/logout'); // server expires the cookie
     } catch {
-      // proceed with client-side cleanup regardless
+      // proceed regardless
     }
     api.clearAllCache();
     setUser(null);
@@ -42,27 +26,48 @@ export function AuthProvider({ children }) {
 
     const nav = navigate || navigateRef.current;
     if (nav) {
-      nav('/login', { replace: true }); // React Router — no hard reload
+      nav('/login', { replace: true }); // React Router — stays in-tree, no reload
     } else {
-      window.location.replace('/login'); // fallback outside Router context
+      window.location.replace('/login');
     }
   }, []);
 
+  // ── 401 interceptor ──────────────────────────────────────────────────────
+  // Registered before hydration so expired-session requests mid-session are
+  // caught. Guarded by hydratingRef so the expected 401 from /auth/me on
+  // first load does NOT trigger a redirect loop.
   useEffect(() => {
-    api.setAuthLogout(() => logoutFn(null));
+    api.setAuthLogout(() => {
+      if (hydratingRef.current) return; // ignore 401s during initial hydration
+      logoutFn(null);
+    });
   }, [logoutFn]);
+
+  // ── Hydrate session on mount ─────────────────────────────────────────────
+  useEffect(() => {
+    async function hydrate() {
+      try {
+        const res = await api.get('/auth/me');
+        setUser(res.data);
+      } catch {
+        // 401 = no active session — normal, not an error. Stay on /login.
+        setUser(null);
+      } finally {
+        hydratingRef.current = false;
+        setAuthReady(true);
+      }
+    }
+    hydrate();
+  }, []);
 
   // ── login ────────────────────────────────────────────────────────────────
   async function login(email, password) {
     const res = await api.post('/auth/login', { email, password });
-    // Token is in the HttpOnly cookie — just store the user profile in state.
     setUser(res.data.user);
     return res.data.user;
   }
 
-  // ── logout (public) ──────────────────────────────────────────────────────
-  // Call sites pass their `navigate` function so we can use React Router
-  // navigation instead of a hard page reload.
+  // ── logout (public API) ──────────────────────────────────────────────────
   function logout(navigate) {
     return logoutFn(navigate);
   }

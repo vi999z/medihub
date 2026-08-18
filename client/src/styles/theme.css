@@ -52,6 +52,21 @@
   --gradient-success: linear-gradient(135deg, #5a7a5a 0%, #4a6a4a 100%);
 }
 
+/* ── Pastel drifting gradient ─────────────────────────────────────────────
+   Lavender (#e8e4f3) on the left, peachy coral (#fde8df) on the right.
+   The gradient is painted 300% wide so shifting background-position creates
+   a slow, seamless drift without any hard edge ever crossing the viewport.
+   prefers-reduced-motion: the @media rule at the bottom of the file already
+   zeroes all animation-duration, so no extra override is needed here.
+   ─────────────────────────────────────────────────────────────────────── */
+@keyframes gradient-drift {
+  0%   { background-position: 0% 50%; }
+  25%  { background-position: 40% 60%; }
+  50%  { background-position: 100% 50%; }
+  75%  { background-position: 60% 40%; }
+  100% { background-position: 0% 50%; }
+}
+
 * { box-sizing: border-box; }
 html {
   height: 100%;
@@ -61,13 +76,36 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--bg-app);
+  /* Background is transparent — the gradient lives on body::before so the
+     animation runs on its own compositor layer and never triggers a repaint
+     of body content (fixes cursor stutter on the login card and elsewhere). */
+  background: transparent;
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* Animated gradient lives here, isolated from all content painting */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    120deg,
+    #e8e4f3 0%,
+    #f3eef8 20%,
+    #fdf6f0 50%,
+    #fde8df 80%,
+    #f9ddd4 100%
+  );
+  background-size: 300% 300%;
+  animation: gradient-drift 22s ease-in-out infinite;
+  will-change: background-position;
+  pointer-events: none;
 }
 
 /* Fixed app-shell root — viewport-locked, no window scroll */
@@ -420,7 +458,8 @@ input, select, textarea { font-family: var(--font-body); }
 .toast-info { background: var(--gradient-primary); }
 .toast-progress { position: absolute; inset: auto 0 0 0; height: 4px; background: rgba(255,255,255,0.4); transform-origin: left; }
 
-.auth-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: radial-gradient(circle at top left, rgba(232, 235, 233, 0.8), transparent 40%), linear-gradient(135deg, #f8faf9 0%, #e8ebe9 100%); }
+/* Let the body's animated gradient show through the login page */
+.auth-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: transparent; }
 .auth-card { width: min(420px, 100%); padding: 36px 32px; border-radius: 22px; background: rgba(255,255,255,0.94); border: 1px solid rgba(232,226,210,0.95); box-shadow: var(--shadow); backdrop-filter: blur(10px); }
 
 @media (max-width: 1100px) {
