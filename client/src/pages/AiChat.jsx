@@ -354,7 +354,7 @@ export default function AiChat() {
               }
               if (payload.status === 'completed') {
                 // streaming done — commit the full message
-                const finalMsg = { role: 'assistant', content: accumulated, file_request: null };
+                const finalMsg = { role: 'assistant', content: accumulated || 'No response received. Please try again.', file_request: null };
                 const finalMessages = [...nextMessages, finalMsg];
                 setMessages(finalMessages);
                 setStreamingText('');

@@ -89,19 +89,23 @@ async function streamGeminiResponse(question, systemPrompt, history, context, re
       const lines = buffer.split('\n');
 
       for (let i = 0; i < lines.length - 1; i++) {
-        const line = lines[i].trim();
-        if (line) {
-          try {
-            const data = JSON.parse(line);
-            if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-              const text = data.candidates[0].content.parts[0].text;
-              fullText += text;
-              tokenCount++;
-              res.write(`data: ${JSON.stringify({ content: text, token: tokenCount })}\n\n`);
-            }
-          } catch (e) {
-            console.error('Parse error:', e);
+        // Gemini streamGenerateContent returns a JSON array stream:
+        // each chunk line may start with "[", ",", or "]" — strip those
+        // so each element can be parsed as a standalone JSON object.
+        const raw = lines[i].trim();
+        if (!raw || raw === '[' || raw === ']') continue;
+        const line = raw.startsWith(',') ? raw.slice(1).trim() : raw;
+        if (!line) continue;
+        try {
+          const data = JSON.parse(line);
+          if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+            const text = data.candidates[0].content.parts[0].text;
+            fullText += text;
+            tokenCount++;
+            res.write(`data: ${JSON.stringify({ content: text, token: tokenCount })}\n\n`);
           }
+        } catch (e) {
+          // skip unparseable lines silently (partial chunks will be retried next iteration)
         }
       }
 
