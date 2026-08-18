@@ -70,7 +70,7 @@ const AVAILABLE_FUNCTIONS = {
   },
   get_weather_inventory_recommendations: {
     description: 'Get weather-aware inventory restocking recommendations based on real-time weather, forecasts, and Philippine seasonal demand patterns. Uses Open-Meteo (free, no API key). Identifies medicines likely to spike in demand (e.g. Biogesic, Neozep during rainy season) and flags potential shortages before they occur.',
-    params: [{ name: 'city', type: 'string', description: 'City to get weather for (default: Manila,PH). Examples: Cebu,PH  Davao,PH  Quezon City,PH  Baguio,PH' }]
+    params: [{ name: 'city', type: 'string', description: 'City to get weather for (default: Lucena City,PH). Examples: Cebu,PH  Davao,PH  Quezon City,PH  Baguio,PH' }]
   }
 };
 
@@ -90,7 +90,7 @@ async function callFunction(name, params = {}) {
       case 'create_strategy':            return await createStrategy(params.strategy_type || 'cost_optimization');
       case 'forecast_demand':            return await forecastDemand(params.forecast_period || 90);
       case 'analyze_efficiency':               return await analyzeEfficiency(params.focus_area || 'overall');
-      case 'get_weather_inventory_recommendations': return await getWeatherInventoryRecommendations(params.city || 'Manila,PH');
+      case 'get_weather_inventory_recommendations': return await getWeatherInventoryRecommendations(params.city || 'Lucena City,PH');
       default:                                 return { error: `Function ${name} not found` };
     }
   } catch (err) {
@@ -183,7 +183,7 @@ function detectIntention(question) {
 
 // ─── Model Selection ───
 async function selectAvailableModel(apiKey) {
-  return 'gemini-2.5-flash';
+  return 'gemini-2.0-flash';
 }
 
 module.exports = {

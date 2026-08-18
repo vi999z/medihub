@@ -56,6 +56,8 @@ const WEATHER_DEMAND_BOOST = {
 
 // Philippine city coordinates for Open-Meteo (lat/lon based)
 const PH_CITY_COORDS = {
+  'lucena city':    { lat: 13.9394, lon: 121.6169, label: 'Lucena City' },
+  'lucena':         { lat: 13.9394, lon: 121.6169, label: 'Lucena City' },
   'manila':         { lat: 14.5995, lon: 120.9842, label: 'Manila' },
   'quezon city':    { lat: 14.6760, lon: 121.0437, label: 'Quezon City' },
   'cebu city':      { lat: 10.3157, lon: 123.8854, label: 'Cebu City' },
@@ -100,10 +102,10 @@ function wmoToDescription(code) {
   return desc[code] || 'variable conditions';
 }
 
-/** Strip country suffix and resolve city name to lat/lon. Falls back to Manila. */
-function resolveCoords(city = 'Manila,PH') {
+/** Strip country suffix and resolve city name to lat/lon. Falls back to Lucena City. */
+function resolveCoords(city = 'Lucena City,PH') {
   const key = city.replace(/,.*$/, '').trim().toLowerCase();
-  return PH_CITY_COORDS[key] || PH_CITY_COORDS['manila'];
+  return PH_CITY_COORDS[key] || PH_CITY_COORDS['lucena city'];
 }
 
 function mode(arr) {
@@ -116,7 +118,7 @@ function mode(arr) {
  * Single Open-Meteo request that returns both current conditions and the
  * 5-day daily forecast. No API key. Returns { current, forecast } or null.
  */
-async function fetchOpenMeteo(city = 'Manila,PH') {
+async function fetchOpenMeteo(city = 'Lucena City,PH') {
   const coords = resolveCoords(city);
 
   const params = new URLSearchParams({
@@ -191,7 +193,7 @@ async function fetchOpenMeteo(city = 'Manila,PH') {
  * Build the full weather context object used by the AI and the recommendations engine.
  * Always succeeds — falls back gracefully to seasonal heuristics.
  */
-async function getWeatherContext(city = 'Manila,PH') {
+async function getWeatherContext(city = 'Lucena City,PH') {
   const now = new Date();
   const month = now.getMonth() + 1; // 1-12
   const seasonalMultipliers = PH_SEASONAL_DEMAND[month] || PH_SEASONAL_DEMAND[1];

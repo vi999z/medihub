@@ -11,7 +11,7 @@ import Skeleton from '../components/Skeleton';
 // ─── Utility helpers ──────────────────────────────────────────────────────────
 
 const PH_CITIES = [
-  'Manila,PH', 'Quezon City,PH', 'Cebu City,PH', 'Davao City,PH',
+  'Lucena City,PH', 'Manila,PH', 'Quezon City,PH', 'Cebu City,PH', 'Davao City,PH',
   'Iloilo City,PH', 'Zamboanga,PH', 'Cagayan de Oro,PH', 'Bacolod,PH',
   'General Santos,PH', 'Baguio,PH',
 ];
@@ -330,8 +330,8 @@ export default function WeatherRecommendations() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [city, setCity] = useState('Manila,PH');
-  const [cityInput, setCityInput] = useState('Manila,PH');
+  const [city, setCity] = useState('Lucena City,PH');
+  const [cityInput, setCityInput] = useState('Lucena City,PH');
   const [urgencyFilter, setUrgencyFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
 

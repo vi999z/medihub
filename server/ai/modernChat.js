@@ -39,10 +39,9 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
     const tools = buildGeminiTools();
 
     const selectedModels = [
-      'gemini-2.5-flash',
       'gemini-2.0-flash',
       'gemini-1.5-flash',
-      'gemini-3.1-flash-lite',
+      'gemini-1.5-pro',
     ];
 
     let lastError = null;

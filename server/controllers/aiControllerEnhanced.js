@@ -439,10 +439,10 @@ async function chatModern(req, res) {
 async function fallbackChat(question, userId, apiKey, req, res, context) {
   try {
     const [summary, expiring, lowStock, trend] = await Promise.all([
-      pool.query('SELECT * FROM summary_view').then(r => r[0] || {}).catch(() => ({})),
-      pool.query('SELECT * FROM batches WHERE status = "active" AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) ORDER BY expiry_date ASC LIMIT 10').catch(() => []),
-      pool.query('SELECT * FROM low_stock_view LIMIT 10').catch(() => []),
-      pool.query('SELECT * FROM sales_trend_view ORDER BY date DESC LIMIT 30').catch(() => []),
+      pool.query('SELECT * FROM summary_view').then(r => r[0]?.[0] || {}).catch(() => ({})),
+      pool.query('SELECT * FROM batches WHERE status = "active" AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) ORDER BY expiry_date ASC LIMIT 10').then(r => r[0] || []).catch(() => []),
+      pool.query('SELECT * FROM low_stock_view LIMIT 10').then(r => r[0] || []).catch(() => []),
+      pool.query('SELECT * FROM sales_trend_view ORDER BY date DESC LIMIT 30').then(r => r[0] || []).catch(() => []),
     ]);
 
     const systemPrompt = `You are a helpful pharmacy AI assistant for MediHub.
@@ -455,7 +455,7 @@ Answer questions about inventory based on this data:
 Keep responses concise, conversational, and data-driven. If data is empty, provide helpful suggestions about what data would be needed.`;
 
     // Try working models in order
-    const models = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
     let lastError = null;
 
     for (const model of models) {
@@ -488,7 +488,9 @@ Keep responses concise, conversational, and data-driven. If data is empty, provi
           continue;
         }
 
-        const data = await response.json();
+        const responseText = await response.text();
+        let data;
+        try { data = JSON.parse(responseText); } catch { lastError = new Error(`Model ${model} returned invalid JSON`); continue; }
         const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
 
         if (context) {
@@ -555,7 +557,7 @@ async function clearConversation(req, res) {
 async function getWeatherRecommendations(req, res) {
   try {
     const { getWeatherInventoryRecommendations } = require('../ai/inventoryQueries');
-    const city = req.query.city || 'Manila,PH';
+    const city = req.query.city || 'Lucena City,PH';
     const data = await getWeatherInventoryRecommendations(city);
     res.json(data);
   } catch (err) {

@@ -292,10 +292,8 @@ ${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData
     console.log('Calling Google AI API with fallback system...');
     // Define fallback models in order of preference (more reliable models first)
     const models = [
-      'gemini-3.1-flash-lite',  // Lighter, fast model with less congestion
-      'gemini-2.5-flash',       // Previous generation, stable and widely supported
-      'gemini-2.0-flash',       // Another stable option
-      'gemini-1.5-flash',       // Original fallback
+      'gemini-2.0-flash',       // Fast, stable, widely supported
+      'gemini-1.5-flash',       // Reliable fallback
       'gemini-1.5-pro',         // More capable option
       'gemini-pro'              // Final fallback
     ];

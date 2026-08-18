@@ -5,11 +5,10 @@
 
 // ─── Model Fallback Chain ───
 const MODEL_FALLBACK_CHAIN = [
-  'gemini-3.1-flash-lite',  // Fast, capable for most generative tasks
-  'gemini-2.5-flash',       // Good balance of speed and capability
-  'gemini-2.0-flash',       // Stable for complex reasoning
-  'gemini-1.5-pro',         // More capable for creative tasks
-  'gemini-pro'              // Fallback with broad capabilities
+  'gemini-2.0-flash',  // Fast, stable, widely supported
+  'gemini-1.5-flash',  // Reliable fallback
+  'gemini-1.5-pro',    // More capable for complex tasks
+  'gemini-pro'         // Final fallback
 ];
 
 // ─── Medical Domain Expertise System Prompt ───
