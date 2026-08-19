@@ -296,27 +296,32 @@ async function callFunction(name, params = {}) {
 }
 
 async function getInventorySummary() {
-  const [summary] = await pool.query('SELECT * FROM summary_view');
-  const [categoryData] = await pool.query(
-    'SELECT category, COUNT(*) as count, SUM(quantity) as total_quantity FROM medicines JOIN batches ON medicines.id = batches.medicine_id WHERE batches.status = "active" GROUP BY category'
-  );
-  return {
-    summary: summary[0] || {},
-    by_category: categoryData || [],
-    timestamp: new Date().toISOString()
-  };
+  try {
+    const [summary] = await pool.query('SELECT * FROM summary_view');
+    const [categoryData] = await pool.query(
+      'SELECT category, COUNT(*) as count, SUM(quantity_remaining) as total_quantity FROM medicines JOIN batches ON medicines.id = batches.medicine_id WHERE batches.status = "active" GROUP BY category'
+    );
+    return {
+      summary: summary[0] || {},
+      by_category: categoryData || [],
+      timestamp: new Date().toISOString()
+    };
+  } catch (err) {
+    console.error('[DB] getInventorySummary failed:', err.message);
+    return { summary: {}, by_category: [], timestamp: new Date().toISOString() };
+  }
 }
 
 async function getExpiryAnalysis(daysWindow) {
   const [expiringBatches] = await pool.query(
-    `SELECT m.name, m.id, b.batch_number, b.quantity, b.expiry_date, 
+    `SELECT m.name, m.id, b.batch_number, b.quantity_remaining AS quantity, b.expiry_date,
             DATEDIFF(b.expiry_date, CURDATE()) as days_until_expiry,
             COALESCE(SUM(st.quantity * CASE WHEN st.transaction_type = 'sale' THEN -1 ELSE 1 END), 0) as consumption_rate
      FROM batches b
      JOIN medicines m ON b.medicine_id = m.id
      LEFT JOIN stock_transactions st ON st.batch_id = b.id AND st.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
      WHERE b.status = 'active' AND b.expiry_date <= DATE_ADD(CURDATE(), INTERVAL ? DAY)
-     GROUP BY b.id
+     GROUP BY b.id, b.quantity_remaining
      ORDER BY b.expiry_date ASC`,
     [daysWindow]
   );
@@ -333,15 +338,15 @@ async function getExpiryAnalysis(daysWindow) {
 
 async function getLowStockItems(limit) {
   const [lowStock] = await pool.query(
-    `SELECT m.id, m.name, m.category, b.quantity, m.reorder_level, m.min_stock,
-            (m.reorder_level - b.quantity) as quantity_needed,
-            COALESCE(AVG(CASE WHEN st.transaction_type = 'sale' THEN -st.quantity ELSE 0 END), 0) as daily_avg_sales
+    `SELECT m.id, m.name, m.category, SUM(b.quantity_remaining) AS quantity, m.reorder_level,
+            (m.reorder_level - COALESCE(SUM(b.quantity_remaining), 0)) as quantity_needed,
+            COALESCE(AVG(CASE WHEN st.transaction_type = 'sale' THEN ABS(st.quantity) ELSE 0 END), 0) as daily_avg_sales
      FROM medicines m
      LEFT JOIN batches b ON m.id = b.medicine_id AND b.status = 'active'
      LEFT JOIN stock_transactions st ON b.id = st.batch_id AND st.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-     GROUP BY m.id
-     HAVING b.quantity < m.reorder_level OR b.quantity IS NULL
-     ORDER BY (m.reorder_level - COALESCE(b.quantity, 0)) DESC
+     GROUP BY m.id, m.name, m.category, m.reorder_level
+     HAVING SUM(b.quantity_remaining) < m.reorder_level OR SUM(b.quantity_remaining) IS NULL
+     ORDER BY (m.reorder_level - COALESCE(SUM(b.quantity_remaining), 0)) DESC
      LIMIT ?`,
     [limit]
   );
@@ -354,11 +359,9 @@ async function getLowStockItems(limit) {
 
 async function getSalesTrends(days) {
   const [trends] = await pool.query(
-    `SELECT DATE(st.created_at) as date, 
+    `SELECT DATE(st.created_at) as date,
             COUNT(DISTINCT st.id) as transaction_count,
-            SUM(CASE WHEN st.transaction_type = 'sale' THEN -st.quantity ELSE st.quantity END) as net_movement,
-            SUM(CASE WHEN st.transaction_type = 'sale' THEN -st.quantity ELSE 0 END) as total_sold,
-            COUNT(DISTINCT st.medicine_id) as unique_medicines
+            SUM(CASE WHEN st.transaction_type = 'sale' THEN st.quantity ELSE 0 END) as total_sold
      FROM stock_transactions st
      WHERE st.created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
      GROUP BY DATE(st.created_at)
@@ -432,16 +435,16 @@ async function getSupplierPerformance(supplierId = null) {
 
 async function getBatchDetails(medicineId) {
   const [batches] = await pool.query(
-    `SELECT b.id, b.batch_number, b.quantity, b.expiry_date, b.date_received, b.status,
+    `SELECT b.id, b.batch_number, b.quantity_remaining AS quantity, b.expiry_date, b.status,
             DATEDIFF(b.expiry_date, CURDATE()) as days_until_expiry,
             m.name as medicine_name,
             COUNT(st.id) as transaction_count,
-            SUM(CASE WHEN st.transaction_type = 'sale' THEN -st.quantity ELSE st.quantity END) as net_movement
+            SUM(CASE WHEN st.transaction_type = 'sale' THEN st.quantity ELSE 0 END) as total_sold
      FROM batches b
      JOIN medicines m ON b.medicine_id = m.id
      LEFT JOIN stock_transactions st ON b.id = st.batch_id
      WHERE m.id = ?
-     GROUP BY b.id
+     GROUP BY b.id, b.quantity_remaining, b.expiry_date, b.status, m.name
      ORDER BY b.expiry_date ASC`,
     [medicineId]
   );
