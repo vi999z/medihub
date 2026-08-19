@@ -299,7 +299,7 @@ async function getInventorySummary() {
   try {
     const [summary] = await pool.query('SELECT * FROM summary_view');
     const [categoryData] = await pool.query(
-      'SELECT category, COUNT(*) as count, SUM(quantity_remaining) as total_quantity FROM medicines JOIN batches ON medicines.id = batches.medicine_id WHERE batches.status = "active" GROUP BY category'
+      "SELECT category, COUNT(*) as count, SUM(quantity_remaining) as total_quantity FROM medicines JOIN batches ON medicines.id = batches.medicine_id WHERE batches.status = 'active' GROUP BY category"
     );
     return {
       summary: summary[0] || {},
@@ -1343,33 +1343,13 @@ async function modernChat(question, userId, context = null) {
   try {
     const intention = detectIntention(question);
 
-    let contextStr = '';
-    if (context && context.getHistory().length > 0) {
-      contextStr = context.getContext();
-    }
-
-    // Add user message to context before building prompt
-    if (context) {
-      context.addMessage('user', question);
-    }
-
-    const baseSystemPrompt = buildSystemPrompt(contextStr, intention);
-    const messages = [];
-
-    if (context && context.getHistory().length > 0) {
-      const history = context.getHistory();
-      for (const msg of history) {
-        messages.push({ role: msg.role, content: msg.content });
-      }
-    }
-
-    // If it's the first message or no history, add the question
-    if (messages.length === 0 || messages[messages.length - 1].role !== 'user') {
-      messages.push({ role: 'user', content: question });
-    }
+    // Stateless — do NOT read or write to server-side context for history.
+    // The client owns conversation history; using the server context causes
+    // messages to be added on every call and duplicated on the next turn.
+    const baseSystemPrompt = buildSystemPrompt('', intention);
+    const messages = [{ role: 'user', content: question }];
 
     console.log(`[AI] Processing question with intention: ${intention}`);
-    console.log(`[AI] Conversation history length: ${messages.length}`);
 
     const apiKey = process.env.GOOGLE_AI_API_KEY;
     if (!apiKey) {
@@ -1428,10 +1408,6 @@ async function modernChat(question, userId, context = null) {
         const isRecoveryText = /quick inventory summary|switching to a quick inventory summary|safer alternative|having trouble generating a full answer|blocked by the safety filter/i.test(aiResponse);
         const finalResponse = isRecoveryText ? await buildFallbackInventoryResponse(question) : aiResponse;
 
-        if (context) {
-          context.addMessage('assistant', finalResponse);
-        }
-
         return {
           response: finalResponse,
           intention,
@@ -1445,10 +1421,6 @@ async function modernChat(question, userId, context = null) {
     }
 
     const recoveryResponse = await buildFallbackInventoryResponse(question);
-
-    if (context) {
-      context.addMessage('assistant', recoveryResponse);
-    }
 
     return {
       response: recoveryResponse,
