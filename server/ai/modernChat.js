@@ -9,18 +9,17 @@ const { buildSystemPrompt, buildGeminiTools, detectIntention, callFunction } = r
 const { extractGeneratedText, buildFallbackInventoryResponse, detectFileRequest, detectGeneratedContent } = require('./responseBuilder');
 
 // ─── Model fallback chain (newest → oldest) ───
+// Start with proven, fast models first. The "3.x" names don't exist in the
+// real Gemini API — using them causes immediate failure and slows every request
+// down by burning through the entire fallback chain. Real model IDs only.
 const MODEL_CHAIN = [
-  'gemini-3.7-flash',
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-pro-preview',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-pro',
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-8b',
+  'gemini-2.0-flash',        // fast, capable, widely available — primary
+  'gemini-2.0-flash-lite',   // ultra-fast lite variant
+  'gemini-2.5-flash',        // newer flash generation (preview)
+  'gemini-2.5-flash-lite-preview-06-17', // lite preview
+  'gemini-2.5-pro',          // powerful fallback
+  'gemini-1.5-flash',        // stable fallback
+  'gemini-1.5-flash-8b',     // smallest stable fallback
 ];
 
 // Safety settings that allow medical/inventory content
@@ -68,7 +67,7 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
         config: {
           systemInstruction: systemText,
           tools,
-          maxOutputTokens: 8192,
+          maxOutputTokens: 2048,
           temperature: 0.7,
           safetySettings: SAFETY_SETTINGS,
         },
@@ -102,7 +101,7 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
           config: {
             systemInstruction: systemText,
             tools,
-            maxOutputTokens: 8192,
+            maxOutputTokens: 2048,
             temperature: 0.7,
             safetySettings: SAFETY_SETTINGS,
           },

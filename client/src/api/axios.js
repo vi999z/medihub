@@ -5,7 +5,7 @@ const api = axios.create({
 });
 
 const cache = new Map();
-const CACHE_TTL = 15_000;
+const CACHE_TTL = 60_000; // 60 s — reduces redundant API calls on page revisit
 
 function setCache(key, value) {
   cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL });

@@ -9,12 +9,14 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, user } = useAuth();
   const navigate = useNavigate();
 
+  // Only redirect after authReady — avoids a flash-redirect before the
+  // session hydration has completed on hard refresh / direct URL access.
+  const { login, user, authReady } = useAuth();
   useEffect(() => {
-    if (user) navigate('/dashboard');
-  }, [user, navigate]);
+    if (authReady && user) navigate('/dashboard', { replace: true });
+  }, [authReady, user, navigate]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -26,8 +28,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email.trim(), password);
-      await new Promise((resolve) => setTimeout(resolve, 350));
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');
     } finally {

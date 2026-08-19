@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { CheckCheck, RefreshCw, BellRing, Search, X } from 'lucide-react';
+import { CheckCheck, RefreshCw, BellRing, Search, X, AlertTriangle, Info, Bell } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import StaggeredList from '../components/StaggeredList';
@@ -8,10 +8,14 @@ import Skeleton from '../components/Skeleton';
 
 const UNREAD_URL = '/notifications?unread=true';
 
-function severityPill(sev) {
-  if (sev === 'critical') return 'critical';
-  if (sev === 'warning') return 'warning';
-  return 'safe';
+function severityConfig(sev) {
+  if (sev === 'critical') return { cls: 'critical', icon: AlertTriangle, borderColor: 'var(--red)' };
+  if (sev === 'warning')  return { cls: 'warning',  icon: AlertTriangle, borderColor: 'var(--gold)' };
+  return                         { cls: 'safe',     icon: Info,          borderColor: 'var(--green)' };
+}
+
+function typeLabel(type) {
+  return (type || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 export default function Notifications() {
@@ -48,6 +52,8 @@ export default function Notifications() {
     });
   }, [notifications, search, unreadOnly]);
 
+  const filtersActive = Boolean(search) || unreadOnly;
+
   function refreshCaches() {
     api.invalidateCache('/notifications');
     api.invalidateCache(UNREAD_URL);
@@ -75,6 +81,7 @@ export default function Notifications() {
   }
 
   async function handleRefresh() {
+    setLoading(true);
     refreshCaches();
     await fetchAll();
     addToast('Alerts refreshed', 'success');
@@ -101,13 +108,9 @@ export default function Notifications() {
         </div>
       </div>
 
-      <motion.div 
-        className="card table-card" 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-      >
-        <div className="filter-bar">
+      {/* Filter bar */}
+      <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)', marginBottom: 4 }}>
+        <div className="filter-bar" style={{ margin: 0 }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -126,79 +129,129 @@ export default function Notifications() {
             <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />
             Unread only
           </label>
+          {filtersActive && (
+            <button type="button" className="btn btn-secondary" onClick={() => { setSearch(''); setUnreadOnly(false); }}>
+              <X size={15} /> Clear filters
+            </button>
+          )}
         </div>
+      </div>
 
-        {error && (
-          <div className="empty-state">
-            <strong>Unable to load alerts</strong>
-            <p style={{ margin: '6px 0 0' }}>{error}</p>
-            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
-          </div>
-        )}
+      {/* Error */}
+      {error && (
+        <div className="empty-state">
+          <strong>Unable to load alerts</strong>
+          <p style={{ margin: '6px 0 0' }}>{error}</p>
+          <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
+        </div>
+      )}
 
-        {!loading && !error && visibleNotifications.length === 0 && (
-          <div className="table-wrapper">
-            <table className="data-table notification-table">
-              <thead><tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr></thead>
-              <tbody>
-                <tr className="empty-row">
-                  <td colSpan={5}>
-                    <div className="empty-state compact-empty-state">
-                      <BellRing size={16} /> {notifications.length === 0 ? 'No alerts yet.' : 'No alerts match the current filters.'}
+      {/* Empty */}
+      {!loading && !error && visibleNotifications.length === 0 && (
+        <div className="empty-state">
+          <BellRing size={24} style={{ marginBottom: 6 }} />
+          <strong>No alerts found</strong>
+          <p style={{ margin: '6px 0 0' }}>
+            {notifications.length === 0 ? 'No alerts yet.' : 'No alerts match the current filters.'}
+          </p>
+          {filtersActive && (
+            <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={() => { setSearch(''); setUnreadOnly(false); }}>
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Loading skeletons */}
+      {loading && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="card" style={{ height: '200px', padding: '16px' }}>
+              <Skeleton height={14} style={{ marginBottom: '12px', width: '40%' }} />
+              <Skeleton height={14} style={{ marginBottom: '8px' }} />
+              <Skeleton height={14} style={{ marginBottom: '8px', width: '80%' }} />
+              <Skeleton height={14} style={{ marginBottom: '16px', width: '60%' }} />
+              <Skeleton height={28} style={{ borderRadius: '999px', width: '50%' }} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Cards grid */}
+      {!loading && !error && visibleNotifications.length > 0 && (
+        <motion.div
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
+        >
+          <StaggeredList staggerDelay={0.03}>
+            {visibleNotifications.map((n) => {
+              const cfg = severityConfig(n.severity);
+              const SevIcon = cfg.icon;
+              return (
+                <motion.div
+                  key={n.id}
+                  className="card"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: '16px',
+                    borderTop: `4px solid ${cfg.borderColor}`,
+                    opacity: n.is_read ? 0.65 : 1,
+                    transition: 'all 0.2s ease',
+                  }}
+                  whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
+                >
+                  {/* Top row: severity pill + type */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <span className={`status-pill ${cfg.cls}`} style={{ fontSize: '10px', padding: '3px 8px' }}>
+                      {n.severity}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--steel)', fontWeight: 600 }}>{typeLabel(n.type)}</span>
+                  </div>
+
+                  {/* Message */}
+                  <div style={{ flex: 1, marginBottom: '12px' }}>
+                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--ink)', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                      {n.message}
+                    </p>
+                  </div>
+
+                  {/* Bottom row: date + icon + action */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{
+                        width: '32px', height: '32px', borderRadius: '50%',
+                        background: cfg.borderColor, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        <SevIcon size={14} color="#fff" />
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--steel)' }}>
+                        {new Date(n.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
                     </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {loading && (
-          <div className="table-wrapper">
-            <table className="data-table notification-table">
-              <thead><tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr></thead>
-              <tbody>
-                {[1, 2, 3, 4].map((i) => (
-                  <tr key={i}>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {!loading && !error && (
-          <div className="table-wrapper">
-            <table className="data-table notification-table">
-              <thead><tr><th>Severity</th><th>Message</th><th>Type</th><th>Created</th><th>Action</th></tr></thead>
-              <StaggeredList staggerDelay={0.03}>
-                <tbody>
-                  {visibleNotifications.map((n) => (
-                    <tr key={n.id} style={{ opacity: n.is_read ? 0.6 : 1 }}>
-                      <td><span className={`status-pill ${severityPill(n.severity)}`}>{n.severity}</span></td>
-                      <td className="message-cell">{n.message}</td>
-                      <td style={{ textTransform: 'capitalize' }}>{n.type}</td>
-                      <td>{new Date(n.created_at).toLocaleString()}</td>
-                      <td className="actions-cell">
-                        {!n.is_read && (
-                          <button className="btn-icon" onClick={() => markRead(n.id)} title="Mark as read">
-                            <CheckCheck size={14} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </StaggeredList>
-            </table>
-          </div>
-        )}
-      </motion.div>
+                    {!n.is_read && (
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: '4px 12px', fontSize: '12px', gap: 4 }}
+                        onClick={() => markRead(n.id)}
+                        title="Mark as read"
+                      >
+                        <CheckCheck size={12} /> Read
+                      </button>
+                    )}
+                    {n.is_read && (
+                      <span style={{ fontSize: '11px', color: 'var(--steel)', fontStyle: 'italic' }}>Read</span>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </StaggeredList>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

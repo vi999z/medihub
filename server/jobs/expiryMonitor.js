@@ -71,7 +71,7 @@ async function checkLowStock() {
      FROM medicines m
      LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active'
      GROUP BY m.id, m.name, m.reorder_level
-     HAVING total_remaining <= m.reorder_level`
+     HAVING total_remaining > 0 AND total_remaining <= m.reorder_level`
   );
 
   for (const med of medicines) {

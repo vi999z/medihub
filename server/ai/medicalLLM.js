@@ -22,15 +22,13 @@ const { detectAnomalies } = require('./anomalyDetection');
 
 // ─── Model Configuration with Fallback Chain (Latest Gemini 3 Models) ───
 const MODEL_FALLBACK_CHAIN = [
-  'gemini-3.6-flash',         // Latest Gemini 3.6 Flash - improved token efficiency and agentic planning
-  'gemini-3.5-flash',         // Most intelligent for sustained frontier performance on agentic/coding tasks
-  'gemini-3.5-flash-lite',    // Low-latency, highly cost-effective for high-volume automation
-  'gemini-3.1-pro-preview',  // Broad world knowledge and reasoning across modalities
-  'gemini-3.1-flash-lite',   // Workhorse model for cost-efficiency and high-volume tasks
-  'gemini-3-flash-preview',  // Fast frontier-class performance at fraction of cost
-  'gemini-2.5-pro',           // Proven for complex reasoning (fallback)
-  'gemini-2.5-flash',         // Optimized for speed (fallback)
-  'gemini-pro'                 // Final fallback
+  'gemini-2.0-flash',        // primary — fast, capable, widely available
+  'gemini-2.0-flash-lite',   // ultra-fast lite variant
+  'gemini-2.5-flash',        // newer flash (preview)
+  'gemini-2.5-flash-lite-preview-06-17',
+  'gemini-2.5-pro',          // most capable fallback
+  'gemini-1.5-flash',        // stable fallback
+  'gemini-1.5-flash-8b',     // smallest stable fallback
 ];
 
 // ─── Latest Gemini 3 Model Configuration (Optimized for Speed & Quality) ───
@@ -1080,14 +1078,12 @@ function detectIntention(question) {
 
 // ─── Model Selection with Fallback (Latest Gemini 3 Models) ───
 async function selectAvailableModel(apiKey) {
-  // Try to use the best available Gemini 3 model
-  // In production, you might want to test model availability first
-  return 'gemini-3.6-flash';
+  return 'gemini-2.0-flash'; // fast, real, widely available
 }
 
 // ─── Get Model Configuration ───
 function getModelConfig(modelName) {
-  return GEMINI_CONFIG[modelName] || GEMINI_CONFIG['gemini-pro'];
+  return GEMINI_CONFIG[modelName] || GEMINI_CONFIG['gemini-2.0-flash'] || {};
 }
 
 // ─── Check if Model Supports Advanced Features ───
