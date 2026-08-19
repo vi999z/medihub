@@ -32,27 +32,22 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
   const apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) throw new Error('AI service not configured');
 
-  const intention   = detectIntention(question);
-  const contextStr  = (context && context.getHistory().length > 0) ? context.getContext() : '';
-  const systemText  = buildSystemPrompt(contextStr, intention);
-  const tools       = buildGeminiTools(); // [{ functionDeclarations: [...] }]
+  const intention  = detectIntention(question);
+  // Do NOT use the server-side context for history — the client sends messages
+  // directly and the in-memory context just duplicates them. Use it only for
+  // topic/style metadata passed to the system prompt.
+  const systemText = buildSystemPrompt('', intention);
+  const tools      = buildGeminiTools();
 
-  // Build conversation contents from history
-  const historyMsgs = context ? context.getHistory() : [];
-  const contents = historyMsgs.map(msg => ({
-    role: msg.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: msg.content }],
-  }));
-
-  // Append current user turn (with optional image)
+  // Current turn only — no history from server context (avoids duplication)
   const userParts = [];
   if (imageBase64 && mimeType) {
     userParts.push({ inlineData: { mimeType, data: imageBase64 } });
   }
   userParts.push({ text: question });
-  contents.push({ role: 'user', parts: userParts });
+  const contents = [{ role: 'user', parts: userParts }];
 
-  console.log(`[AI] intention=${intention}  history=${contents.length - 1} turns`);
+  console.log(`[AI] intention=${intention}  (stateless single-turn)`);
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -109,25 +104,16 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
 
         const finalText = extractGeneratedText(secondResult) || await buildFallbackInventoryResponse(question);
 
-        if (context) {
-          context.addMessage('user',      question);
-          context.addMessage('assistant', finalText);
-        }
-
+        // Do not mutate server-side context — client owns the history
         return { response: finalText, intention, model: modelName, timestamp: new Date().toISOString() };
       }
 
       // ── No function call — use direct text ──
-      const aiText     = extractGeneratedText(firstResult);
-      const finalText  = aiText || await buildFallbackInventoryResponse(question);
+      const aiText    = extractGeneratedText(firstResult);
+      const finalText = aiText || await buildFallbackInventoryResponse(question);
 
-      if (context) {
-        context.addMessage('user',      question);
-        context.addMessage('assistant', finalText);
-      }
 
       return { response: finalText, intention, model: modelName, timestamp: new Date().toISOString() };
-
     } catch (err) {
       console.warn(`[AI] ${modelName} failed: ${err.message}`);
       lastError = err;
@@ -137,10 +123,6 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
   // All models failed — return a local DB-driven fallback
   console.error('[AI] All models in chain failed:', lastError?.message);
   const recoveryResponse = await buildFallbackInventoryResponse(question);
-  if (context) {
-    context.addMessage('user',      question);
-    context.addMessage('assistant', recoveryResponse);
-  }
 
   return { response: recoveryResponse, intention, model: 'local_fallback', timestamp: new Date().toISOString() };
 }
