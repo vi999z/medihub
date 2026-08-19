@@ -4,14 +4,13 @@
  */
 
 // ─── Model Fallback Chain ───
+// Model names confirmed from Gemini API 404 redirect messages (July 2025)
 const MODEL_FALLBACK_CHAIN = [
-  'gemini-2.0-flash',        // primary — fast, capable, widely available
-  'gemini-2.0-flash-lite',   // ultra-fast lite variant
-  'gemini-2.5-flash',        // newer flash (preview)
-  'gemini-2.5-flash-lite-preview-06-17',
-  'gemini-2.5-pro',          // most capable fallback
-  'gemini-1.5-flash',        // stable fallback
-  'gemini-1.5-flash-8b',     // smallest stable fallback
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-pro-preview',
+  'gemini-3.1-flash-lite',
 ];
 
 // ─── Medical Domain Expertise System Prompt ───

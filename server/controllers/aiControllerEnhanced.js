@@ -50,7 +50,7 @@ async function getExpiryRiskEnhanced(req, res) {
         return res.json({
           results,
           top_risks_explained: enhanced,
-          explanation_source: 'gemini-2.0-flash'
+          explanation_source: 'gemini-3.6-flash'
         });
       }
     }
@@ -87,7 +87,7 @@ async function getAnomaliesEnhanced(req, res) {
         return res.json({
           ...result,
           top_anomalies_explained: explained,
-          explanation_source: 'gemini-2.0-flash'
+          explanation_source: 'gemini-3.6-flash'
         });
       }
     }
@@ -605,8 +605,8 @@ Answer questions about inventory based on this data:
 
 Keep responses concise, conversational, and data-driven. If data is empty, provide helpful suggestions about what data would be needed.`;
 
-    // Try real working models in order
-    const models = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'];
+    // Model names confirmed from Gemini API 404 redirect messages (July 2025)
+    const models = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
     let lastError = null;
 
     for (const model of models) {

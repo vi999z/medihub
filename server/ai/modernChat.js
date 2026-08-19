@@ -1,7 +1,7 @@
 /**
  * Modern Chat
  * Core chat entry points using the @google/genai SDK.
- * Uses gemini-2.0-flash as the primary model with a fallback chain.
+ * Uses gemini-3.6-flash as the primary model with a fallback chain.
  */
 
 const { GoogleGenAI, HarmCategory, HarmBlockThreshold } = require('@google/genai');
@@ -12,14 +12,13 @@ const { extractGeneratedText, buildFallbackInventoryResponse, detectFileRequest,
 // Start with proven, fast models first. The "3.x" names don't exist in the
 // real Gemini API — using them causes immediate failure and slows every request
 // down by burning through the entire fallback chain. Real model IDs only.
+// Model names confirmed from Gemini API 404 redirect messages (July 2025)
 const MODEL_CHAIN = [
-  'gemini-2.0-flash',        // fast, capable, widely available — primary
-  'gemini-2.0-flash-lite',   // ultra-fast lite variant
-  'gemini-2.5-flash',        // newer flash generation (preview)
-  'gemini-2.5-flash-lite-preview-06-17', // lite preview
-  'gemini-2.5-pro',          // powerful fallback
-  'gemini-1.5-flash',        // stable fallback
-  'gemini-1.5-flash-8b',     // smallest stable fallback
+  'gemini-3.6-flash',        // primary — latest fast model
+  'gemini-3.5-flash',        // second choice
+  'gemini-3.5-flash-lite',   // lite / cost-effective
+  'gemini-3.1-pro-preview',  // most capable fallback
+  'gemini-3.1-flash-lite',   // fast lite fallback
 ];
 
 // Safety settings that allow medical/inventory content

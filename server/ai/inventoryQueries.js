@@ -13,7 +13,7 @@ async function getInventorySummary() {
   try {
     const [summary] = await pool.query('SELECT * FROM summary_view');
     const [categoryData] = await pool.query(
-      'SELECT category, COUNT(*) as count, SUM(quantity_remaining) as total_quantity FROM medicines JOIN batches ON medicines.id = batches.medicine_id WHERE batches.status = "active" GROUP BY category'
+      "SELECT category, COUNT(*) as count, SUM(quantity_remaining) as total_quantity FROM medicines JOIN batches ON medicines.id = batches.medicine_id WHERE batches.status = 'active' GROUP BY category"
     );
     return {
       summary: summary[0] || {},
