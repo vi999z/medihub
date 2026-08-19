@@ -21,19 +21,36 @@ const { getReorderSuggestions } = require('./demandForecastModel');
 const { detectAnomalies } = require('./anomalyDetection');
 
 // ─── Model Fallback Chain ───
-// Source: https://ai.google.dev/gemini-api/docs/latest-model (July 2025)
+// Current Gemini family as of 2026; keep the newest stable models first.
 const MODEL_FALLBACK_CHAIN = [
-  'gemini-3.5-flash',       // GA, most intelligent Flash — agentic, coding, long-horizon
-  'gemini-3.1-flash-lite',  // stable long-term, low cost/high-volume
-  'gemini-3-flash-preview', // previous preview generation
+  'gemini-3.7-flash',       // newest stable Flash, best mix of speed and reasoning
+  'gemini-3.6-flash',       // stable previous-generation Flash
+  'gemini-3.5-flash',       // strong general-purpose Flash model
+  'gemini-3.1-flash-lite',  // low-cost, high-throughput fallback
   'gemini-2.5-flash',       // older generation stable fallback
   'gemini-1.5-flash',       // proven reliable last resort
 ];
 
 // ─── Model Configuration ───
 // NOTE: temperature/topP/topK are NOT set for Gemini 3.x models — not recommended
-// per https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5#sampling-parameters
+// per current Gemini API guidance.
 const GEMINI_CONFIG = {
+  'gemini-3.7-flash': {
+    maxOutputTokens: 8192,
+    supportsThinking: true,
+    thinkingLevels: ['minimal','low','medium','high'],
+    speed: 'very_fast',
+    quality: 'highest',
+    contextWindow: '1M input / 65k output'
+  },
+  'gemini-3.6-flash': {
+    maxOutputTokens: 8192,
+    supportsThinking: true,
+    thinkingLevels: ['minimal','low','medium','high'],
+    speed: 'very_fast',
+    quality: 'highest',
+    contextWindow: '1M input / 65k output'
+  },
   'gemini-3.5-flash': {
     maxOutputTokens: 8192,
     supportsThinking: true,
@@ -50,14 +67,6 @@ const GEMINI_CONFIG = {
     speed: 'ultra_fast',
     quality: 'high',
     contextWindow: '1M input / 65k output'
-  },
-  'gemini-3-flash-preview': {
-    maxOutputTokens: 8192,
-    supportsThinking: true,
-    thinkingLevels: ['minimal','low','medium','high'],
-    speed: 'very_fast',
-    quality: 'high',
-    contextWindow: '1M input / 64k output'
   },
   'gemini-2.5-flash': {
     maxOutputTokens: 8192,
@@ -1013,12 +1022,12 @@ function detectIntention(question) {
 
 // ─── Model Selection ───
 async function selectAvailableModel(apiKey) {
-  return 'gemini-3.5-flash'; // primary; modernChat.js falls back through chain
+  return 'gemini-3.7-flash'; // primary; modernChat.js falls back through chain
 }
 
 // ─── Get Model Configuration ───
 function getModelConfig(modelName) {
-  return GEMINI_CONFIG[modelName] || GEMINI_CONFIG['gemini-3.5-flash'] || {};
+  return GEMINI_CONFIG[modelName] || GEMINI_CONFIG['gemini-3.7-flash'] || {};
 }
 
 // ─── Check if Model Supports Advanced Features ───

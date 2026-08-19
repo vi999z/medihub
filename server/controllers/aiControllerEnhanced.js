@@ -605,9 +605,8 @@ Answer questions about inventory based on this data:
 
 Keep responses concise, conversational, and data-driven. If data is empty, provide helpful suggestions about what data would be needed.`;
 
-    // Real model IDs as of July 2025 — fallback chain for direct REST calls
-    // Source: https://ai.google.dev/gemini-api/docs/latest-model
-    const models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash'];
+    // Updated Gemini model family as of 2026 — direct REST fallback chain
+    const models = ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash'];
     let lastError = null;
 
     for (const model of models) {

@@ -183,7 +183,7 @@ function detectIntention(question) {
 
 // ─── Model Selection ───
 async function selectAvailableModel(apiKey) {
-  return 'gemini-3.5-flash'; // primary; modernChat.js falls back through chain on failure
+  return 'gemini-3.7-flash'; // primary; modernChat.js falls back through chain on failure
 }
 
 module.exports = {

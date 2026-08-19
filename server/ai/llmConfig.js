@@ -4,11 +4,12 @@
  */
 
 // ─── Model Fallback Chain ───
-// Source: https://ai.google.dev/gemini-api/docs/latest-model (July 2025)
+// Current Gemini family names as of 2026.
 const MODEL_FALLBACK_CHAIN = [
-  'gemini-3.5-flash',       // GA, most intelligent Flash — agentic, coding, long-horizon
-  'gemini-3.1-flash-lite',  // stable long-term, low cost/high-volume
-  'gemini-3-flash-preview', // previous preview generation
+  'gemini-3.7-flash',       // newest stable Flash, best mix of speed and reasoning
+  'gemini-3.6-flash',       // stable previous-generation Flash
+  'gemini-3.5-flash',       // strong general-purpose Flash model
+  'gemini-3.1-flash-lite',  // low-cost, high-throughput fallback
   'gemini-2.5-flash',       // older generation stable fallback
   'gemini-1.5-flash',       // proven reliable last resort
 ];

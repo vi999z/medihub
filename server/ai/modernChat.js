@@ -18,16 +18,12 @@ const { buildSystemPrompt, buildGeminiTools, detectIntention, callFunction } = r
 const { extractGeneratedText, buildFallbackInventoryResponse, detectFileRequest, detectGeneratedContent } = require('./responseBuilder');
 
 // ─── Model fallback chain (best → reliable) ───
-// Source: https://ai.google.dev/gemini-api/docs/latest-model (July 2025)
-//  gemini-3.5-flash      – GA, most intelligent Flash, best for agentic/coding/long-horizon
-//  gemini-3.1-flash-lite – stable long-term, low cost/high-volume fallback
-//  gemini-3-flash-preview – still available, previous preview generation
-//  gemini-2.5-flash      – previous generation stable fallback
-//  gemini-1.5-flash      – oldest stable fallback, proven reliable
+// Current model names as listed in the official Gemini API docs.
 const MODEL_CHAIN = [
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
   'gemini-3.5-flash',
   'gemini-3.1-flash-lite',
-  'gemini-3-flash-preview',
   'gemini-2.5-flash',
   'gemini-1.5-flash',
 ];
