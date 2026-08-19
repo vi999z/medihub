@@ -9,14 +9,76 @@ const { scoreActiveBatches } = require('./expiryRiskModel');
 const { getReorderSuggestions } = require('./demandForecastModel');
 const { detectAnomalies } = require('./anomalyDetection');
 
-// ─── Model Configuration with Fallback Chain (Generative AI Optimized) ───
+// ─── Model Configuration with Fallback Chain (Gemini 3 Optimized) ───
 const MODEL_FALLBACK_CHAIN = [
-  'gemini-3.1-flash-lite',  // Fast, capable for most generative tasks
-  'gemini-2.5-flash',       // Good balance of speed and capability
-  'gemini-2.0-flash',       // Stable for complex reasoning
-  'gemini-1.5-pro',         // More capable for creative tasks
-  'gemini-pro'              // Fallback with broad capabilities
+  'gemini-3.5-flash-exp',      // Latest Gemini 3.5 experimental - highest capabilities
+  'gemini-3.5-flash',          // Latest Gemini 3.5 - advanced generative AI
+  'gemini-3.0-flash',          // Gemini 3.0 - improved reasoning and creativity
+  'gemini-2.5-flash',          // Proven stability and capability
+  'gemini-2.0-flash-exp',      // Experimental but reliable
+  'gemini-1.5-pro',            // Capable fallback for complex tasks
+  'gemini-pro'                 // Final fallback with broad capabilities
 ];
+
+// ─── Gemini 3 Specific Configuration ───
+const GEMINI_3_CONFIG = {
+  'gemini-3.5-flash-exp': {
+    maxOutputTokens: 8192,
+    temperature: 0.9,
+    topP: 0.95,
+    topK: 40,
+    supportsThinking: true,
+    supportsCodeExecution: false
+  },
+  'gemini-3.5-flash': {
+    maxOutputTokens: 8192,
+    temperature: 0.8,
+    topP: 0.9,
+    topK: 40,
+    supportsThinking: true,
+    supportsCodeExecution: false
+  },
+  'gemini-3.0-flash': {
+    maxOutputTokens: 4096,
+    temperature: 0.7,
+    topP: 0.9,
+    topK: 32,
+    supportsThinking: true,
+    supportsCodeExecution: false
+  },
+  'gemini-2.5-flash': {
+    maxOutputTokens: 2048,
+    temperature: 0.7,
+    topP: 0.9,
+    topK: 32,
+    supportsThinking: false,
+    supportsCodeExecution: false
+  },
+  'gemini-2.0-flash-exp': {
+    maxOutputTokens: 2048,
+    temperature: 0.7,
+    topP: 0.9,
+    topK: 32,
+    supportsThinking: false,
+    supportsCodeExecution: false
+  },
+  'gemini-1.5-pro': {
+    maxOutputTokens: 2048,
+    temperature: 0.6,
+    topP: 0.9,
+    topK: 32,
+    supportsThinking: false,
+    supportsCodeExecution: false
+  },
+  'gemini-pro': {
+    maxOutputTokens: 1024,
+    temperature: 0.6,
+    topP: 0.9,
+    topK: 32,
+    supportsThinking: false,
+    supportsCodeExecution: false
+  }
+};
 
 // ─── Medical Domain Expertise System (Generative AI) ───
 const MEDICAL_INSTRUCTIONS = `You are MediHub AI, an advanced generative AI assistant specialized in pharmacy management and healthcare operations.
@@ -31,7 +93,21 @@ NO ** symbols. NO # headers. Just plain clean text.
 
 KEEP IT SHORT. NO LENGTHY EXPLANATIONS.
 
-IMPORTANT: Always provide helpful, data-driven answers. Never give generic responses like "I can help with inventory" - instead provide actual data from the context. If data is unavailable, suggest what data would be needed to answer the question properly.`;
+IMPORTANT: Always provide helpful, data-driven answers. Never give generic responses like "I can help with inventory" - instead provide actual data from the context. If data is unavailable, suggest what data would be needed to answer the question properly.
+
+FILE GENERATION CAPABILITIES (like modern AI systems):
+- You can generate downloadable files in PDF, Excel (XLSX), Word (DOCX), CSV, JSON, and TXT formats
+- When users ask for reports, suggest appropriate file formats (PDF for formal reports, Excel for data analysis, Word for documents)
+- Always offer file generation options when providing comprehensive answers
+- Mention that professional formatting, tables, and styling are included
+
+Use these expert behaviors:
+- Data-driven: Always ground answers in actual inventory data
+- Concise: Maximum 2-3 sentences for most answers
+- Proactive: Suggest next steps and file generation options
+- Medical-aware: Consider medication safety, expiry, and compliance
+- Analytical: Provide insights, not just data dump
+- Modern AI capabilities: Generate professional documents like GPT-4 and Claude`;
 
 // ─── Function Calling System (Enhanced for Generative AI) ───
 // These are the "tools" the AI can invoke to query data and perform actions
@@ -83,6 +159,26 @@ const AVAILABLE_FUNCTIONS = {
   analyze_efficiency: {
     description: 'Analyze operational efficiency and identify improvement opportunities',
     params: [{ name: 'focus_area', type: 'string', description: 'Area to analyze: overall, purchasing, storage, dispensing' }]
+  },
+  generate_file: {
+    description: 'Generate downloadable files in various formats (PDF, Excel, Word, CSV, JSON, TXT)',
+    params: [
+      { name: 'file_type', type: 'string', description: 'File format: pdf, xlsx, docx, csv, json, txt' },
+      { name: 'content', type: 'object', description: 'Data to include in the file' },
+      { name: 'filename', type: 'string', description: 'Custom filename (optional)' }
+    ]
+  },
+  generate_pdf_report: {
+    description: 'Generate professional PDF reports with charts and tables',
+    params: [{ name: 'report_type', type: 'string', description: 'Type of PDF report' }]
+  },
+  generate_excel_report: {
+    description: 'Generate Excel spreadsheets with multiple sheets and formatting',
+    params: [{ name: 'report_type', type: 'string', description: 'Type of Excel report' }]
+  },
+  generate_word_document: {
+    description: 'Generate professional Word documents with formatting',
+    params: [{ name: 'document_type', type: 'string', description: 'Type of Word document' }]
   }
 };
 
@@ -114,6 +210,14 @@ async function callFunction(name, params = {}) {
         return await forecastDemand(params.forecast_period || 90);
       case 'analyze_efficiency':
         return await analyzeEfficiency(params.focus_area || 'overall');
+      case 'generate_file':
+        return { status: 'file_generation_ready', instructions: 'Use the generateDownloadableFile endpoint to create downloadable files' };
+      case 'generate_pdf_report':
+        return await generateReport(params.report_type || 'comprehensive');
+      case 'generate_excel_report':
+        return await generateReport(params.report_type || 'comprehensive');
+      case 'generate_word_document':
+        return await generateReport(params.report_type || 'comprehensive');
       default:
         return { error: `Function ${name} not found` };
     }
@@ -904,10 +1008,22 @@ function detectIntention(question) {
   return 'general_inquiry';
 }
 
-// ─── Model Selection with Fallback (Enhanced for Generative AI) ───
+// ─── Model Selection with Fallback (Gemini 3 Optimized) ───
 async function selectAvailableModel(apiKey) {
-  // Use models that support generative capabilities
-  return 'gemini-3.1-flash-lite';
+  // Try to use the best available Gemini 3 model
+  // In production, you might want to test model availability first
+  return 'gemini-3.5-flash-exp';
+}
+
+// ─── Get Model Configuration ───
+function getModelConfig(modelName) {
+  return GEMINI_3_CONFIG[modelName] || GEMINI_3_CONFIG['gemini-pro'];
+}
+
+// ─── Check if Model Supports Advanced Features ───
+function modelSupportsFeature(modelName, feature) {
+  const config = getModelConfig(modelName);
+  return config[feature] || false;
 }
 
 // ─── Main Chat Function with Modern LLM Capabilities ───
@@ -1059,7 +1175,7 @@ function buildContextualResponse(question, data, intention) {
 
     default:
       response = `Based on your current inventory, you have ${totalMedicines} medicines with ${totalStock} total units in stock. `;
-      response += `I can help you analyze expiry risks, stock levels, sales trends, or provide reorder recommendations. I can also generate downloadable reports in PDF, CSV, Excel, or JSON format. What would you like to focus on?`;
+      response += `I can help you analyze expiry risks, stock levels, sales trends, or provide reorder recommendations. I can generate downloadable reports in PDF, Excel (XLSX), Word (DOCX), CSV, JSON, or TXT format - just like modern AI systems. What would you like to focus on?`;
   }
 
   return response;
@@ -1070,11 +1186,12 @@ function detectFileRequest(question) {
   const lowerQuestion = question.toLowerCase();
 
   const filePatterns = {
-    csv: ['csv', 'excel', 'spreadsheet', 'download file', 'export to csv'],
-    pdf: ['pdf', 'report file', 'download report', 'pdf report'],
-    excel: ['excel', 'xlsx', 'spreadsheet', 'microsoft excel'],
-    json: ['json', 'data file', 'api data', 'structured data'],
-    txt: ['text file', 'txt', 'plain text', 'text document']
+    csv: ['csv', 'spreadsheet', 'download file', 'export to csv', 'comma separated'],
+    xlsx: ['excel', 'xlsx', 'spreadsheet', 'microsoft excel', 'excel file'],
+    pdf: ['pdf', 'report file', 'download report', 'pdf report', 'document'],
+    docx: ['word', 'docx', 'word document', 'microsoft word', 'word file'],
+    json: ['json', 'data file', 'api data', 'structured data', 'json file'],
+    txt: ['text file', 'txt', 'plain text', 'text document', 'text format']
   };
 
   for (const [fileType, patterns] of Object.entries(filePatterns)) {
@@ -1150,18 +1267,16 @@ async function modernChat(question, userId, context = null) {
       throw new Error('AI service not configured');
     }
 
-    const selectedModels = [
-      'gemini-3.1-flash-lite',
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash'
-    ];
+    const selectedModels = MODEL_FALLBACK_CHAIN;
 
     let lastError = null;
 
     for (const modelName of [...new Set(selectedModels)]) {
       try {
         const recoveryPrompt = `${baseSystemPrompt}\n\nIMPORTANT: If the request is ambiguous or the model output would be empty, answer using the pharmacy inventory snapshot instead of refusing. Focus on concise data-driven help.`;
+
+        // Get model-specific configuration
+        const modelConfig = getModelConfig(modelName);
 
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
@@ -1178,12 +1293,16 @@ async function modernChat(question, userId, context = null) {
                 parts: [{ text: msg.content }]
               })),
               generationConfig: {
-                maxOutputTokens: 2048,  // Increased for generative responses
-                temperature: 0.7,       // Higher temperature for more creative responses
+                maxOutputTokens: modelConfig.maxOutputTokens,
+                temperature: modelConfig.temperature,
+                topP: modelConfig.topP,
+                topK: modelConfig.topK
               },
               safetySettings: [
                 { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' }
               ]
             })
           }
@@ -1244,6 +1363,9 @@ module.exports = {
   buildSystemPrompt,
   selectAvailableModel,
   MODEL_FALLBACK_CHAIN,
+  GEMINI_3_CONFIG,
+  getModelConfig,
+  modelSupportsFeature,
   extractGeneratedText,
   buildFallbackInventoryResponse,
   generateReport,

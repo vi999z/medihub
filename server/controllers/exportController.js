@@ -1,6 +1,8 @@
 const PDFDocument = require('pdfkit');
+const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } = require('docx');
+const ExcelJS = require('exceljs');
 
-const SUPPORTED_EXPORT_TYPES = ['csv', 'excel', 'pdf', 'txt', 'json', 'chart'];
+const SUPPORTED_EXPORT_TYPES = ['csv', 'excel', 'xlsx', 'pdf', 'docx', 'word', 'txt', 'json', 'chart'];
 
 // Helper function moved to top for PDF generation
 function toRowsArray(reportData) {
@@ -94,6 +96,188 @@ function buildChartPayload(reportData) {
   };
 }
 
+// ─── Word Document Generation (DOCX) ───
+async function buildWordDocument(reportData) {
+  const doc = new Document({
+    sections: [{
+      properties: {},
+      children: [
+        new Paragraph({
+          text: reportData?.title || 'Pharmacy Report',
+          heading: HeadingLevel.HEADING_1,
+          spacing: { after: 200 }
+        }),
+        new Paragraph({
+          text: `Generated: ${new Date().toLocaleDateString()}`,
+          spacing: { after: 400 }
+        }),
+
+        // Executive Summary
+        new Paragraph({
+          text: 'Executive Summary',
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 200, after: 200 }
+        }),
+
+        ...Object.entries(reportData?.summary || {}).map(([key, value]) =>
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `${key.replace(/_/g, ' ').toUpperCase()}: `,
+                bold: true
+              }),
+              new TextRun(String(value))
+            ],
+            spacing: { after: 100 }
+          })
+        ),
+
+        // Detailed Data Table
+        ...(toRowsArray(reportData).length > 0 ? [
+          new Paragraph({
+            text: 'Detailed Data',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 400, after: 200 }
+          }),
+
+          new Table({
+            rows: [
+              new TableRow({
+                children: [...new Set(toRowsArray(reportData).flatMap(row => Object.keys(row || {})))].map(header =>
+                  new TableCell({
+                    children: [new Paragraph({ text: header, bold: true })],
+                    width: { size: 25, type: WidthType.PERCENTAGE },
+                    shading: { fill: 'f0f0f0' }
+                  })
+                )
+              }),
+              ...toRowsArray(reportData).slice(0, 50).map(row =>
+                new TableRow({
+                  children: Object.keys(row).map(key =>
+                    new TableCell({
+                      children: [new Paragraph(String(row[key] || ''))],
+                      width: { size: 25, type: WidthType.PERCENTAGE }
+                    })
+                  )
+                })
+              )
+            ],
+            width: { size: 100, type: WidthType.PERCENTAGE },
+          })
+        ] : []),
+
+        // Recommendations
+        ...(Array.isArray(reportData?.recommendations) && reportData.recommendations.length > 0 ? [
+          new Paragraph({
+            text: 'Recommendations',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 400, after: 200 }
+          }),
+
+          ...reportData.recommendations.map((item, index) =>
+            new Paragraph({
+              text: `${index + 1}. ${item}`,
+              bullet: { level: 0 },
+              spacing: { after: 100 }
+            })
+          )
+        ] : []),
+
+        // Footer
+        new Paragraph({
+          text: 'MediHub Pharmacy Management System',
+          spacing: { before: 800, after: 100 },
+          alignment: 'center',
+          size: 18
+        })
+      ]
+    }]
+  });
+
+  const buffer = await Packer.toBuffer(doc);
+  return buffer;
+}
+
+// ─── Enhanced Excel Generation (XLSX) ───
+async function buildExcelWorkbook(reportData) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Report');
+
+  // Add title and metadata
+  worksheet.mergeCells('A1:D1');
+  worksheet.getCell('A1').value = reportData?.title || 'Pharmacy Report';
+  worksheet.getCell('A1').font = { bold: true, size: 16 };
+  worksheet.getCell('A1').alignment = { horizontal: 'center' };
+
+  worksheet.mergeCells('A2:D2');
+  worksheet.getCell('A2').value = `Generated: ${new Date().toLocaleDateString()}`;
+  worksheet.getCell('A2').alignment = { horizontal: 'center' };
+
+  // Add Executive Summary
+  let row = 4;
+  worksheet.getCell(`A${row}`).value = 'Executive Summary';
+  worksheet.getCell(`A${row}`).font = { bold: true, size: 14 };
+  row++;
+
+  Object.entries(reportData?.summary || {}).forEach(([key, value]) => {
+    worksheet.getCell(`A${row}`).value = key.replace(/_/g, ' ').toUpperCase();
+    worksheet.getCell(`B${row}`).value = value;
+    worksheet.getCell(`A${row}`).font = { bold: true };
+    row++;
+  });
+
+  row++;
+
+  // Add detailed data table
+  const rows = toRowsArray(reportData);
+  if (rows.length > 0) {
+    worksheet.getCell(`A${row}`).value = 'Detailed Data';
+    worksheet.getCell(`A${row}`).font = { bold: true, size: 14 };
+    row++;
+
+    const headers = [...new Set(rows.flatMap(row => Object.keys(row || {})))];
+    headers.forEach((header, colIndex) => {
+      const cell = worksheet.getCell(String.fromCharCode(65 + colIndex) + row);
+      cell.value = header;
+      cell.font = { bold: true };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF0F0F0' }
+      };
+    });
+    row++;
+
+    rows.slice(0, 100).forEach((dataRow) => {
+      headers.forEach((header, colIndex) => {
+        worksheet.getCell(String.fromCharCode(65 + colIndex) + row).value = dataRow[header] || '';
+      });
+      row++;
+    });
+  }
+
+  // Add Recommendations
+  if (Array.isArray(reportData?.recommendations) && reportData.recommendations.length > 0) {
+    row++;
+    worksheet.getCell(`A${row}`).value = 'Recommendations';
+    worksheet.getCell(`A${row}`).font = { bold: true, size: 14 };
+    row++;
+
+    reportData.recommendations.forEach((item, index) => {
+      worksheet.getCell(`A${row}`).value = `${index + 1}. ${item}`;
+      row++;
+    });
+  }
+
+  // Auto-fit columns
+  worksheet.columns.forEach((column) => {
+    column.width = 20;
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return buffer;
+}
+
 function buildPdfBuffer(reportData) {
   const doc = new PDFDocument({ margin: 50, size: 'A4' });
   const chunks = [];
@@ -103,68 +287,118 @@ function buildPdfBuffer(reportData) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', (error) => reject(error));
 
-    // Header
-    doc.fontSize(18).text(reportData?.title || 'Pharmacy Health Report', { align: 'center' });
-    doc.fontSize(10).text(`Generated: ${new Date().toLocaleDateString()}`, { align: 'center' });
+    // Enhanced Header with branding
+    doc.fontSize(20).fillColor('#2563eb').text(reportData?.title || 'Pharmacy Health Report', { align: 'center' });
+    doc.fontSize(10).fillColor('gray').text(`Generated: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, { align: 'center' });
+    doc.moveDown();
     doc.moveDown();
 
-    // Summary section
+    // Executive Summary section with better formatting
     const summary = reportData?.summary || {};
     const entries = Object.entries(summary);
     if (entries.length > 0) {
-      doc.fontSize(14).fillColor('blue').text('Executive Summary', { underline: true });
-      doc.fillColor('black').fontSize(11);
+      doc.fontSize(16).fillColor('#1e40af').text('Executive Summary', { underline: true });
+      doc.moveDown();
+      doc.fontSize(11);
       entries.forEach(([key, value]) => {
-        doc.text(`${key.replace(/_/g, ' ').toUpperCase()}: ${value}`);
+        const formattedKey = key.replace(/_/g, ' ').toUpperCase();
+        doc.fillColor('#4b5563').text(`${formattedKey}:`, { continued: true });
+        doc.fillColor('#1e293b').text(` ${value}`);
       });
       doc.moveDown();
     }
 
-    // Data tables section
+    // Key Insights section
+    if (reportData?.key_insights && reportData.key_insights.length > 0) {
+      doc.fontSize(16).fillColor('#1e40af').text('Key Insights', { underline: true });
+      doc.moveDown();
+      doc.fontSize(11);
+      reportData.key_insights.forEach((insight, index) => {
+        doc.text(`${index + 1}. ${insight}`, { indent: 10 });
+      });
+      doc.moveDown();
+    }
+
+    // Data tables section with enhanced styling
     const rows = toRowsArray(reportData);
     if (rows.length > 0) {
-      doc.fontSize(14).fillColor('blue').text('Detailed Data', { underline: true });
-      doc.fillColor('black').fontSize(10);
+      doc.fontSize(16).fillColor('#1e40af').text('Detailed Data', { underline: true });
+      doc.moveDown();
+      doc.fontSize(10);
 
-      // Create table
+      // Create enhanced table
       const headers = [...new Set(rows.flatMap((row) => Object.keys(row || {})))];
       const tableTop = doc.y;
-      const rowHeight = 20;
+      const rowHeight = 22;
       const colWidth = (doc.page.width - 100) / headers.length;
 
-      // Draw headers
+      // Draw headers with better styling
       headers.forEach((header, i) => {
-        doc.rect(50 + i * colWidth, tableTop, colWidth, rowHeight).fillAndStroke('#f0f0f0', '#000');
-        doc.fillColor('black').text(header, 55 + i * colWidth, tableTop + 5, { width: colWidth - 10 });
+        doc.rect(50 + i * colWidth, tableTop, colWidth, rowHeight).fillAndStroke('#3b82f6', '#1e40af');
+        doc.fillColor('white').font.bold().text(header, 55 + i * colWidth, tableTop + 5, { width: colWidth - 10 });
       });
+      doc.fillColor('black').font.normal();
 
-      // Draw rows
-      rows.slice(0, 20).forEach((row, rowIndex) => {
+      // Draw rows with alternating colors
+      rows.slice(0, 30).forEach((row, rowIndex) => {
         const y = tableTop + rowHeight + (rowIndex + 1) * rowHeight;
+        const isEven = rowIndex % 2 === 0;
+        if (isEven) {
+          doc.rect(50, y, doc.page.width - 100, rowHeight).fill('#f8fafc');
+        }
         headers.forEach((header, colIndex) => {
           doc.rect(50 + colIndex * colWidth, y, colWidth, rowHeight).stroke();
           doc.text(String(row?.[header] || ''), 55 + colIndex * colWidth, y + 5, { width: colWidth - 10 });
         });
       });
 
-      if (rows.length > 20) {
-        doc.text(`... and ${rows.length - 20} more rows`, 50, doc.y + 10);
+      if (rows.length > 30) {
+        doc.moveDown();
+        doc.text(`... and ${rows.length - 30} more rows available`, { italic: true, size: 9 });
       }
+      doc.moveDown();
+    }
+
+    // Prioritized Actions section
+    if (reportData?.prioritized_actions && reportData.prioritized_actions.length > 0) {
+      doc.fontSize(16).fillColor('#1e40af').text('Prioritized Actions', { underline: true });
+      doc.moveDown();
+      doc.fontSize(11);
+      reportData.prioritized_actions.forEach((action, index) => {
+        const priorityColor = action.priority === 'CRITICAL' ? '#dc2626' : action.priority === 'HIGH' ? '#ea580c' : '#059669';
+        doc.fillColor(priorityColor).text(`[${action.priority}]`, { continued: true });
+        doc.fillColor('#1e293b').text(` ${action.action}`);
+        doc.moveDown(2);
+      });
       doc.moveDown();
     }
 
     // Recommendations section
     const recommendations = Array.isArray(reportData?.recommendations) ? reportData.recommendations : [];
     if (recommendations.length > 0) {
-      doc.fontSize(14).fillColor('blue').text('Recommendations', { underline: true });
-      doc.fillColor('black').fontSize(11);
+      doc.fontSize(16).fillColor('#1e40af').text('Recommendations', { underline: true });
+      doc.moveDown();
+      doc.fontSize(11);
       recommendations.forEach((item, index) => {
         doc.text(`${index + 1}. ${item}`, { indent: 10 });
       });
+      doc.moveDown();
     }
 
-    // Footer
-    doc.fontSize(8).fillColor('gray').text('MediHub Pharmacy Management System', { align: 'center' });
+    // Opportunities section
+    if (reportData?.opportunities && reportData.opportunities.length > 0) {
+      doc.fontSize(16).fillColor('#1e40af').text('Opportunities', { underline: true });
+      doc.moveDown();
+      doc.fontSize(11);
+      reportData.opportunities.forEach((opportunity, index) => {
+        doc.text(`${index + 1}. ${opportunity}`, { indent: 10 });
+      });
+      doc.moveDown();
+    }
+
+    // Footer with disclaimer
+    doc.fontSize(8).fillColor('gray').text('MediHub Pharmacy Management System - Confidential Report', { align: 'center' });
+    doc.text('Generated by AI - Review before distribution', { align: 'center' });
 
     doc.end();
   });
@@ -181,17 +415,24 @@ function buildReportExport(reportData, type = 'csv') {
         body: toCsvBody(reportData),
       };
     case 'excel':
+    case 'xlsx':
       return {
-        contentType: 'application/vnd.ms-excel; charset=utf-8',
-        filename: `${(reportData?.title || 'report').replace(/\s+/g, '_').toLowerCase()}.xls`,
-        body: toCsvBody(reportData),
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        filename: `${(reportData?.title || 'report').replace(/\s+/g, '_').toLowerCase()}.xlsx`,
+        requiresAsync: true
       };
     case 'pdf':
-      // PDF is handled separately in the route handler
       return {
         contentType: 'application/pdf',
         filename: `${(reportData?.title || 'report').replace(/\s+/g, '_').toLowerCase()}.pdf`,
-        requiresAsync: true // Signal that this needs async handling
+        requiresAsync: true
+      };
+    case 'docx':
+    case 'word':
+      return {
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        filename: `${(reportData?.title || 'report').replace(/\s+/g, '_').toLowerCase()}.docx`,
+        requiresAsync: true
       };
     case 'txt':
       return {
@@ -233,6 +474,7 @@ async function generateReportExport(req, res) {
       });
     }
 
+    // Handle async file generation (PDF, Excel, Word)
     if (requestedType === 'pdf') {
       const pdfBuffer = await buildPdfBuffer(reportData);
       return res
@@ -241,6 +483,23 @@ async function generateReportExport(req, res) {
         .send(pdfBuffer);
     }
 
+    if (requestedType === 'xlsx' || requestedType === 'excel') {
+      const excelBuffer = await buildExcelWorkbook(reportData);
+      return res
+        .setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        .setHeader('Content-Disposition', `attachment; filename="${(reportData?.title || 'report').replace(/\s+/g, '_').toLowerCase()}.xlsx"`)
+        .send(excelBuffer);
+    }
+
+    if (requestedType === 'docx' || requestedType === 'word') {
+      const wordBuffer = await buildWordDocument(reportData);
+      return res
+        .setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        .setHeader('Content-Disposition', `attachment; filename="${(reportData?.title || 'report').replace(/\s+/g, '_').toLowerCase()}.docx"`)
+        .send(wordBuffer);
+    }
+
+    // Handle synchronous file generation (CSV, TXT, JSON, Chart)
     const result = buildReportExport(reportData, requestedType);
 
     if (typeof result.body === 'string') {
@@ -268,4 +527,6 @@ module.exports = {
   buildReportExport,
   generateReportExport,
   buildPdfBuffer,
+  buildWordDocument,
+  buildExcelWorkbook,
 };

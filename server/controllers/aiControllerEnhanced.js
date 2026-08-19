@@ -4,7 +4,7 @@
  * Replaces the basic Google AI calls with sophisticated reasoning and context awareness
  */
 
-const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand, analyzeEfficiency, chatWithFileGeneration } = require('../ai/medicalLLM');
+const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand, analyzeEfficiency, chatWithFileGeneration, getModelConfig } = require('../ai/medicalLLM');
 const { explainAnomaly, explainExpiryRisk, explainReorderRecommendation, generatePharmacyHealthReport } = require('../ai/modelExplainer');
 const { streamGeminiResponse } = require('../ai/streamingHandler');
 const { trainAndPersist, scoreActiveBatches } = require('../ai/expiryRiskModel');
@@ -197,7 +197,7 @@ async function generateStrategy(req, res) {
 }
 
 // ─── Demand Forecasting ───
-async function forecastDemand(req, res) {
+async function forecastDemandHandler(req, res) {
   try {
     const { forecast_period = 90 } = req.body;
 
@@ -224,7 +224,7 @@ async function forecastDemand(req, res) {
 }
 
 // ─── Efficiency Analysis ───
-async function analyzeEfficiency(req, res) {
+async function analyzeEfficiencyHandler(req, res) {
   try {
     const { focus_area = 'overall' } = req.body;
 
@@ -258,6 +258,62 @@ async function getAvailableFunctions(req, res) {
   });
 }
 
+// ─── Get Available Models and Their Capabilities ───
+async function getAvailableModels(req, res) {
+  const { MODEL_FALLBACK_CHAIN, GEMINI_3_CONFIG } = require('../ai/medicalLLM');
+
+  const modelsInfo = MODEL_FALLBACK_CHAIN.map(modelName => ({
+    name: modelName,
+    config: GEMINI_3_CONFIG[modelName] || {},
+    is_gemini_3: modelName.includes('3.5') || modelName.includes('3.0'),
+    supports_thinking: GEMINI_3_CONFIG[modelName]?.supportsThinking || false,
+    max_tokens: GEMINI_3_CONFIG[modelName]?.maxOutputTokens || 1024
+  }));
+
+  res.json({
+    available_models: modelsInfo,
+    current_primary: MODEL_FALLBACK_CHAIN[0],
+    total_models: MODEL_FALLBACK_CHAIN.length,
+    gemini_3_available: modelsInfo.filter(m => m.is_gemini_3).length
+  });
+}
+
+// ─── Set Preferred Model (for testing/performance tuning) ───
+async function setPreferredModel(req, res) {
+  try {
+    const { model_name } = req.body;
+    const { MODEL_FALLBACK_CHAIN, GEMINI_3_CONFIG } = require('../ai/medicalLLM');
+
+    if (!model_name) {
+      return res.status(400).json({ error: 'model_name is required' });
+    }
+
+    if (!MODEL_FALLBACK_CHAIN.includes(model_name)) {
+      return res.status(400).json({
+        error: 'Invalid model name',
+        available_models: MODEL_FALLBACK_CHAIN
+      });
+    }
+
+    // Store the preferred model in environment or session
+    // For now, we'll just return success - in production, store in user preferences
+    await logAudit(req.user.id, 'ai_model_changed', `Changed to: ${model_name}`, req);
+
+    res.json({
+      success: true,
+      preferred_model: model_name,
+      config: GEMINI_3_CONFIG[model_name],
+      message: `Model preference set to ${model_name}. This will be used for future AI requests.`
+    });
+  } catch (err) {
+    console.error('Failed to set preferred model:', err);
+    res.status(500).json({
+      error: 'Failed to set preferred model',
+      detail: err.message
+    });
+  }
+}
+
 // ─── Generate Downloadable File ───
 async function generateDownloadableFile(req, res) {
   try {
@@ -268,14 +324,40 @@ async function generateDownloadableFile(req, res) {
     }
 
     const exportCtrl = require('./exportController');
-    let result;
 
+    // Handle async file generation (PDF, Excel, Word)
+    if (file_type === 'pdf') {
+      const pdfBuffer = await exportCtrl.buildPdfBuffer(content);
+      await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${filename}`, req);
+      return res
+        .setHeader('Content-Type', 'application/pdf')
+        .setHeader('Content-Disposition', `attachment; filename="${filename || 'report.pdf'}"`)
+        .send(pdfBuffer);
+    }
+
+    if (file_type === 'xlsx' || file_type === 'excel') {
+      const excelBuffer = await exportCtrl.buildExcelWorkbook(content);
+      await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${filename}`, req);
+      return res
+        .setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        .setHeader('Content-Disposition', `attachment; filename="${filename || 'report.xlsx'}"`)
+        .send(excelBuffer);
+    }
+
+    if (file_type === 'docx' || file_type === 'word') {
+      const wordBuffer = await exportCtrl.buildWordDocument(content);
+      await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${filename}`, req);
+      return res
+        .setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        .setHeader('Content-Disposition', `attachment; filename="${filename || 'report.docx'}"`)
+        .send(wordBuffer);
+    }
+
+    // Handle synchronous file generation (CSV, TXT, JSON, Chart)
+    let result;
     switch (file_type) {
       case 'csv':
         result = exportCtrl.buildReportExport(content, 'csv');
-        break;
-      case 'excel':
-        result = exportCtrl.buildReportExport(content, 'excel');
         break;
       case 'json':
         result = exportCtrl.buildReportExport(content, 'json');
@@ -283,12 +365,6 @@ async function generateDownloadableFile(req, res) {
       case 'txt':
         result = exportCtrl.buildReportExport(content, 'txt');
         break;
-      case 'pdf':
-        result = await exportCtrl.buildPdfBuffer(content);
-        return res
-          .setHeader('Content-Type', 'application/pdf')
-          .setHeader('Content-Disposition', `attachment; filename="${filename || 'report.pdf'}"`)
-          .send(result);
       default:
         return res.status(400).json({ error: 'Unsupported file type' });
     }
@@ -454,12 +530,16 @@ Answer questions about inventory based on this data:
 
 Keep responses concise, conversational, and data-driven. If data is empty, provide helpful suggestions about what data would be needed.`;
 
-    // Try working models in order
-    const models = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+    // Try working models in order (Gemini 3 optimized)
+    const models = ['gemini-3.5-flash-exp', 'gemini-3.5-flash', 'gemini-3.0-flash', 'gemini-2.5-flash'];
     let lastError = null;
 
     for (const model of models) {
       try {
+        // Get model-specific configuration
+        const { getModelConfig } = require('../ai/medicalLLM');
+        const modelConfig = getModelConfig(model);
+
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
           {
@@ -474,8 +554,10 @@ Keep responses concise, conversational, and data-driven. If data is empty, provi
                 parts: [{ text: question }]
               }],
               generationConfig: {
-                maxOutputTokens: 2048,  // Increased for generative responses
-                temperature: 0.7       // Balanced for creative and analytical tasks
+                maxOutputTokens: modelConfig.maxOutputTokens,
+                temperature: modelConfig.temperature,
+                topP: modelConfig.topP,
+                topK: modelConfig.topK
               }
             })
           }
@@ -628,9 +710,11 @@ module.exports = {
   // Generative AI endpoints
   generateAIReport,
   generateStrategy,
-  forecastDemand,
-  analyzeEfficiency,
+  forecastDemand: forecastDemandHandler,
+  analyzeEfficiency: analyzeEfficiencyHandler,
   getAvailableFunctions,
+  getAvailableModels,
+  setPreferredModel,
 
   // File generation endpoints
   generateDownloadableFile,

@@ -26,6 +26,8 @@ router.post('/generate-strategy', ctrlEnhanced.generateStrategy);
 router.post('/forecast-demand', ctrlEnhanced.forecastDemand);
 router.post('/analyze-efficiency', ctrlEnhanced.analyzeEfficiency);
 router.get('/available-functions', ctrlEnhanced.getAvailableFunctions);
+router.get('/available-models', ctrlEnhanced.getAvailableModels);
+router.post('/set-preferred-model', ctrlEnhanced.setPreferredModel);
 
 // File generation endpoints
 router.post('/generate-file', ctrlEnhanced.generateDownloadableFile);

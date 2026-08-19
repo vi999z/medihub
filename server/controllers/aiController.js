@@ -4,6 +4,7 @@ const { getReorderSuggestions } = require('../ai/demandForecastModel');
 const { detectAnomalies } = require('../ai/anomalyDetection');
 const { logAudit } = require('../utils/auditLogger');
 const { buildReportExport, buildPdfBuffer, getSupportedExportTypes } = require('./exportController');
+const { MODEL_FALLBACK_CHAIN, getModelConfig } = require('../ai/medicalLLM');
 
 // Helper function to convert data to rows array for exports
 function toRowsArray(data) {
@@ -289,21 +290,16 @@ ${filteredData.expiryRisk ? `|- Expiry risk scores: ${JSON.stringify(filteredDat
 ${filteredData.reorderSuggestions ? `|- Reorder suggestions: ${JSON.stringify(filteredData.reorderSuggestions)}` : ''}
 ${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData.anomalies)}` : ''}`;
 
-    console.log('Calling Google AI API with fallback system...');
-    // Define fallback models in order of preference (more reliable models first)
-    const models = [
-      'gemini-3.1-flash-lite',  // Lighter, fast model with less congestion
-      'gemini-2.5-flash',       // Previous generation, stable and widely supported
-      'gemini-2.0-flash',       // Another stable option
-      'gemini-1.5-flash',       // Original fallback
-      'gemini-1.5-pro',         // More capable option
-      'gemini-pro'              // Final fallback
-    ];
+    console.log('Calling Google AI API with Gemini 3 fallback system...');
+    // Use the new Gemini 3 model fallback chain
+    const models = MODEL_FALLBACK_CHAIN;
     let lastError = null;
 
     for (const model of models) {
       try {
         console.log(`Trying model: ${model}`);
+        const modelConfig = getModelConfig(model);
+
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
@@ -318,8 +314,10 @@ ${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData
             }
           ],
           generationConfig: {
-            maxOutputTokens: 800,
-            temperature: 0.7,
+            maxOutputTokens: modelConfig.maxOutputTokens,
+            temperature: modelConfig.temperature,
+            topP: modelConfig.topP,
+            topK: modelConfig.topK
           }
         }),
       });
