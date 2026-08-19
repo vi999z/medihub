@@ -1290,55 +1290,6 @@ function detectFileRequest(question) {
   return null;
 }
 
-// ─── Enhanced Chat with File Generation (Like Modern AI) ───
-async function chatWithFileGeneration(question, userId, context = null) {
-  const requestedFileType = detectFileRequest(question);
-  const intention = detectIntention(question);
-
-  // Get the standard AI response first
-  const standardResponse = await modernChat(question, userId, context);
-
-  // If user requested a file, enhance the response with immediate suggestions
-  if (requestedFileType) {
-    const fileSuggestion = {
-      detected: true,
-      file_type: requestedFileType,
-      suggested_filename: `${intention}_report_${new Date().toISOString().split('T')[0]}.${requestedFileType}`,
-      message: `I can generate a professional ${requestedFileType.toUpperCase()} file for you with the current data. The file will include detailed analysis, recommendations, and professional formatting.`,
-      available_formats: {
-        csv: 'Data export for analysis',
-        xlsx: 'Excel spreadsheet with formatting',
-        pdf: 'Professional report with charts',
-        docx: 'Word document with structure',
-        json: 'Structured data for integration',
-        txt: 'Plain text documentation'
-      },
-      quick_action: `Simply request "generate ${requestedFileType} file" and I'll create it for you immediately.`
-    };
-
-    return {
-      ...standardResponse,
-      file_request: fileSuggestion,
-      enhanced_response: `${standardResponse.response}\n\n📁 File Generation: I detected you want a ${requestedFileType.toUpperCase()} file. I can generate a professional ${requestedFileType} document with the current inventory data, including executive summary, detailed analysis, and actionable recommendations.`
-    };
-  }
-
-  // Always suggest file generation for comprehensive answers (like modern AI)
-  if (intention === 'comprehensive' || intention === 'analysis' || intention === 'trend') {
-    return {
-      ...standardResponse,
-      file_suggestion: {
-        available: true,
-        message: "I can generate a downloadable report in PDF, Excel, or Word format with this analysis.",
-        formats: ['pdf', 'xlsx', 'docx'],
-        default: 'pdf'
-      }
-    };
-  }
-
-  return standardResponse;
-}
-
 // ─── Use the SDK-based modernChat & chatWithFileGeneration from modernChat.js ───
 // The local REST-fetch implementation above is replaced here to ensure all AI
 // calls go through the @google/genai SDK with the correct model chain.
