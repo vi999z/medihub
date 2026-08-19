@@ -1339,104 +1339,17 @@ async function chatWithFileGeneration(question, userId, context = null) {
   return standardResponse;
 }
 
-async function modernChat(question, userId, context = null) {
-  try {
-    const intention = detectIntention(question);
-
-    // Stateless — do NOT read or write to server-side context for history.
-    // The client owns conversation history; using the server context causes
-    // messages to be added on every call and duplicated on the next turn.
-    const baseSystemPrompt = buildSystemPrompt('', intention);
-    const messages = [{ role: 'user', content: question }];
-
-    console.log(`[AI] Processing question with intention: ${intention}`);
-
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      throw new Error('AI service not configured');
-    }
-
-    const selectedModels = MODEL_FALLBACK_CHAIN.slice(0, 3); // Use top 3 fastest models for quick responses
-
-    let lastError = null;
-
-    for (const modelName of [...new Set(selectedModels)]) {
-      try {
-        const recoveryPrompt = `${baseSystemPrompt}\n\nIMPORTANT: If the request is ambiguous or the model output would be empty, answer using the pharmacy inventory snapshot instead of refusing. Focus on concise data-driven help.`;
-
-        // Get model-specific configuration
-        const modelConfig = getModelConfig(modelName);
-
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              systemInstruction: {
-                parts: [{ text: recoveryPrompt }],
-                role: 'system'
-              },
-              contents: messages.map(msg => ({
-                role: msg.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: msg.content }]
-              })),
-              generationConfig: {
-                maxOutputTokens: modelConfig.maxOutputTokens,
-                temperature: modelConfig.temperature,
-                topP: modelConfig.topP,
-                topK: modelConfig.topK
-              },
-              safetySettings: [
-                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
-                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' }
-              ]
-            })
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          lastError = new Error(`API error (${response.status}): ${errorText}`);
-          continue;
-        }
-
-        const data = await response.json();
-        const aiResponse = extractGeneratedText(data);
-        const isRecoveryText = /quick inventory summary|switching to a quick inventory summary|safer alternative|having trouble generating a full answer|blocked by the safety filter/i.test(aiResponse);
-        const finalResponse = isRecoveryText ? await buildFallbackInventoryResponse(question) : aiResponse;
-
-        return {
-          response: finalResponse,
-          intention,
-          model: modelName,
-          timestamp: new Date().toISOString()
-        };
-      } catch (err) {
-        console.warn(`[AI] Model ${modelName} failed:`, err.message);
-        lastError = err;
-      }
-    }
-
-    const recoveryResponse = await buildFallbackInventoryResponse(question);
-
-    return {
-      response: recoveryResponse,
-      intention,
-      model: selectedModels[0],
-      timestamp: new Date().toISOString()
-    };
-
-  } catch (err) {
-    console.error('[AI] Error in modernChat:', err.message);
-    throw err;
-  }
-}
+// ─── Use the SDK-based modernChat & chatWithFileGeneration from modernChat.js ───
+// The local REST-fetch implementation above is replaced here to ensure all AI
+// calls go through the @google/genai SDK with the correct model chain.
+const {
+  modernChat,
+  chatWithFileGeneration,
+} = require('./modernChat');
 
 module.exports = {
   modernChat,
+  chatWithFileGeneration,
   ConversationContext,
   callFunction,
   AVAILABLE_FUNCTIONS,
@@ -1447,7 +1360,6 @@ module.exports = {
   GEMINI_CONFIG,
   getModelConfig,
   modelSupportsFeature,
-  modelSupportsFeature,
   extractGeneratedText,
   buildFallbackInventoryResponse,
   generateReport,
@@ -1455,5 +1367,4 @@ module.exports = {
   forecastDemand,
   analyzeEfficiency,
   detectFileRequest,
-  chatWithFileGeneration
 };

@@ -1,0 +1,9 @@
+{
+  "name": "medihub",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd client && npm install && npm run build",
+    "start": "cd server && node server.js",
+    "install:all": "cd client && npm install && cd ../server && npm install"
+  }
+}

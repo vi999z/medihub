@@ -71,23 +71,27 @@ app.use('/api/audit-logs', require('./routes/auditRoutes'));
 app.use('/api/maintenance', require('./routes/maintenanceRoutes'));
 
 const clientDist = path.join(__dirname, '../client/dist');
-if (require('fs').existsSync(clientDist)) {
-  app.use(express.static(clientDist, { index: false, fallthrough: true }));
-  // SPA fallback — any non-API, non-static-asset request serves index.html
-  // so React Router handles the route on hard refresh / direct navigation.
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api/')) return next();
-    // Static assets (js, css, images, fonts, etc.) fall through to 404
-    if (/\.\w{1,6}$/.test(req.path)) return next();
-    res.sendFile(path.join(clientDist, 'index.html'));
-  });
-}
+const indexHtml  = path.join(clientDist, 'index.html');
+const fs         = require('fs');
 
-app.use((req, res) => {
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: 'Not found' });
+// Serve static assets from the built client (js/css/images)
+app.use(express.static(clientDist, { index: false, fallthrough: true }));
+
+// SPA fallback — every non-API, non-asset GET request returns index.html so
+// React Router handles the route on hard refresh, direct URL, or spam refresh.
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) return next();           // let API 404 handler below respond
+  if (/\.\w{1,10}$/.test(req.path)) return next();          // static asset not found → true 404
+  if (fs.existsSync(indexHtml)) {
+    return res.sendFile(indexHtml);
   }
-  res.status(404).send('Not found');
+  // index.html missing means the client hasn't been built yet (dev-only scenario)
+  res.status(503).send('Client not built. Run `npm run build` in the client directory.');
+});
+
+// API 404 — only reached for /api/* paths not matched above
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found' });
 });
 
 const PORT = process.env.PORT || 5000;
