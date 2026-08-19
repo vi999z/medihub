@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { IconSend, IconRobot, IconUser, IconRefresh, IconAlertTriangle, IconSparkles } from '@tabler/icons-react';
+import { IconSend, IconRobot, IconUser, IconRefresh, IconAlertTriangle, IconSparkles, IconPaperclip, IconX, IconPhoto } from '@tabler/icons-react';
+import ReactMarkdown from 'react-markdown';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { useToast } = require('../context/ToastContext');
+import { useToast } from '../context/ToastContext';
 import Skeleton from '../components/Skeleton';
 
 const STARTER_PROMPTS = [
@@ -13,6 +14,8 @@ const STARTER_PROMPTS = [
   "What's the total inventory value?",
   "Are there any suspicious transactions?",
   "Generate pharmacy health report",
+  "What medicines should I restock for the rainy season?",
+  "Check weather-driven demand — which items might run out?",
   "Export inventory CSV",
   "Download PDF pharmacy report"
 ];
@@ -116,8 +119,8 @@ export default function AiChatModern() {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [messages, setMessages] = useState([
-    { 
-      role: 'assistant', 
+    {
+      role: 'assistant',
       content: 'Hello! I\'m MediHub AI, your modern pharmaceutical intelligence assistant. I understand your inventory with context and can explain decisions in plain language. What would you like to know?',
       timestamp: new Date()
     }
@@ -127,9 +130,42 @@ export default function AiChatModern() {
   const [streaming, setStreaming] = useState(false);
   const [intention, setIntention] = useState(null);
   const [conversationTurn, setConversationTurn] = useState(0);
+  const [pendingImage, setPendingImage] = useState(null); // { base64, mimeType, previewUrl }
+  // Persistent conversation state
+  const [savedConversations, setSavedConversations] = useState([]);
+  const [activeConvId, setActiveConvId] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const fileInputRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
+
+  function handleImageSelect(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      addToast('Please select an image file', 'error');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      addToast('Image must be under 10 MB', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      // Strip the data:<mime>;base64, prefix
+      const base64 = dataUrl.split(',')[1];
+      setPendingImage({ base64, mimeType: file.type, previewUrl: dataUrl, fileName: file.name });
+    };
+    reader.readAsDataURL(file);
+    // Reset so the same file can be re-selected
+    e.target.value = '';
+  }
+
+  function clearPendingImage() {
+    setPendingImage(null);
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -139,35 +175,116 @@ export default function AiChatModern() {
     scrollToBottom();
   }, [messages]);
 
-  // Load conversation info on mount
+  // Load conversation info and saved conversations on mount
   useEffect(() => {
-    async function loadConversationInfo() {
+    async function loadOnMount() {
       try {
-        const res = await api.get('/ai/conversation/info');
-        setConversationTurn(res.data.turn_count);
+        const [infoRes, convsRes] = await Promise.all([
+          api.get('/ai/conversation/info'),
+          api.get('/ai/conversations')
+        ]);
+        setConversationTurn(infoRes.data.turn_count);
+        setSavedConversations(convsRes.data.conversations || []);
       } catch (err) {
-        console.error('Failed to load conversation info:', err);
+        console.error('Failed to load on mount:', err);
       }
     }
-    loadConversationInfo();
+    loadOnMount();
   }, []);
+
+  async function loadConversationList() {
+    try {
+      const res = await api.get('/ai/conversations');
+      setSavedConversations(res.data.conversations || []);
+    } catch (err) {
+      console.error('Failed to load conversations:', err);
+    }
+  }
+
+  async function saveCurrentConversation() {
+    if (messages.length <= 1) { addToast('Nothing to save yet', 'info'); return; }
+    try {
+      // Auto-title from first user message
+      const firstUser = messages.find(m => m.role === 'user');
+      const autoTitle = firstUser ? firstUser.content.slice(0, 60) : 'Conversation';
+      const res = await api.post('/ai/conversations', {
+        id: activeConvId || undefined,
+        title: autoTitle,
+        messages
+      });
+      setActiveConvId(res.data.id);
+      await loadConversationList();
+      addToast('Conversation saved', 'success');
+    } catch (err) {
+      addToast('Failed to save conversation', 'error');
+    }
+  }
+
+  async function loadSavedConversation(conv) {
+    try {
+      const res = await api.get(`/ai/conversations/${conv.id}`);
+      const loaded = res.data.messages || [];
+      setMessages(loaded.length ? loaded : [{
+        role: 'assistant',
+        content: 'Hello! I\'m MediHub AI. What would you like to know?',
+        timestamp: new Date()
+      }]);
+      setActiveConvId(conv.id);
+      setConversationTurn(Math.floor(loaded.filter(m => m.role === 'user').length));
+      setIntention(null);
+      // Also restore the in-memory context by clearing server-side session
+      await api.post('/ai/conversation/clear');
+    } catch (err) {
+      addToast('Failed to load conversation', 'error');
+    }
+  }
+
+  async function deleteSavedConversation(convId, e) {
+    e.stopPropagation();
+    try {
+      await api.delete(`/ai/conversations/${convId}`);
+      if (activeConvId === convId) {
+        setActiveConvId(null);
+      }
+      await loadConversationList();
+      addToast('Conversation deleted', 'success');
+    } catch (err) {
+      addToast('Failed to delete conversation', 'error');
+    }
+  }
+
+  function startNewConversation() {
+    setMessages([{
+      role: 'assistant',
+      content: 'Hello! I\'m MediHub AI, your modern pharmaceutical intelligence assistant. What would you like to know?',
+      timestamp: new Date()
+    }]);
+    setActiveConvId(null);
+    setInput('');
+    setPendingImage(null);
+    setIntention(null);
+    setConversationTurn(0);
+    api.post('/ai/conversation/clear').catch(() => {});
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    if ((!input.trim() && !pendingImage) || loading) return;
 
     const userMessage = input.trim();
+    const imageToSend = pendingImage;
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage, timestamp: new Date() }]);
+    setPendingImage(null);
+    setMessages(prev => [...prev, {
+      role: 'user',
+      content: userMessage,
+      timestamp: new Date(),
+      image: imageToSend ? imageToSend.previewUrl : null
+    }]);
     setLoading(true);
     setStreaming(false);
 
     try {
-      const token = localStorage.getItem('medihub_token');
-      if (!token) {
-        throw new Error('You are not logged in. Please log in to use AI chat.');
-      }
-
       const exportType = detectExportType(userMessage);
       if (exportType) {
         const started = await triggerExportDownload(userMessage);
@@ -183,13 +300,14 @@ export default function AiChatModern() {
         }
       }
 
-      // Try streaming first for better UX
-      const useStreaming = true;
+      // Streaming is not supported by the current /api/ai/chat endpoint;
+      // use the normal (non-streaming) path.
+      const useStreaming = false;
 
       if (useStreaming) {
-        await handleStreamingResponse(userMessage);
+        await handleStreamingResponse(userMessage, imageToSend);
       } else {
-        await handleNormalResponse(userMessage);
+        await handleNormalResponse(userMessage, imageToSend);
       }
     } catch (err) {
       console.error('Chat error:', err);
@@ -217,28 +335,32 @@ export default function AiChatModern() {
     addToast('Request stopped', 'info');
   }
 
-  async function handleNormalResponse(userMessage) {
+  async function handleNormalResponse(userMessage, imageData = null) {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    const res = await api.post('/ai/chat', { 
-      question: userMessage,
-      stream: false
-    }, { signal: controller.signal });
+    const body = { question: userMessage, stream: false };
+    if (imageData) {
+      body.image_base64 = imageData.base64;
+      body.mime_type = imageData.mimeType;
+    }
+
+    const res = await api.post('/ai/chat', body, { signal: controller.signal });
+    const responseText = res?.data?.response || res?.data?.error || 'AI service returned an empty response. Please try again.';
 
     setMessages(prev => [...prev, { 
       role: 'assistant', 
-      content: res.data.response,
+      content: responseText,
       timestamp: new Date(),
-      intention: res.data.intention,
-      model: res.data.model
+      intention: res?.data?.intention,
+      model: res?.data?.model
     }]);
-    setIntention(res.data.intention);
-    setConversationTurn(res.data.conversation_turn || conversationTurn + 1);
+    setIntention(res?.data?.intention);
+    setConversationTurn(res?.data?.conversation_turn || conversationTurn + 1);
     abortControllerRef.current = null;
   }
 
-  async function handleStreamingResponse(userMessage) {
+  async function handleStreamingResponse(userMessage, imageData = null) {
     setStreaming(true);
     let fullResponse = '';
     let addedMessage = false;
@@ -246,17 +368,20 @@ export default function AiChatModern() {
     abortControllerRef.current = controller;
 
     try {
+      const streamBody = { question: userMessage, stream: true };
+      if (imageData) {
+        streamBody.image_base64 = imageData.base64;
+        streamBody.mime_type = imageData.mimeType;
+      }
+
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('medihub_token')}`
+          'Authorization': `Bearer ${localStorage.getItem('medihub_token')}`,
         },
         signal: controller.signal,
-        body: JSON.stringify({ 
-          question: userMessage,
-          stream: true
-        })
+        body: JSON.stringify(streamBody)
       });
 
       if (!response.ok) {
@@ -392,7 +517,7 @@ export default function AiChatModern() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 'clamp(1.2rem, 1.8vw, 1.55rem)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <IconSparkles size={24} />
@@ -402,7 +527,13 @@ export default function AiChatModern() {
             Modern pharmaceutical intelligence · Turn {conversationTurn + 1} {intention && `· Discussing ${intention.replace(/_/g, ' ')}`}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary" onClick={startNewConversation} title="Start a fresh conversation">
+            + New
+          </button>
+          <button className="btn btn-secondary" onClick={saveCurrentConversation} disabled={loading || messages.length <= 1} title="Save this conversation">
+            💾 Save
+          </button>
           <button className="btn btn-secondary" onClick={getHealthReport} disabled={loading}>
             <IconSparkles size={15} /> Health Report
           </button>
@@ -411,6 +542,87 @@ export default function AiChatModern() {
           </button>
         </div>
       </div>
+
+      {/* Main layout: sidebar + chat */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+
+        {/* ── Conversation History Sidebar ── */}
+        {sidebarOpen && (
+          <div style={{
+            width: 220, flexShrink: 0,
+            background: 'var(--card-bg)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            display: 'flex', flexDirection: 'column',
+            height: 'calc(100vh - 200px)', minHeight: 500,
+            overflow: 'hidden'
+          }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Conversations</span>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--steel)', fontSize: 16, lineHeight: 1, padding: 2 }}
+                title="Hide sidebar"
+              >×</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+              {savedConversations.length === 0 ? (
+                <p style={{ color: 'var(--steel)', fontSize: 12, padding: '8px 4px', textAlign: 'center' }}>No saved conversations yet.<br/>Click 💾 Save after chatting.</p>
+              ) : (
+                savedConversations.map(conv => (
+                  <div
+                    key={conv.id}
+                    onClick={() => loadSavedConversation(conv)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 7,
+                      cursor: 'pointer',
+                      background: activeConvId === conv.id ? 'var(--primary)' : 'transparent',
+                      color: activeConvId === conv.id ? 'white' : 'inherit',
+                      marginBottom: 4,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: 6,
+                      transition: 'background 0.15s'
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {conv.title}
+                      </div>
+                      <div style={{ fontSize: 11, opacity: 0.65, marginTop: 2 }}>
+                        {new Date(conv.updated_at).toLocaleDateString()} · {conv.message_count || 0} msgs
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => deleteSavedConversation(conv.id, e)}
+                      title="Delete"
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: activeConvId === conv.id ? 'rgba(255,255,255,0.7)' : 'var(--steel)',
+                        flexShrink: 0, padding: '2px 4px', fontSize: 14, lineHeight: 1
+                      }}
+                    >×</button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {!sidebarOpen && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            style={{ alignSelf: 'flex-start', marginTop: 4, padding: '8px 10px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: 'var(--steel)', flexShrink: 0 }}
+            title="Show conversation history"
+          >
+            📋
+          </button>
+        )}
+
+        {/* ── Chat Panel ── */}
+        <div style={{ flex: 1, minWidth: 0 }}>
 
       <div className="card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', minHeight: 500 }}>
         {/* Messages Area */}
@@ -456,13 +668,42 @@ export default function AiChatModern() {
                   color: msg.role === 'user' ? 'white' : 'inherit',
                   border: msg.isError ? '1px solid #fcc' : 'none',
                   wordWrap: 'break-word',
-                  whiteSpace: 'pre-wrap',
                   fontSize: 14,
                   lineHeight: 1.5
                 }}
               >
-                {msg.content}
-                {msg.isStreaming && <span style={{ animation: 'blink 1s infinite' }}>▌</span>}
+                {msg.role === 'assistant' ? (
+                  <ReactMarkdown
+                    components={{
+                      h1: ({node, ...props}) => <h3 style={{fontSize: '16px', fontWeight: 700, margin: '12px 0 8px', color: 'var(--primary)'}} {...props} />,
+                      h2: ({node, ...props}) => <h3 style={{fontSize: '15px', fontWeight: 700, margin: '10px 0 6px', color: 'var(--primary)'}} {...props} />,
+                      h3: ({node, ...props}) => <h4 style={{fontSize: '14px', fontWeight: 700, margin: '8px 0 4px', color: 'var(--primary)'}} {...props} />,
+                      strong: ({node, ...props}) => <strong style={{fontWeight: 700}} {...props} />,
+                      em: ({node, ...props}) => <em style={{fontStyle: 'italic', opacity: 0.9}} {...props} />,
+                      ul: ({node, ...props}) => <ul style={{marginLeft: '20px', marginTop: '6px', marginBottom: '6px'}} {...props} />,
+                      ol: ({node, ...props}) => <ol style={{marginLeft: '20px', marginTop: '6px', marginBottom: '6px'}} {...props} />,
+                      li: ({node, ...props}) => <li style={{marginBottom: '4px'}} {...props} />,
+                      blockquote: ({node, ...props}) => <blockquote style={{marginLeft: '12px', paddingLeft: '12px', borderLeft: '3px solid var(--primary)', opacity: 0.95, fontStyle: 'italic'}} {...props} />,
+                      code: ({node, inline, ...props}) => inline ? 
+                        <code style={{background: 'rgba(0,0,0,0.1)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px'}} {...props} /> :
+                        <code style={{display: 'block', background: 'rgba(0,0,0,0.1)', padding: '12px', borderRadius: '6px', overflow: 'auto', margin: '8px 0', fontFamily: 'monospace', fontSize: '12px'}} {...props} />
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : (
+                  <>
+                    {msg.image && (
+                      <img
+                        src={msg.image}
+                        alt="uploaded"
+                        style={{ display: 'block', maxWidth: '100%', maxHeight: 200, borderRadius: 8, marginBottom: msg.content ? 8 : 0, objectFit: 'contain' }}
+                      />
+                    )}
+                    {msg.content}
+                    {msg.isStreaming && <span style={{ animation: 'blink 1s infinite' }}>▌</span>}
+                  </>
+                )}
               </div>
 
               {msg.role === 'user' && (
@@ -513,63 +754,126 @@ export default function AiChatModern() {
         )}
 
         {/* Input Area */}
-        <form onSubmit={handleSubmit} style={{ padding: 16, borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-          <input
-            type="text"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            placeholder={streaming ? 'Receiving response...' : 'Ask about your inventory...'}
-            disabled={loading || streaming}
-            style={{
-              flex: 1,
-              padding: '10px 14px',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              fontSize: 14,
-              fontFamily: 'inherit'
-            }}
-          />
-          {loading || streaming ? (
+        <div style={{ borderTop: '1px solid var(--border)' }}>
+          {/* Image preview strip */}
+          {pendingImage && (
+            <div style={{ padding: '8px 16px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ position: 'relative', display: 'inline-flex' }}>
+                <img
+                  src={pendingImage.previewUrl}
+                  alt="pending upload"
+                  style={{ height: 56, width: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }}
+                />
+                <button
+                  type="button"
+                  onClick={clearPendingImage}
+                  style={{
+                    position: 'absolute', top: -6, right: -6,
+                    width: 18, height: 18, borderRadius: '50%',
+                    background: '#b42318', color: 'white', border: 'none',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 0, fontSize: 10
+                  }}
+                >
+                  <IconX size={11} />
+                </button>
+              </div>
+              <span style={{ fontSize: 12, color: 'var(--steel)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {pendingImage.fileName}
+              </span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} style={{ padding: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleImageSelect}
+            />
+            {/* Paperclip button */}
             <button
               type="button"
-              onClick={abortCurrentRequest}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading || streaming}
+              title="Attach image"
               style={{
-                padding: '10px 16px',
-                background: '#b42318',
-                color: 'white',
-                border: 'none',
+                padding: '10px',
+                background: pendingImage ? 'var(--primary)' : 'var(--card-bg)',
+                color: pendingImage ? 'white' : 'var(--steel)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
-                cursor: 'pointer',
+                cursor: loading || streaming ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                fontWeight: 600
+                flexShrink: 0,
+                opacity: loading || streaming ? 0.5 : 1
               }}
             >
-              Stop
+              <IconPaperclip size={18} />
             </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={!input.trim()}
+
+            <input
+              type="text"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              placeholder={streaming ? 'Receiving response...' : pendingImage ? 'Describe the image or ask a question...' : 'Ask about your inventory...'}
+              disabled={loading || streaming}
               style={{
-                padding: '10px 16px',
-                background: 'var(--primary)',
-                color: 'white',
-                border: 'none',
+                flex: 1,
+                padding: '10px 14px',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
-                cursor: !input.trim() ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                opacity: !input.trim() ? 0.6 : 1
+                fontSize: 14,
+                fontFamily: 'inherit'
               }}
-            >
-              <IconSend size={18} />
-            </button>
-          )}
-        </form>
+            />
+            {loading || streaming ? (
+              <button
+                type="button"
+                onClick={abortCurrentRequest}
+                style={{
+                  padding: '10px 16px',
+                  background: '#b42318',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontWeight: 600
+                }}
+              >
+                Stop
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim() && !pendingImage}
+                style={{
+                  padding: '10px 16px',
+                  background: 'var(--primary)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: (!input.trim() && !pendingImage) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  opacity: (!input.trim() && !pendingImage) ? 0.6 : 1
+                }}
+              >
+                <IconSend size={18} />
+              </button>
+            )}
+          </form>
+        </div>
       </div>
+        </div> {/* end chat panel */}
+      </div> {/* end flex row */}
 
       <style>{`
         @keyframes blink {

@@ -379,8 +379,8 @@ export default function Medicines() {
         </form>
       )}
 
-      <div className="card table-card">
-        <div className="filter-bar">
+      <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
+        <div className="filter-bar" style={{ margin: 0 }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -409,9 +409,6 @@ export default function Medicines() {
             <input type="checkbox" checked={prescriptionOnly} onChange={(e) => setPrescriptionOnly(e.target.checked)} />
             Prescription only
           </label>
-          <button type="button" className="btn btn-secondary" onClick={() => setGrouped((prev) => !prev)} title="Toggle grouping by category">
-            {grouped ? <List size={15} /> : <LayoutGrid size={15} />} {grouped ? 'Flat list' : 'Group by category'}
-          </button>
           {filtersActive && (
             <button type="button" className="btn btn-secondary" onClick={clearFilters}>
               <X size={15} /> Clear filters
@@ -434,149 +431,135 @@ export default function Medicines() {
             </button>
           ))}
         </div>
-
-        {error && (
-          <div className="empty-state">
-            <strong>Unable to load medicines</strong>
-            <p style={{ margin: '6px 0 0' }}>{error}</p>
-            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchMedicines}>Retry</button>
-          </div>
-        )}
-
-        {!loading && !error && visibleMedicines.length === 0 && (
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Category</th>
-                  <th>Strength</th>
-                  <th>Stock</th>
-                  <th>Status</th>
-                  <th>Nearest expiry</th>
-                  {user.role === 'admin' && <th>Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="empty-row">
-                  <td colSpan={user.role === 'admin' ? 7 : 6}>
-                    <div className="empty-state compact-empty-state">
-                      <FileWarning size={18} style={{ marginBottom: 6 }} />
-                      <div>No medicines match the current filters.</div>
-                      {filtersActive && (
-                        <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {loading && (
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Category</th>
-                  <th>Strength</th>
-                  <th>Stock</th>
-                  <th>Status</th>
-                  <th>Nearest expiry</th>
-                  {user.role === 'admin' && <th>Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {[1, 2, 3, 4].map((i) => (
-                  <tr key={i}>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    {user.role === 'admin' && <td><Skeleton height={16} /></td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {!loading && !error && groups.map(([category, items]) => {
-          if (!items.length) return null;
-          const isCollapsed = grouped && collapsed[category];
-          return (
-            <div key={category} className="medicine-group">
-              {grouped ? (
-                <button type="button" className="group-header" onClick={() => toggleGroup(category)} aria-expanded={!isCollapsed}>
-                  {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                  <span className="group-title">{category}</span>
-                  <span className="stamp">{items.length}</span>
-                </button>
-              ) : (
-                <div className="group-header static">
-                  <ArrowUpDown size={14} />
-                  <span className="group-title">{SORT_OPTIONS.find((option) => option.value === sortBy)?.label}</span>
-                  <span className="stamp">{items.length}</span>
-                </div>
-              )}
-              {!isCollapsed && (
-                <div className="table-wrapper">
-                  <table className="data-table sticky-head">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        {!grouped && <th>Category</th>}
-                        <th>Strength</th>
-                        <th>Stock</th>
-                        <th>Status</th>
-                        <th>Nearest expiry</th>
-                        {user.role === 'admin' && <th>Actions</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((m) => {
-                        const state = stockStateOf(m);
-                        const expiry = expiryLabel(m);
-                        return (
-                          <tr key={m.id}>
-                            <td>
-                              <div style={{ fontWeight: 600 }}>{m.name}</div>
-                              <div style={{ fontSize: 11.5, color: 'var(--steel)' }}>
-                                {[m.generic_name, m.dosage_form].filter(Boolean).join(' · ') || '—'}
-                                {m.requires_prescription ? ' · Rx' : ''}
-                              </div>
-                            </td>
-                            {!grouped && <td><span className="stamp">{categoryOf(m)}</span></td>}
-                            <td><span className="stamp">{m.strength || '—'}</span></td>
-                            <td>
-                              <div style={{ fontWeight: 600 }}>{m.total_stock ?? 0} {m.unit}</div>
-                              <div style={{ fontSize: 11.5, color: 'var(--steel)' }}>reorder at {m.reorder_level}</div>
-                            </td>
-                            <td><span className={`status-pill ${state.cls}`}>{state.label}</span></td>
-                            <td>{expiry ? <span className={`status-pill ${expiry.cls}`}>{expiry.label}</span> : <span className="stamp">—</span>}</td>
-                            {user.role === 'admin' && (
-                              <td>
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                  <button className="btn-icon" onClick={() => openEdit(m)} title="Edit medicine"><Pencil size={14} /></button>
-                                  <button className="btn-icon" onClick={() => handleDelete(m.id)} title="Delete medicine"><Trash2 size={14} /></button>
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          );
-        })}
       </div>
+
+      {error && (
+        <div className="empty-state">
+          <strong>Unable to load medicines</strong>
+          <p style={{ margin: '6px 0 0' }}>{error}</p>
+          <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchMedicines}>Retry</button>
+        </div>
+      )}
+
+      {!loading && !error && visibleMedicines.length === 0 && (
+        <div className="empty-state">
+          <FileWarning size={24} style={{ marginBottom: 6 }} />
+          <strong>No medicines found</strong>
+          <p style={{ margin: '6px 0 0' }}>No medicines match the current filters.</p>
+          {filtersActive && (
+            <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
+          )}
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="card" style={{ height: '260px' }}>
+              <Skeleton height={16} style={{ marginBottom: '12px' }} />
+              <Skeleton height={16} style={{ marginBottom: '8px' }} />
+              <Skeleton height={16} style={{ marginBottom: '16px' }} />
+              <Skeleton height={16} style={{ marginBottom: '12px' }} />
+              <Skeleton height={40} style={{ borderRadius: '999px' }} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && !error && visibleMedicines.length > 0 && (
+        <motion.div 
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {visibleMedicines.map((m) => {
+            const state = stockStateOf(m);
+            const expiry = expiryLabel(m);
+            const borderColorMap = { 'safe': 'var(--green)', 'warning': 'var(--gold)', 'critical': 'var(--red)' };
+            return (
+              <motion.div
+                key={m.id}
+                className="card"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  padding: '16px',
+                  borderTop: `4px solid ${borderColorMap[state.cls]}`,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
+              >
+                {/* Top Row: ID & Status */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span className="stamp" style={{ fontSize: '11px' }}>ID: {m.id}</span>
+                  <span className={`status-pill ${state.cls}`} style={{ fontSize: '10px', padding: '3px 8px' }}>{state.label}</span>
+                </div>
+
+                {/* Middle Content */}
+                <div style={{ flex: 1, marginBottom: '12px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)', marginBottom: '4px', lineHeight: 1.3 }}>
+                    {m.name}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--steel)', marginBottom: '8px', lineHeight: 1.4 }}>
+                    {[m.generic_name, m.dosage_form].filter(Boolean).join(' · ') || '—'}
+                    {m.requires_prescription ? ' · Rx' : ''}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                    <div>
+                      <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Stock</div>
+                      <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{m.total_stock ?? 0} {m.unit}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Category</div>
+                      <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{categoryOf(m)}</div>
+                    </div>
+                  </div>
+                  {expiry && (
+                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
+                      <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Expiry</div>
+                      <span className={`status-pill ${expiry.cls}`} style={{ fontSize: '11px', marginTop: '4px' }}>{expiry.label}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom Row: Avatar + Label + Action */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>
+                      {m.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontWeight: 600 }}>{m.name.substring(0, 12)}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openEdit(m)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'var(--bg-subtle)',
+                      border: '1px solid var(--border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => { e.target.style.background = 'var(--amber-tint)'; e.target.style.borderColor = 'var(--amber)'; }}
+                    onMouseLeave={(e) => { e.target.style.background = 'var(--bg-subtle)'; e.target.style.borderColor = 'var(--border)'; }}
+                    title="Edit medicine"
+                  >
+                    <Pencil size={16} color="var(--ink)" />
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      )}
+
 
       <AnimatedModal isOpen={showCsvImport} onClose={() => setShowCsvImport(false)}>
         <CsvImport

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useMemo } from 'react';
 import {
   IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
-  IconTools, IconQrcode, IconMessage
+  IconTools, IconQrcode, IconMessage, IconCloudRain
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { to: '/scanner', label: 'Scanner', icon: IconQrcode, section: 'MAIN MENU' },
   { to: '/ai-chat', label: 'AI Chat', icon: IconMessage, section: 'MAIN MENU' },
   { to: '/ai-insights', label: 'AI Insights', icon: IconBrain, section: 'OPERATIONS' },
+  { to: '/weather-recommendations', label: 'Weather Stock', icon: IconCloudRain, section: 'OPERATIONS' },
   { to: '/suppliers', label: 'Suppliers', icon: IconTruck, section: 'OPERATIONS' },
 ];
 const ADMIN_ITEMS = [
@@ -107,11 +108,25 @@ function TopBar({ pageTitle }) {
     navigate(`/medicines?q=${encodeURIComponent(query.trim())}`);
   }
 
-  function handleLogout() { logout(); navigate('/login'); }
+  // Pass `navigate` so AuthContext uses React Router instead of a hard reload.
+  function handleLogout() { logout(navigate); }
 
   return (
     <header className="topbar">
-      <div className="breadcrumb">{pageTitle}</div>
+      {/* Animated breadcrumb — slides in when page title changes */}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={pageTitle}
+          className="breadcrumb"
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+        >
+          {pageTitle}
+        </motion.div>
+      </AnimatePresence>
+
       <div className="topbar-actions" style={{ flex: 1, justifyContent: 'flex-end' }}>
         <form className="search-bar" ref={searchRef} onSubmit={handleSearchSubmit} role="search">
           <IconSearch size={15} className="search-icon" stroke={1.8} />
@@ -125,7 +140,7 @@ function TopBar({ pageTitle }) {
           {searchOpen && term && (
             <div className="search-results">
               {results.length === 0
-                ? <div className="search-result-item" style={{ color: 'var(--steel)', cursor: 'default' }}>No medicines match “{query.trim()}”</div>
+                ? <div className="search-result-item" style={{ color: 'var(--steel)', cursor: 'default' }}>No medicines match "{query.trim()}"</div>
                 : results.map((m) => (
                   <button key={m.id} type="button" className="search-result-item" onClick={() => goToMedicine(m)}>
                     {m.name} <span>{[m.strength, m.dosage_form].filter(Boolean).join(' · ')}</span>
@@ -135,31 +150,46 @@ function TopBar({ pageTitle }) {
           )}
         </form>
 
-        <button className="icon-btn" onClick={() => navigate('/notifications')}>
+        <button className="icon-btn" onClick={() => navigate('/notifications')} aria-label="Notifications">
           <IconBellRinging size={18} stroke={1.8} />
           {unread > 0 && <span className="dot-badge" />}
         </button>
 
         <div className="avatar-wrapper" ref={menuRef}>
-          <button className="avatar-trigger" onClick={() => setMenuOpen((o) => !o)}>
+          <button className="avatar-trigger" onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen}>
             <span className="avatar-circle">{initials(user?.full_name)}</span>
             <div className="avatar-info">
               <span className="avatar-name">{user?.full_name?.split(' ')[0]}</span>
               <span className="avatar-email">{user?.email}</span>
             </div>
-            <IconChevronDown size={14} stroke={1.8} color="var(--steel)" />
+            {/* Chevron rotates smoothly when menu opens */}
+            <IconChevronDown
+              size={14}
+              stroke={1.8}
+              className={`avatar-chevron${menuOpen ? ' open' : ''}`}
+            />
           </button>
-          {menuOpen && (
-            <div className="avatar-menu">
-              <div className="avatar-menu-header">
-                <strong>{user?.full_name}</strong>
-                <span>{user?.role}</span>
-              </div>
-              <button className="avatar-menu-item" onClick={handleLogout}>
-                <IconLogout size={15} stroke={1.8} /> Log out
-              </button>
-            </div>
-          )}
+
+          <AnimatePresence>
+            {menuOpen && (
+              <motion.div
+                className="avatar-menu"
+                initial={{ opacity: 0, scale: 0.94, y: -6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.94, y: -6 }}
+                transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+                style={{ transformOrigin: 'top right' }}
+              >
+                <div className="avatar-menu-header">
+                  <strong>{user?.full_name}</strong>
+                  <span>{user?.role}</span>
+                </div>
+                <button className="avatar-menu-item danger" onClick={handleLogout}>
+                  <IconLogout size={15} stroke={1.8} /> Log out
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </header>
@@ -171,6 +201,7 @@ export default function Layout({ children }) {
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
   const pageTitle = useMemo(() => ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub', [location.pathname]);
+  const visibleItems = user?.role === 'admin' ? ALL_ITEMS : NAV_ITEMS;
 
   useEffect(() => {
     const title = pageTitle === 'MediHub' ? 'MediHub' : `${pageTitle} · MediHub`;
@@ -183,7 +214,7 @@ export default function Layout({ children }) {
         <div className="sidebar-logo"><span className="dot" />MEDI<span>HUB</span></div>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {Object.entries(
-            ALL_ITEMS.reduce((acc, item) => {
+            visibleItems.reduce((acc, item) => {
               if (!acc[item.section]) acc[item.section] = [];
               acc[item.section].push(item);
               return acc;
@@ -212,7 +243,7 @@ export default function Layout({ children }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: prefersReducedMotion ? 0 : 0.25, ease: [0.4, 0, 0.2, 1] }}
-            style={{ minHeight: '100%' }}
+            style={{ height: '100%' }}
           >
             {children}
           </motion.div>

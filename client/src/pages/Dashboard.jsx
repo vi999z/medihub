@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { motion, useReducedMotion } from 'framer-motion';
-import { IconPill, IconWallet, IconAlertTriangle, IconPackageOff, IconSearch, IconFilter } from '@tabler/icons-react';
+import { IconPill, IconWallet, IconAlertTriangle, IconPackageOff, IconSearch, IconFilter, IconCloudRain } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import AnimatedNumber from '../components/AnimatedNumber';
@@ -22,6 +23,57 @@ const SEVERITY_COLORS = {
   warning: '#d69e2e', 
   safe: '#2f855a'
 };
+
+function WeatherAlertWidget({ prefersReducedMotion }) {
+  const navigate = useNavigate();
+  const [weatherData, setWeatherData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/ai/weather-recommendations?city=Manila,PH')
+      .then(res => { setWeatherData(res.data); })
+      .catch(() => { /* silent fail */ })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Skeleton height={72} radius={14} style={{ marginBottom: 20 }} />;
+  if (!weatherData || weatherData.total_items_flagged === 0) return null;
+
+  const { critical_count, high_count, total_items_flagged, weather } = weatherData;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.35 }}
+      onClick={() => navigate('/weather-recommendations')}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px',
+        marginBottom: 20, borderRadius: 14, cursor: 'pointer',
+        background: critical_count > 0
+          ? 'linear-gradient(135deg, #f8ecec 0%, #f0e0e0 100%)'
+          : 'linear-gradient(135deg, #fef9ec 0%, #f8eecc 100%)',
+        border: `1px solid ${critical_count > 0 ? 'rgba(139,90,90,0.25)' : 'rgba(160,128,80,0.25)'}`,
+        transition: 'box-shadow 0.15s',
+      }}
+      whileHover={{ boxShadow: 'var(--shadow-md)' }}
+    >
+      <IconCloudRain size={28} style={{ color: critical_count > 0 ? 'var(--red)' : 'var(--amber)', flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: critical_count > 0 ? 'var(--red)' : 'var(--amber)' }}>
+          ⚠️ Weather alert: {total_items_flagged} medicine{total_items_flagged > 1 ? 's' : ''} need restocking
+          {critical_count > 0 && ` (${critical_count} critical)`}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--steel)', marginTop: 2 }}>
+          {weather?.season === 'wet' ? '☔ Wet season' : '☀️ Dry season'}
+          {weather?.condition && ` · ${weather.condition}`}
+          {' · '}Demand surge expected for cold/flu, cough, and related medicines
+        </div>
+      </div>
+      <span style={{ fontSize: 12, color: 'var(--steel)', flexShrink: 0 }}>View details →</span>
+    </motion.div>
+  );
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -81,6 +133,8 @@ export default function Dashboard() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
     >
+      <WeatherAlertWidget prefersReducedMotion={prefersReducedMotion} />
+
       <div className="page-header">
         <div>
           <h1>Dashboard</h1>

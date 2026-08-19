@@ -45,13 +45,8 @@ export default function AuditLog() {
           <p>{loading ? 'Loading activity…' : `${visibleLogs.length} of the ${logs.length} most recent system actions`}</p>
         </div>
       </div>
-      <motion.div 
-        className="card table-card" 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-      >
-        <div className="filter-bar">
+      <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
+        <div className="filter-bar" style={{ margin: 0 }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -67,70 +62,99 @@ export default function AuditLog() {
             )}
           </div>
         </div>
+      </div>
 
-        {error && (
-          <div className="empty-state">
-            <strong>Unable to load audit logs</strong>
-            <p style={{ margin: '6px 0 0' }}>{error}</p>
-            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={() => window.location.reload()}>Retry</button>
-          </div>
-        )}
+      {error && (
+        <div className="empty-state">
+          <strong>Unable to load audit logs</strong>
+          <p style={{ margin: '6px 0 0' }}>{error}</p>
+          <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={() => window.location.reload()}>Retry</button>
+        </div>
+      )}
 
-        {!loading && !error && visibleLogs.length === 0 && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
-              <tbody>
-                <tr className="empty-row">
-                  <td colSpan={4}>
-                    <div className="empty-state compact-empty-state">
-                      {logs.length === 0 ? 'No activity recorded yet.' : `No entries match "${search}".`}
+      {!loading && !error && visibleLogs.length === 0 && (
+        <div className="empty-state">
+          <strong>No activity found</strong>
+          <p style={{ margin: '6px 0 0' }}>{logs.length === 0 ? 'No activity recorded yet.' : `No entries match "${search}".`}</p>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="card" style={{ height: '220px' }}>
+              <Skeleton height={16} style={{ marginBottom: '12px' }} />
+              <Skeleton height={16} style={{ marginBottom: '8px' }} />
+              <Skeleton height={16} style={{ marginBottom: '16px' }} />
+              <Skeleton height={16} style={{ marginBottom: '12px' }} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && !error && visibleLogs.length > 0 && (
+        <motion.div 
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <StaggeredList staggerDelay={0.03}>
+            {visibleLogs.map((l) => {
+              const actionColorMap = { 'create': 'var(--green)', 'update': 'var(--amber)', 'delete': 'var(--red)', 'login': 'var(--green)', 'logout': 'var(--steel)', 'export': 'var(--gold)' };
+              const actionKey = l.action.split('_')[0].toLowerCase();
+              return (
+                <motion.div
+                  key={l.id}
+                  className="card"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: '16px',
+                    borderTop: `4px solid ${actionColorMap[actionKey] || 'var(--steel)'}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
+                >
+                  {/* Top Row: Time & Action */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <span className="stamp" style={{ fontSize: '11px' }}>{new Date(l.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: `${actionColorMap[actionKey] || 'var(--steel)'}15`, color: actionColorMap[actionKey] || 'var(--steel)', textTransform: 'capitalize' }}>
+                      {l.action.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+
+                  {/* Middle Content */}
+                  <div style={{ flex: 1, marginBottom: '12px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)', marginBottom: '4px', lineHeight: 1.3 }}>
+                      {l.action.replace(/_/g, ' ').toUpperCase()}
                     </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
+                    {l.details && (
+                      <div style={{ fontSize: '12px', color: 'var(--steel)', marginBottom: '4px', lineHeight: 1.4, maxHeight: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {l.details}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '11px', color: 'var(--steel)', marginTop: '8px' }}>
+                      <span className="stamp" style={{ fontSize: '10px' }}>{new Date(l.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
 
-        {loading && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
-              <tbody>
-                {[1, 2, 3, 4].map((i) => (
-                  <tr key={i}>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {!loading && !error && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
-              <StaggeredList staggerDelay={0.03}>
-                <tbody>
-                  {visibleLogs.map((l) => (
-                    <tr key={l.id}>
-                      <td><span className="stamp">{new Date(l.created_at).toLocaleString()}</span></td>
-                      <td>{l.user_name || 'System'}</td>
-                      <td style={{ textTransform: 'capitalize' }}>{l.action.replace(/_/g, ' ')}</td>
-                      <td style={{ color: 'var(--steel)' }}>{l.details}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </StaggeredList>
-            </table>
-          </div>
-        )}
-      </motion.div>
+                  {/* Bottom Row: Avatar + User */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
+                      {(l.user_name || 'S').charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {l.user_name || 'System'}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </StaggeredList>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

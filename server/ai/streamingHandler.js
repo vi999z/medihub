@@ -10,7 +10,7 @@ const { selectAvailableModel, MODEL_FALLBACK_CHAIN } = require('./medicalLLM');
  * Stream a response using Server-Sent Events (SSE)
  * Allows real-time token-by-token response display
  */
-async function streamGeminiResponse(question, systemPrompt, res) {
+async function streamGeminiResponse(question, systemPrompt, history, context, res, imageBase64 = null, mimeType = null) {
   try {
     const apiKey = process.env.GOOGLE_AI_API_KEY;
     if (!apiKey) {
@@ -29,7 +29,24 @@ async function streamGeminiResponse(question, systemPrompt, res) {
     // Select best available model from fallback chain
     const selectedModel = await selectAvailableModel(apiKey);
 
+    // Build contents from conversation history + current question
+    const historyContents = (history || []).map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
+    // Ensure the current question is the last user message (with optional image)
+    if (historyContents.length === 0 || historyContents[historyContents.length - 1].role !== 'user') {
+      const userParts = [];
+      if (imageBase64 && mimeType) {
+        userParts.push({ inlineData: { mimeType, data: imageBase64 } });
+      }
+      userParts.push({ text: question });
+      historyContents.push({ role: 'user', parts: userParts });
+    }
+
     // Call Gemini API with streaming
+    const { buildGeminiTools } = require('./geminiClient');
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:streamGenerateContent?key=${apiKey}`,
       {
@@ -40,16 +57,11 @@ async function streamGeminiResponse(question, systemPrompt, res) {
             parts: [{ text: systemPrompt }],
             role: 'system'
           },
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: question }]
-            }
-          ],
+          contents: historyContents,
+          tools: buildGeminiTools(),
           generationConfig: {
-            maxOutputTokens: 600,  // Reduced from 1200 for faster streaming
-            temperature: 0.5,      // Reduced for faster focused responses
-            // Removed topP and topK for speed
+            maxOutputTokens: 8192,
+            temperature: 0.7,
           }
         })
       }
@@ -67,6 +79,7 @@ async function streamGeminiResponse(question, systemPrompt, res) {
     const decoder = new TextDecoder();
     let buffer = '';
     let tokenCount = 0;
+    let fullText = '';
 
     while (true) {
       const { done, value } = await reader.read();
@@ -76,22 +89,33 @@ async function streamGeminiResponse(question, systemPrompt, res) {
       const lines = buffer.split('\n');
 
       for (let i = 0; i < lines.length - 1; i++) {
-        const line = lines[i].trim();
-        if (line) {
-          try {
-            const data = JSON.parse(line);
-            if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-              const text = data.candidates[0].content.parts[0].text;
-              tokenCount++;
-              res.write(`data: ${JSON.stringify({ content: text, token: tokenCount })}\n\n`);
-            }
-          } catch (e) {
-            console.error('Parse error:', e);
+        // Gemini streamGenerateContent returns a JSON array stream:
+        // each chunk line may start with "[", ",", or "]" — strip those
+        // so each element can be parsed as a standalone JSON object.
+        const raw = lines[i].trim();
+        if (!raw || raw === '[' || raw === ']') continue;
+        const line = raw.startsWith(',') ? raw.slice(1).trim() : raw;
+        if (!line) continue;
+        try {
+          const data = JSON.parse(line);
+          if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+            const text = data.candidates[0].content.parts[0].text;
+            fullText += text;
+            tokenCount++;
+            res.write(`data: ${JSON.stringify({ content: text, token: tokenCount })}\n\n`);
           }
+        } catch (e) {
+          // skip unparseable lines silently (partial chunks will be retried next iteration)
         }
       }
 
       buffer = lines[lines.length - 1];
+    }
+
+    // Persist the exchange to conversation context so follow-up turns are aware of it
+    if (context && fullText) {
+      context.addMessage('user', question);
+      context.addMessage('assistant', fullText);
     }
 
     res.write(`data: ${JSON.stringify({ status: 'completed', tokenCount })}\n\n`);

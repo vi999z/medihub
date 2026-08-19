@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api'
+  baseURL: import.meta.env.VITE_API_URL || '/api',
 });
 
 const cache = new Map();
@@ -35,12 +35,15 @@ api.invalidateCache = function invalidateCache(url) {
   cache.delete(`GET:${url}`);
 };
 
+api.clearAllCache = function clearAllCache() {
+  cache.clear();
+};
+
+// Attach the JWT from localStorage as a Bearer token on every request.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('medihub_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-  } else {
-    console.warn('No token found in localStorage for request:', config.url);
   }
   return config;
 });
@@ -54,12 +57,8 @@ api.setAuthLogout = function setAuthLogout(callback) {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('medihub_token');
-      localStorage.removeItem('medihub_user');
-      if (on401Callback) {
-        on401Callback();
-      }
+    if (err.response?.status === 401 && on401Callback) {
+      on401Callback();
     }
     return Promise.reject(err);
   }

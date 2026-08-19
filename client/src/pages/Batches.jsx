@@ -230,13 +230,8 @@ export default function Batches() {
         </motion.form>
       )}
 
-      <motion.div 
-        className="card table-card" 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-      >
-        <div className="filter-bar">
+      <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
+        <div className="filter-bar" style={{ margin: 0 }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -262,95 +257,155 @@ export default function Batches() {
             </button>
           )}
         </div>
+      </div>
 
-        {error && (
-          <div className="empty-state">
-            <strong>Unable to load batches</strong>
-            <p style={{ margin: '6px 0 0' }}>{error}</p>
-            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
-          </div>
-        )}
+      {error && (
+        <div className="empty-state">
+          <strong>Unable to load batches</strong>
+          <p style={{ margin: '6px 0 0' }}>{error}</p>
+          <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
+        </div>
+      )}
 
-        {loading && (
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr><th>Medicine</th><th>Batch</th><th>Expiry</th><th>Remaining</th><th>Status</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-              {[1, 2, 3, 4].map((i) => (
-                <tr key={i}>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                  <td><Skeleton height={16} /></td>
-                </tr>
-              ))}
-            </tbody>
-            </table>
-          </div>
-        )}
+      {loading && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="card" style={{ height: '280px' }}>
+              <Skeleton height={16} style={{ marginBottom: '12px' }} />
+              <Skeleton height={16} style={{ marginBottom: '8px' }} />
+              <Skeleton height={16} style={{ marginBottom: '16px' }} />
+              <Skeleton height={16} style={{ marginBottom: '12px' }} />
+              <Skeleton height={40} style={{ borderRadius: '999px' }} />
+            </div>
+          ))}
+        </div>
+      )}
 
-        {!loading && !error && (
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr><th>Medicine</th><th>Batch</th><th>Expiry</th><th>Remaining</th><th>Status</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                {visibleBatches.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--steel)' }}>
-                      <div style={{ fontSize: 14 }}>
-                        {batches.length === 0 ? 'No batches recorded yet.' : 'No batches match the current filters.'}
+      {!loading && !error && visibleBatches.length === 0 && (
+        <div className="empty-state">
+          <strong>No batches found</strong>
+          <p style={{ margin: '6px 0 0' }}>{batches.length === 0 ? 'No batches recorded yet.' : 'No batches match the current filters.'}</p>
+          {filtersActive && (
+            <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
+          )}
+        </div>
+      )}
+
+      {!loading && !error && visibleBatches.length > 0 && (
+        <motion.div 
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <StaggeredList staggerDelay={0.03}>
+            {visibleBatches.map((b) => {
+              const pill = statusPillFor(b);
+              const borderColorMap = { 'safe': 'var(--green)', 'warning': 'var(--gold)', 'critical': 'var(--red)' };
+              return (
+                <motion.div
+                  key={b.id}
+                  className="card"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: '16px',
+                    borderTop: `4px solid ${borderColorMap[pill.cls]}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
+                >
+                  {/* Top Row: ID & Status */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <span className="stamp" style={{ fontSize: '11px' }}>ID: {b.id}</span>
+                    <span className={`status-pill ${pill.cls}`} style={{ fontSize: '10px', padding: '3px 8px' }}>{pill.label}</span>
+                  </div>
+
+                  {/* Middle Content */}
+                  <div style={{ flex: 1, marginBottom: '12px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)', marginBottom: '4px', lineHeight: 1.3 }}>
+                      {b.medicine_name}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--steel)', marginBottom: '8px', lineHeight: 1.4 }}>
+                      Batch: <span className="stamp" style={{ fontSize: '11px' }}>{b.batch_number}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                      <div>
+                        <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Remaining</div>
+                        <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{b.quantity_remaining}</div>
                       </div>
-                      {filtersActive && (
-                        <button type="button" className="btn btn-secondary" style={{ marginTop: 12 }} onClick={clearFilters}>Clear filters</button>
-                      )}
-                    </td>
-                  </tr>
-                ) : (
-                  <StaggeredList staggerDelay={0.03}>
-                    {visibleBatches.map((b) => {
-                      const pill = statusPillFor(b);
-                      return (
-                        <tr key={b.id}>
-                          <td style={{ fontWeight: 500 }}>{b.medicine_name}</td>
-                          <td><span className="stamp">{b.batch_number}</span></td>
-                          <td><span className="stamp">{new Date(b.expiry_date).toLocaleDateString()}</span></td>
-                          <td>{b.quantity_remaining}</td>
-                          <td><span className={`status-pill ${pill.cls}`}>{pill.label}</span></td>
-                          <td>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                              <button className="btn-icon" onClick={() => openEdit(b)} title="Edit batch"><Pencil size={14} /></button>
-                              <button className="btn-icon" onClick={() => { setQrBatch(b); setShowQRModal(true); }} title="Show QR code"><QrCode size={14} /></button>
-                              <button className="btn-icon" onClick={async () => {
-                                if (!window.confirm(`Delete batch ${b.batch_number}?`)) return;
-                                try {
-                                  await api.delete(`/batches/${b.id}`);
-                                  api.invalidateCache('/batches');
-                                  api.invalidateCache('/notifications');
-                                  api.invalidateCache('/notifications?unread=true');
-                                  await fetchAll();
-                                  addToast('Batch deleted', 'success');
-                                } catch (err) {
-                                  addToast(err.response?.data?.error || 'Could not delete batch', 'error');
-                                }
-                              }} title="Delete batch"><Trash2 size={14} /></button>
-                              </div>
-                            </td>
-                        </tr>
-                      );
-                    })}
-                  </StaggeredList>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </motion.div>
+                      <div>
+                        <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Expiry</div>
+                        <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{new Date(b.expiry_date).toLocaleDateString()}</div>
+                      </div>
+                    </div>
+                    {b.supplier_name && (
+                      <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)', fontSize: '11px', color: 'var(--steel)' }}>
+                        Supplier: <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{b.supplier_name}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bottom Row: Avatar + Label + Actions */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
+                        {b.medicine_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.medicine_name.substring(0, 12)}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => openEdit(b)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          background: 'var(--bg-subtle)',
+                          border: '1px solid var(--border)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--amber-tint)'; e.currentTarget.style.borderColor = 'var(--amber)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-subtle)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                        title="Edit batch"
+                      >
+                        <Pencil size={14} color="var(--ink)" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setQrBatch(b); setShowQRModal(true); }}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          background: 'var(--bg-subtle)',
+                          border: '1px solid var(--border)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--amber-tint)'; e.currentTarget.style.borderColor = 'var(--amber)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-subtle)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                        title="Show QR code"
+                      >
+                        <QrCode size={14} color="var(--ink)" />
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </StaggeredList>
+        </motion.div>
+      )}
 
       {showQRModal && qrBatch && (
         <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowQRModal(false)}>

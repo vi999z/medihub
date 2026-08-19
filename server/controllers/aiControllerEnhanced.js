@@ -4,7 +4,11 @@
  * Replaces the basic Google AI calls with sophisticated reasoning and context awareness
  */
 
+<<<<<<< HEAD
 const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand, analyzeEfficiency, chatWithFileGeneration, getModelConfig } = require('../ai/medicalLLM');
+=======
+const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, buildGeminiTools, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand: forecastDemandModel, analyzeEfficiency: analyzeEfficiencyModel, chatWithFileGeneration } = require('../ai/medicalLLM');
+>>>>>>> aeddf5050fb78a25b037d8ca2285fc925142142f
 const { explainAnomaly, explainExpiryRisk, explainReorderRecommendation, generatePharmacyHealthReport } = require('../ai/modelExplainer');
 const { streamGeminiResponse } = require('../ai/streamingHandler');
 const { trainAndPersist, scoreActiveBatches } = require('../ai/expiryRiskModel');
@@ -18,7 +22,7 @@ const conversationContexts = new Map();
 
 function getUserContext(userId) {
   if (!conversationContexts.has(userId)) {
-    conversationContexts.set(userId, new ConversationContext(userId, 5)); // Increased to 5 turns for better context
+    conversationContexts.set(userId, new ConversationContext(userId, 20));
   }
   return conversationContexts.get(userId);
 }
@@ -201,7 +205,7 @@ async function forecastDemandHandler(req, res) {
   try {
     const { forecast_period = 90 } = req.body;
 
-    const result = await forecastDemand(forecast_period);
+    const result = await forecastDemandModel(forecast_period);
 
     if (result.error) {
       return res.status(500).json({ error: result.error });
@@ -228,7 +232,7 @@ async function analyzeEfficiencyHandler(req, res) {
   try {
     const { focus_area = 'overall' } = req.body;
 
-    const result = await analyzeEfficiency(focus_area);
+    const result = await analyzeEfficiencyModel(focus_area);
 
     if (result.error) {
       return res.status(500).json({ error: result.error });
@@ -318,12 +322,12 @@ async function setPreferredModel(req, res) {
 async function generateDownloadableFile(req, res) {
   try {
     const { file_type, content, filename } = req.body;
-
     if (!file_type || !content) {
       return res.status(400).json({ error: 'file_type and content are required' });
     }
 
     const exportCtrl = require('./exportController');
+<<<<<<< HEAD
 
     // Handle async file generation (PDF, Excel, Word)
     if (file_type === 'pdf') {
@@ -367,23 +371,31 @@ async function generateDownloadableFile(req, res) {
         break;
       default:
         return res.status(400).json({ error: 'Unsupported file type' });
+=======
+    const BINARY = ['pdf', 'excel', 'xlsx', 'word', 'docx'];
+
+    if (BINARY.includes(file_type)) {
+      const { buffer, contentType, filename: outName } = await exportCtrl.buildBinaryExport(content, file_type, filename);
+      await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${outName}`, req);
+      return res
+        .setHeader('Content-Type', contentType)
+        .setHeader('Content-Disposition', `attachment; filename="${outName}"`)
+        .send(buffer);
+>>>>>>> aeddf5050fb78a25b037d8ca2285fc925142142f
     }
 
-    await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${filename}`, req);
-
+    const result = exportCtrl.buildReportExport(content, file_type);
+    await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${result.filename}`, req);
     return res.json({
       success: true,
       file_type,
       filename: result.filename || filename,
       content: result.body,
-      content_type: result.contentType
+      content_type: result.contentType,
     });
   } catch (err) {
     console.error('File generation failed:', err);
-    res.status(500).json({
-      error: 'Failed to generate file',
-      detail: err.message
-    });
+    res.status(500).json({ error: 'Failed to generate file', detail: err.message });
   }
 }
 
@@ -446,7 +458,7 @@ async function generateReportWithDownload(req, res) {
 // ─── Modern Chat with Conversation History & Function Calling ───
 async function chatModern(req, res) {
   try {
-    const { question, stream = false } = req.body;
+    const { question, stream = false, image_base64, mime_type } = req.body;
     const userId = req.user.id;
 
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
@@ -466,16 +478,16 @@ async function chatModern(req, res) {
     // Try modern approach first
     try {
       if (stream) {
-        // Stream response mode (like ChatGPT)
+        // Stream response mode — pass full history and context for stateful streaming
         const systemPrompt = buildSystemPrompt(
           context.getContext(),
           detectIntention(question)
         );
 
-        return streamGeminiResponse(question, systemPrompt, res);
+        return streamGeminiResponse(question, systemPrompt, context.getHistory(), context, res, image_base64 || null, mime_type || null);
       } else {
         // Regular response mode (faster) with file generation support
-        const result = await chatWithFileGeneration(question, userId, context);
+        const result = await chatWithFileGeneration(question, userId, context, image_base64 || null, mime_type || null);
 
         // Log interaction
         await logAudit(
@@ -492,7 +504,8 @@ async function chatModern(req, res) {
           timestamp: result.timestamp,
           conversation_turn: Math.floor(context.getHistory().length / 2),
           topics: context.metadata.topics,
-          file_request: result.file_request || null
+          file_request:  result.file_request  || null,
+          file_requests: result.file_requests || null,
         });
       }
     } catch (modernErr) {
@@ -515,10 +528,10 @@ async function chatModern(req, res) {
 async function fallbackChat(question, userId, apiKey, req, res, context) {
   try {
     const [summary, expiring, lowStock, trend] = await Promise.all([
-      pool.query('SELECT * FROM summary_view').then(r => r[0] || {}).catch(() => ({})),
-      pool.query('SELECT * FROM batches WHERE status = "active" AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) ORDER BY expiry_date ASC LIMIT 10').catch(() => []),
-      pool.query('SELECT * FROM low_stock_view LIMIT 10').catch(() => []),
-      pool.query('SELECT * FROM sales_trend_view ORDER BY date DESC LIMIT 30').catch(() => []),
+      pool.query('SELECT * FROM summary_view').then(r => r[0]?.[0] || {}).catch(() => ({})),
+      pool.query('SELECT * FROM batches WHERE status = "active" AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) ORDER BY expiry_date ASC LIMIT 10').then(r => r[0] || []).catch(() => []),
+      pool.query('SELECT * FROM low_stock_view LIMIT 10').then(r => r[0] || []).catch(() => []),
+      pool.query('SELECT * FROM sales_trend_view ORDER BY date DESC LIMIT 30').then(r => r[0] || []).catch(() => []),
     ]);
 
     const systemPrompt = `You are a helpful pharmacy AI assistant for MediHub.
@@ -530,8 +543,13 @@ Answer questions about inventory based on this data:
 
 Keep responses concise, conversational, and data-driven. If data is empty, provide helpful suggestions about what data would be needed.`;
 
+<<<<<<< HEAD
     // Try working models in order (Gemini 3 optimized)
     const models = ['gemini-3.5-flash-exp', 'gemini-3.5-flash', 'gemini-3.0-flash', 'gemini-2.5-flash'];
+=======
+    // Try working models in order
+    const models = ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+>>>>>>> aeddf5050fb78a25b037d8ca2285fc925142142f
     let lastError = null;
 
     for (const model of models) {
@@ -570,7 +588,9 @@ Keep responses concise, conversational, and data-driven. If data is empty, provi
           continue;
         }
 
-        const data = await response.json();
+        const responseText = await response.text();
+        let data;
+        try { data = JSON.parse(responseText); } catch { lastError = new Error(`Model ${model} returned invalid JSON`); continue; }
         const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
 
         if (context) {
@@ -633,6 +653,19 @@ async function clearConversation(req, res) {
 }
 
 // ─── Get conversation metadata ───
+// ─── Weather Inventory Recommendations ───────────────────────────────────────
+async function getWeatherRecommendations(req, res) {
+  try {
+    const { getWeatherInventoryRecommendations } = require('../ai/inventoryQueries');
+    const city = req.query.city || 'Lucena City,PH';
+    const data = await getWeatherInventoryRecommendations(city);
+    res.json(data);
+  } catch (err) {
+    console.error('[Weather] Recommendations error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 async function getConversationInfo(req, res) {
   try {
     const userId = req.user.id;
@@ -719,6 +752,9 @@ module.exports = {
   // File generation endpoints
   generateDownloadableFile,
   generateReportWithDownload,
+
+  // Weather-aware inventory recommendations
+  getWeatherRecommendations,
 
   // Backward compatible endpoints
   getExpiryRisk,

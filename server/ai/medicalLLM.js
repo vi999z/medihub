@@ -1,9 +1,21 @@
 /**
- * Modern Medical LLM System
- * Implements advanced prompting, function calling, and medical reasoning
- * Designed to act like modern LLMs (Gemini, GPT-4) with pharmacy expertise
+ * medicalLLM — barrel re-export
+ *
+ * All logic has been split into focused modules:
+ *   llmConfig.js          — model chain, system prompt, response templates
+ *   inventoryQueries.js   — database query functions
+ *   analysisHelpers.js    — report, strategy, forecast, efficiency logic
+ *   conversationContext.js — ConversationContext class
+ *   geminiClient.js       — function calling, tools, intention detection
+ *   responseBuilder.js    — text extraction, fallback response building
+ *   modernChat.js         — modernChat & chatWithFileGeneration
+ *
+ * This file preserves the original module.exports shape so all existing
+ * consumers (aiControllerEnhanced, streamingHandler, modelExplainer, tests)
+ * continue to work without modification.
  */
 
+<<<<<<< HEAD
 const { pool } = require('../config/db');
 const { scoreActiveBatches } = require('./expiryRiskModel');
 const { getReorderSuggestions } = require('./demandForecastModel');
@@ -1353,6 +1365,25 @@ async function modernChat(question, userId, context = null) {
     throw err;
   }
 }
+=======
+const { MODEL_FALLBACK_CHAIN } = require('./llmConfig');
+const { ConversationContext } = require('./conversationContext');
+const {
+  AVAILABLE_FUNCTIONS,
+  callFunction,
+  buildSystemPrompt,
+  buildGeminiTools,
+  detectIntention,
+  selectAvailableModel
+} = require('./geminiClient');
+const {
+  extractGeneratedText,
+  buildFallbackInventoryResponse
+} = require('./responseBuilder');
+const { generateReport, createStrategy, forecastDemand, analyzeEfficiency } = require('./analysisHelpers');
+const { modernChat, chatWithFileGeneration } = require('./modernChat');
+const { detectFileRequest } = require('./responseBuilder');
+>>>>>>> aeddf5050fb78a25b037d8ca2285fc925142142f
 
 module.exports = {
   modernChat,
@@ -1361,6 +1392,7 @@ module.exports = {
   AVAILABLE_FUNCTIONS,
   detectIntention,
   buildSystemPrompt,
+  buildGeminiTools,
   selectAvailableModel,
   MODEL_FALLBACK_CHAIN,
   GEMINI_3_CONFIG,
