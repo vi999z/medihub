@@ -1,44 +1,100 @@
 /**
  * Modern Chat
  * Core chat entry points using the @google/genai SDK.
- * Uses gemini-3.6-flash as the primary model with a fallback chain.
+ *
+ * Model IDs and best practices sourced directly from:
+ *   https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5
+ *   https://ai.google.dev/gemini-api/docs/latest-model
+ *
+ * Key rules for Gemini 3.x (enforced here):
+ *  - Do NOT set temperature / top_p / top_k — not recommended, defaults are optimised.
+ *  - Use thinkingConfig { thinkingBudget } (or thinking_level) instead of thinking_budget.
+ *  - Every FunctionResponse must include the `id` from the matching FunctionCall.
+ *  - Default thinking effort is "medium" — use "low" for speed, "high" for hard tasks.
  */
 
 const { GoogleGenAI, HarmCategory, HarmBlockThreshold } = require('@google/genai');
 const { buildSystemPrompt, buildGeminiTools, detectIntention, callFunction } = require('./geminiClient');
 const { extractGeneratedText, buildFallbackInventoryResponse, detectFileRequest, detectGeneratedContent } = require('./responseBuilder');
 
-// ─── Model fallback chain (newest → oldest) ───
-// Start with proven, fast models first. The "3.x" names don't exist in the
-// real Gemini API — using them causes immediate failure and slows every request
-// down by burning through the entire fallback chain. Real model IDs only.
-// Model names confirmed from Gemini API 404 redirect messages (July 2025)
+// ─── Model fallback chain (best → reliable) ───
+// Source: https://ai.google.dev/gemini-api/docs/latest-model (July 2025)
+//  gemini-3.5-flash      – GA, most intelligent Flash, best for agentic/coding/long-horizon
+//  gemini-3.1-flash-lite – stable long-term, low cost/high-volume fallback
+//  gemini-3-flash-preview – still available, previous preview generation
+//  gemini-2.5-flash      – previous generation stable fallback
+//  gemini-1.5-flash      – oldest stable fallback, proven reliable
 const MODEL_CHAIN = [
-  'gemini-3.6-flash',        // primary — latest fast model
-  'gemini-3.5-flash',        // second choice
-  'gemini-3.5-flash-lite',   // lite / cost-effective
-  'gemini-3.1-pro-preview',  // most capable fallback
-  'gemini-3.1-flash-lite',   // fast lite fallback
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3-flash-preview',
+  'gemini-2.5-flash',
+  'gemini-1.5-flash',
 ];
 
-// Safety settings that allow medical/inventory content
+// Safety settings — permissive enough for medical/pharmacy content
 const SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,       threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
 ];
+
+// ─── Thinking level by intention ───
+// Gemini 3.x: "medium" = default/best for most tasks, "low" = faster/cheaper,
+// "high" = deep reasoning, "minimal" = fastest (near no thinking).
+// Source: https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5#default-effort-level
+function getThinkingLevel(intention) {
+  if (['analysis', 'forecasting', 'anomaly', 'performance'].includes(intention)) {
+    return 'medium'; // complex multi-step — use full default reasoning
+  }
+  if (['expiry', 'reorder', 'trend', 'weather', 'pricing'].includes(intention)) {
+    return 'low'; // data lookup + light reasoning — fast and cheap
+  }
+  return 'minimal'; // conversational / simple queries — fastest response
+}
+
+// For Gemini 3.x: only set maxOutputTokens + thinkingConfig.
+// Do NOT include temperature/topP/topK — not recommended per Google docs.
+// For older models (2.x, 1.5.x) which don't support thinkingConfig, use a plain config.
+function buildConfig(modelName, intention, systemText, tools) {
+  const is3x = modelName.startsWith('gemini-3');
+  const base = {
+    systemInstruction: systemText,
+    tools,
+    maxOutputTokens: 8192,
+    safetySettings: SAFETY_SETTINGS,
+  };
+  if (is3x) {
+    base.thinkingConfig = { thinkingBudget: thinkingLevelToBudget(getThinkingLevel(intention)) };
+  } else {
+    // Older models: safe to pass temperature
+    base.temperature = 0.3;
+    base.topP = 0.9;
+  }
+  return base;
+}
+
+// Map thinking level name → numeric budget (used by thinkingConfig.thinkingBudget)
+// Values sourced from SDK defaults and Gemini docs context:
+//   minimal ≈ 0, low ≈ 1024, medium ≈ 8192, high ≈ 24576
+function thinkingLevelToBudget(level) {
+  switch (level) {
+    case 'minimal': return 0;
+    case 'low':     return 1024;
+    case 'medium':  return 8192;
+    case 'high':    return 24576;
+    default:        return 8192;
+  }
+}
 
 async function modernChat(question, userId, context = null, imageBase64 = null, mimeType = null) {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) throw new Error('AI service not configured');
 
   const intention  = detectIntention(question);
-  // Do NOT use the server-side context for history — the client sends messages
-  // directly and the in-memory context just duplicates them. Use it only for
-  // topic/style metadata passed to the system prompt.
   const systemText = buildSystemPrompt('', intention);
   const tools      = buildGeminiTools();
 
-  // Current turn only — no history from server context (avoids duplication)
+  // Current turn only — server is stateless, client owns history
   const userParts = [];
   if (imageBase64 && mimeType) {
     userParts.push({ inlineData: { mimeType, data: imageBase64 } });
@@ -46,7 +102,8 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
   userParts.push({ text: question });
   const contents = [{ role: 'user', parts: userParts }];
 
-  console.log(`[AI] intention=${intention}  (stateless single-turn)`);
+  const thinkingLevel = getThinkingLevel(intention);
+  console.log(`[AI] intention=${intention}  thinking=${thinkingLevel}  primary=${MODEL_CHAIN[0]}`);
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -54,64 +111,51 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
 
   for (const modelName of MODEL_CHAIN) {
     try {
+      const config = buildConfig(modelName, intention, systemText, tools);
+
       // ── First call: let model decide if it needs tools ──
       const firstResult = await ai.models.generateContent({
         model: modelName,
         contents,
-        config: {
-          systemInstruction: systemText,
-          tools,
-          maxOutputTokens: 2048,
-          temperature: 0.7,
-          safetySettings: SAFETY_SETTINGS,
-        },
+        config,
       });
 
-      const candidate  = firstResult.candidates?.[0];
-      const parts      = candidate?.content?.parts || [];
+      const candidate = firstResult.candidates?.[0];
+      const parts     = candidate?.content?.parts || [];
 
-      // ── Handle function calls ──
+      // ── Handle function calls (run in parallel for speed) ──
       const fnCallParts = parts.filter(p => p.functionCall);
       if (fnCallParts.length > 0) {
         const fnResponseParts = await Promise.all(
           fnCallParts.map(async p => {
-            const { name, args } = p.functionCall;
-            console.log(`[AI] function call: ${name}`, args);
+            const { name, args, id } = p.functionCall;
+            console.log(`[AI] fn: ${name}`, JSON.stringify(args || {}));
             const result = await callFunction(name, args || {});
-            return { functionResponse: { name, response: { result } } };
+            // Gemini 3.x requires id + name to match the originating FunctionCall
+            const response = { name, response: { result } };
+            if (id) response.id = id;
+            return { functionResponse: response };
           })
         );
 
         // ── Second call: feed function results back ──
-        const contentsWithFn = [
-          ...contents,
-          { role: 'model',    parts },
-          { role: 'function', parts: fnResponseParts },
-        ];
-
         const secondResult = await ai.models.generateContent({
           model: modelName,
-          contents: contentsWithFn,
-          config: {
-            systemInstruction: systemText,
-            tools,
-            maxOutputTokens: 2048,
-            temperature: 0.7,
-            safetySettings: SAFETY_SETTINGS,
-          },
+          contents: [
+            ...contents,
+            { role: 'model',    parts },
+            { role: 'function', parts: fnResponseParts },
+          ],
+          config,
         });
 
         const finalText = extractGeneratedText(secondResult) || await buildFallbackInventoryResponse(question);
-
-        // Do not mutate server-side context — client owns the history
         return { response: finalText, intention, model: modelName, timestamp: new Date().toISOString() };
       }
 
       // ── No function call — use direct text ──
       const aiText    = extractGeneratedText(firstResult);
       const finalText = aiText || await buildFallbackInventoryResponse(question);
-
-
       return { response: finalText, intention, model: modelName, timestamp: new Date().toISOString() };
     } catch (err) {
       console.warn(`[AI] ${modelName} failed: ${err.message}`);
@@ -119,10 +163,9 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
     }
   }
 
-  // All models failed — return a local DB-driven fallback
+  // All models failed — DB-driven local fallback
   console.error('[AI] All models in chain failed:', lastError?.message);
   const recoveryResponse = await buildFallbackInventoryResponse(question);
-
   return { response: recoveryResponse, intention, model: 'local_fallback', timestamp: new Date().toISOString() };
 }
 
@@ -135,8 +178,8 @@ async function chatWithFileGeneration(question, userId, context = null, imageBas
   if (generatedFiles.length > 0) {
     return {
       ...standardResponse,
-      file_requests: generatedFiles,           // array: one entry per fenced block
-      file_request:  generatedFiles[0],        // backwards-compat single field
+      file_requests: generatedFiles,
+      file_request:  generatedFiles[0],
     };
   }
 

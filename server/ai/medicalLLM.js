@@ -20,129 +20,62 @@ const { scoreActiveBatches } = require('./expiryRiskModel');
 const { getReorderSuggestions } = require('./demandForecastModel');
 const { detectAnomalies } = require('./anomalyDetection');
 
-// ─── Model Configuration with Fallback Chain (Latest Gemini 3 Models) ───
-// Model names confirmed from Gemini API 404 redirect messages (July 2025)
+// ─── Model Fallback Chain ───
+// Source: https://ai.google.dev/gemini-api/docs/latest-model (July 2025)
 const MODEL_FALLBACK_CHAIN = [
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-pro-preview',
-  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash',       // GA, most intelligent Flash — agentic, coding, long-horizon
+  'gemini-3.1-flash-lite',  // stable long-term, low cost/high-volume
+  'gemini-3-flash-preview', // previous preview generation
+  'gemini-2.5-flash',       // older generation stable fallback
+  'gemini-1.5-flash',       // proven reliable last resort
 ];
 
-// ─── Latest Gemini 3 Model Configuration (Optimized for Speed & Quality) ───
+// ─── Model Configuration ───
+// NOTE: temperature/topP/topK are NOT set for Gemini 3.x models — not recommended
+// per https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5#sampling-parameters
 const GEMINI_CONFIG = {
-  'gemini-3.6-flash': {
-    maxOutputTokens: 8192,
-    temperature: 0.7,
-    topP: 0.9,
-    topK: 40,
-    supportsThinking: true,
-    supportsCodeExecution: true,
-    supportsAgenticPlanning: true,
-    improvedTokenEfficiency: true,
-    speed: 'very_fast',
-    quality: 'highest',
-    contextWindow: '1M input / 64k output'
-  },
   'gemini-3.5-flash': {
     maxOutputTokens: 8192,
-    temperature: 0.8,
-    topP: 0.9,
-    topK: 40,
     supportsThinking: true,
-    supportsCodeExecution: true,
-    supportsAgenticPlanning: true,
-    frontierPerformance: true,
+    thinkingLevels: ['minimal','low','medium','high'],
     speed: 'very_fast',
     quality: 'highest',
-    contextWindow: '1M input / 64k output'
+    contextWindow: '1M input / 65k output'
   },
-  'gemini-3.5-flash-lite': {
-    maxOutputTokens: 4096,
-    temperature: 0.7,
-    topP: 0.9,
-    topK: 32,
+  'gemini-3.1-flash-lite': {
+    maxOutputTokens: 8192,
     supportsThinking: true,
-    supportsCodeExecution: false,
-    lowLatency: true,
+    thinkingLevels: ['minimal','low','medium','high'],
     costEffective: true,
     speed: 'ultra_fast',
     quality: 'high',
-    contextWindow: '1M input / 64k output'
-  },
-  'gemini-3.1-pro-preview': {
-    maxOutputTokens: 8192,
-    temperature: 0.6,
-    topP: 0.9,
-    topK: 40,
-    supportsThinking: true,
-    supportsCodeExecution: true,
-    supportsMultimodal: true,
-    broadWorldKnowledge: true,
-    speed: 'fast',
-    quality: 'highest',
-    contextWindow: '1M input / 64k output'
-  },
-  'gemini-3.1-flash-lite': {
-    maxOutputTokens: 2048,
-    temperature: 0.7,
-    topP: 0.9,
-    topK: 32,
-    supportsThinking: false,
-    supportsCodeExecution: false,
-    costEfficient: true,
-    highVolume: true,
-    speed: 'very_fast',
-    quality: 'high',
-    contextWindow: '1M input / 64k output'
+    contextWindow: '1M input / 65k output'
   },
   'gemini-3-flash-preview': {
-    maxOutputTokens: 4096,
-    temperature: 0.8,
-    topP: 0.9,
-    topK: 32,
+    maxOutputTokens: 8192,
     supportsThinking: true,
-    supportsCodeExecution: true,
-    frontierClass: true,
-    costEffective: true,
+    thinkingLevels: ['minimal','low','medium','high'],
     speed: 'very_fast',
-    quality: 'highest',
-    contextWindow: '1M input / 64k output'
-  },
-  'gemini-2.5-pro': {
-    maxOutputTokens: 4096,
-    temperature: 0.6,
-    topP: 0.9,
-    topK: 32,
-    supportsThinking: true,
-    supportsCodeExecution: false,
-    speed: 'fast',
     quality: 'high',
     contextWindow: '1M input / 64k output'
   },
   'gemini-2.5-flash': {
-    maxOutputTokens: 2048,
-    temperature: 0.7,
+    maxOutputTokens: 8192,
+    temperature: 0.3,
     topP: 0.9,
-    topK: 32,
     supportsThinking: true,
-    supportsCodeExecution: false,
     speed: 'very_fast',
     quality: 'high',
     contextWindow: '1M input / 64k output'
   },
-  'gemini-pro': {
-    maxOutputTokens: 1024,
-    temperature: 0.6,
+  'gemini-1.5-flash': {
+    maxOutputTokens: 8192,
+    temperature: 0.3,
     topP: 0.9,
-    topK: 32,
-    supportsThinking: false,
-    supportsCodeExecution: false,
     speed: 'fast',
-    quality: 'medium',
-    contextWindow: '32k input / 8k output'
-  }
+    quality: 'good',
+    contextWindow: '1M input / 8k output'
+  },
 };
 
 // ─── Medical Domain Expertise System (Generative AI) ───
@@ -1078,14 +1011,14 @@ function detectIntention(question) {
   return 'general_inquiry';
 }
 
-// ─── Model Selection with Fallback (Latest Gemini 3 Models) ───
+// ─── Model Selection ───
 async function selectAvailableModel(apiKey) {
-  return 'gemini-3.6-flash';
+  return 'gemini-3.5-flash'; // primary; modernChat.js falls back through chain
 }
 
 // ─── Get Model Configuration ───
 function getModelConfig(modelName) {
-  return GEMINI_CONFIG[modelName] || GEMINI_CONFIG['gemini-3.6-flash'] || {};
+  return GEMINI_CONFIG[modelName] || GEMINI_CONFIG['gemini-3.5-flash'] || {};
 }
 
 // ─── Check if Model Supports Advanced Features ───

@@ -64,7 +64,23 @@ async function flipExpiredBatches() {
   }
 }
 
-// 3. Low stock check — aggregates remaining quantity per medicine across all its active batches
+// 3a. Purge stale low_stock notifications for medicines that now have 0 stock
+//     (these should never show — zero stock means the medicine was wiped/depleted)
+async function purgeZeroStockNotifications() {
+  await pool.query(
+    `DELETE n FROM notifications n
+     LEFT JOIN (
+       SELECT m.id, COALESCE(SUM(b.quantity_remaining), 0) AS total_remaining
+       FROM medicines m
+       LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active'
+       GROUP BY m.id
+     ) stock ON n.reference_id = stock.id
+     WHERE n.type = 'low_stock'
+       AND (stock.total_remaining = 0 OR stock.total_remaining IS NULL)`
+  );
+}
+
+// 3b. Low stock check — aggregates remaining quantity per medicine across all its active batches
 async function checkLowStock() {
   const [medicines] = await pool.query(
     `SELECT m.id, m.name, m.reorder_level, COALESCE(SUM(b.quantity_remaining), 0) AS total_remaining
@@ -84,6 +100,7 @@ async function checkLowStock() {
 async function runAllChecks() {
   console.log('🔍 Running expiry & stock monitoring checks...');
   try {
+    await purgeZeroStockNotifications(); // remove stale 0-stock alerts first
     await flipExpiredBatches();
     await checkExpiringBatches();
     await checkLowStock();

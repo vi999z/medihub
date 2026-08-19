@@ -5,9 +5,10 @@ import { useMemo } from 'react';
 import {
   IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
-  IconTools, IconQrcode, IconMessage, IconCloudRain
+  IconTools, IconQrcode, IconMessage, IconCloudRain, IconSun, IconMoon
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import api from '../api/axios';
 
 const NAV_ITEMS = [
@@ -47,6 +48,7 @@ function initials(name = '') {
 
 function TopBar({ pageTitle }) {
   const { user, logout } = useAuth();
+  const { dark, toggle } = useTheme();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [medicines, setMedicines] = useState([]);
@@ -153,6 +155,10 @@ function TopBar({ pageTitle }) {
         <button className="icon-btn" onClick={() => navigate('/notifications')} aria-label="Notifications">
           <IconBellRinging size={18} stroke={1.8} />
           {unread > 0 && <span className="dot-badge" />}
+        </button>
+
+        <button className="icon-btn" onClick={toggle} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
+          {dark ? <IconSun size={18} stroke={1.8} /> : <IconMoon size={18} stroke={1.8} />}
         </button>
 
         <div className="avatar-wrapper" ref={menuRef}>

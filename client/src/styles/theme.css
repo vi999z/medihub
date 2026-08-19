@@ -52,6 +52,79 @@
   --gradient-success: linear-gradient(135deg, #5a7a5a 0%, #4a6a4a 100%);
 }
 
+/* ── Dark mode overrides ──────────────────────────────────────────────────
+   Applied when <html class="dark"> is set by ThemeContext.
+   ─────────────────────────────────────────────────────────────────────── */
+html.dark {
+  --bg-app: #0f1117;
+  --bg-subtle: #1a1d26;
+  --bg-hover: #22263a;
+  --bg-error: #1f1218;
+  --surface: #161920;
+  --surface-strong: #1a1d26;
+  --ink: #e8e9ed;
+  --ink-soft: #9a9db0;
+  --amber: #c9a05a;
+  --amber-tint: #2a2010;
+  --teal: #6aaa7a;
+  --teal-light: #1a2e20;
+  --green: #6a9a6a;
+  --green-tint: #162016;
+  --gold: #c9a05a;
+  --gold-tint: #2a2010;
+  --red: #c07070;
+  --red-tint: #2a1010;
+  --error: #c07070;
+  --warning: #c9a05a;
+  --success: #6a9a6a;
+  --steel: #6a6e85;
+  --border: #2a2d3e;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3), 0 1px 4px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.25);
+  --shadow-lg: 0 8px 20px rgba(0,0,0,0.5), 0 4px 10px rgba(0,0,0,0.3);
+  --shadow-xl: 0 12px 28px rgba(0,0,0,0.6), 0 6px 14px rgba(0,0,0,0.35);
+  --shadow-2xl: 0 16px 36px rgba(0,0,0,0.7), 0 8px 18px rgba(0,0,0,0.4);
+  --shadow-inner: inset 0 2px 6px rgba(0,0,0,0.4);
+  --kpi-green: #1a2e1a;
+  --kpi-mint: #162616;
+  --kpi-pink: #2e1a1a;
+  --kpi-lavender: #201a2e;
+  --kpi-blue: #1a202e;
+  --kpi-yellow: #2e281a;
+  --kpi-coral: #2e201a;
+  --gradient-primary: linear-gradient(135deg, #3a6a4a 0%, #2a5a3a 100%);
+  --gradient-amber: linear-gradient(135deg, #c9a05a 0%, #a08040 100%);
+  --gradient-success: linear-gradient(135deg, #3a6a3a 0%, #2a5a2a 100%);
+}
+
+/* Dark mode body gradient */
+html.dark body::before {
+  background: linear-gradient(
+    120deg,
+    #0f1117 0%,
+    #131620 20%,
+    #161920 50%,
+    #0e1218 80%,
+    #0f1117 100%
+  );
+  animation: none;
+}
+
+/* Dark mode: fix hardcoded #fff in inputs, tables, filter controls */
+html.dark .field input,
+html.dark .field select,
+html.dark .filter-search input,
+html.dark .filter-select select,
+html.dark .filter-toggle,
+html.dark .search-bar input,
+html.dark .search-results,
+html.dark .table-scroll,
+html.dark .auth-card { background: var(--surface); color: var(--ink); border-color: var(--border); }
+html.dark .search-result-item { background: var(--surface); color: var(--ink); border-color: var(--border); }
+html.dark .search-result-item:hover { background: var(--bg-subtle); }
+html.dark .empty-row td { background: var(--surface); }
+html.dark .auth-card { background: rgba(22,25,32,0.96); border-color: rgba(42,45,62,0.95); }
+
 /* ── Pastel drifting gradient ─────────────────────────────────────────────
    Lavender (#e8e4f3) on the left, peachy coral (#fde8df) on the right.
    The gradient is painted 300% wide so shifting background-position creates
