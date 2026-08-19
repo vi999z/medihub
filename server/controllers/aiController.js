@@ -4,7 +4,7 @@ const { getReorderSuggestions } = require('../ai/demandForecastModel');
 const { detectAnomalies } = require('../ai/anomalyDetection');
 const { logAudit } = require('../utils/auditLogger');
 const { buildReportExport, buildPdfBuffer, getSupportedExportTypes } = require('./exportController');
-const { MODEL_FALLBACK_CHAIN, getModelConfig } = require('../ai/medicalLLM');
+const { MODEL_FALLBACK_CHAIN, getModelConfig, GEMINI_CONFIG } = require('../ai/medicalLLM');
 
 // Helper function to convert data to rows array for exports
 function toRowsArray(data) {
@@ -290,26 +290,9 @@ ${filteredData.expiryRisk ? `|- Expiry risk scores: ${JSON.stringify(filteredDat
 ${filteredData.reorderSuggestions ? `|- Reorder suggestions: ${JSON.stringify(filteredData.reorderSuggestions)}` : ''}
 ${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData.anomalies)}` : ''}`;
 
-<<<<<<< HEAD
-    console.log('Calling Google AI API with Gemini 3 fallback system...');
-    // Use the new Gemini 3 model fallback chain
-    const models = MODEL_FALLBACK_CHAIN;
-=======
-    console.log('Calling Google AI API with fallback system...');
-    // Define fallback models in order of preference (more reliable models first)
-    const models = [
-      'gemini-3.1-flash-lite',
-      'gemini-3.1-flash',
-      'gemini-2.5-flash-lite',
-      'gemini-2.5-flash',
-      'gemini-2.0-flash-lite',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-8b',
-      'gemini-1.5-pro',
-      'gemini-pro'
-    ];
->>>>>>> aeddf5050fb78a25b037d8ca2285fc925142142f
+    console.log('Calling Google AI API with latest Gemini 3 models...');
+    // Use the latest Gemini 3 model fallback chain (optimized for speed & quality)
+    const models = MODEL_FALLBACK_CHAIN.slice(0, 3); // Use top 3 fastest models (3.6 Flash, 3.5 Flash, 3.5 Flash-Lite)
     let lastError = null;
 
     for (const model of models) {

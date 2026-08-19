@@ -15,32 +15,38 @@
  * continue to work without modification.
  */
 
-<<<<<<< HEAD
 const { pool } = require('../config/db');
 const { scoreActiveBatches } = require('./expiryRiskModel');
 const { getReorderSuggestions } = require('./demandForecastModel');
 const { detectAnomalies } = require('./anomalyDetection');
 
-// ─── Model Configuration with Fallback Chain (Gemini 3 Optimized) ───
+// ─── Model Configuration with Fallback Chain (Latest Gemini 3 Models) ───
 const MODEL_FALLBACK_CHAIN = [
-  'gemini-3.5-flash-exp',      // Latest Gemini 3.5 experimental - highest capabilities
-  'gemini-3.5-flash',          // Latest Gemini 3.5 - advanced generative AI
-  'gemini-3.0-flash',          // Gemini 3.0 - improved reasoning and creativity
-  'gemini-2.5-flash',          // Proven stability and capability
-  'gemini-2.0-flash-exp',      // Experimental but reliable
-  'gemini-1.5-pro',            // Capable fallback for complex tasks
-  'gemini-pro'                 // Final fallback with broad capabilities
+  'gemini-3.6-flash',         // Latest Gemini 3.6 Flash - improved token efficiency and agentic planning
+  'gemini-3.5-flash',         // Most intelligent for sustained frontier performance on agentic/coding tasks
+  'gemini-3.5-flash-lite',    // Low-latency, highly cost-effective for high-volume automation
+  'gemini-3.1-pro-preview',  // Broad world knowledge and reasoning across modalities
+  'gemini-3.1-flash-lite',   // Workhorse model for cost-efficiency and high-volume tasks
+  'gemini-3-flash-preview',  // Fast frontier-class performance at fraction of cost
+  'gemini-2.5-pro',           // Proven for complex reasoning (fallback)
+  'gemini-2.5-flash',         // Optimized for speed (fallback)
+  'gemini-pro'                 // Final fallback
 ];
 
-// ─── Gemini 3 Specific Configuration ───
-const GEMINI_3_CONFIG = {
-  'gemini-3.5-flash-exp': {
+// ─── Latest Gemini 3 Model Configuration (Optimized for Speed & Quality) ───
+const GEMINI_CONFIG = {
+  'gemini-3.6-flash': {
     maxOutputTokens: 8192,
-    temperature: 0.9,
-    topP: 0.95,
+    temperature: 0.7,
+    topP: 0.9,
     topK: 40,
     supportsThinking: true,
-    supportsCodeExecution: false
+    supportsCodeExecution: true,
+    supportsAgenticPlanning: true,
+    improvedTokenEfficiency: true,
+    speed: 'very_fast',
+    quality: 'highest',
+    contextWindow: '1M input / 64k output'
   },
   'gemini-3.5-flash': {
     maxOutputTokens: 8192,
@@ -48,39 +54,86 @@ const GEMINI_3_CONFIG = {
     topP: 0.9,
     topK: 40,
     supportsThinking: true,
-    supportsCodeExecution: false
+    supportsCodeExecution: true,
+    supportsAgenticPlanning: true,
+    frontierPerformance: true,
+    speed: 'very_fast',
+    quality: 'highest',
+    contextWindow: '1M input / 64k output'
   },
-  'gemini-3.0-flash': {
+  'gemini-3.5-flash-lite': {
     maxOutputTokens: 4096,
     temperature: 0.7,
     topP: 0.9,
     topK: 32,
     supportsThinking: true,
-    supportsCodeExecution: false
+    supportsCodeExecution: false,
+    lowLatency: true,
+    costEffective: true,
+    speed: 'ultra_fast',
+    quality: 'high',
+    contextWindow: '1M input / 64k output'
+  },
+  'gemini-3.1-pro-preview': {
+    maxOutputTokens: 8192,
+    temperature: 0.6,
+    topP: 0.9,
+    topK: 40,
+    supportsThinking: true,
+    supportsCodeExecution: true,
+    supportsMultimodal: true,
+    broadWorldKnowledge: true,
+    speed: 'fast',
+    quality: 'highest',
+    contextWindow: '1M input / 64k output'
+  },
+  'gemini-3.1-flash-lite': {
+    maxOutputTokens: 2048,
+    temperature: 0.7,
+    topP: 0.9,
+    topK: 32,
+    supportsThinking: false,
+    supportsCodeExecution: false,
+    costEfficient: true,
+    highVolume: true,
+    speed: 'very_fast',
+    quality: 'high',
+    contextWindow: '1M input / 64k output'
+  },
+  'gemini-3-flash-preview': {
+    maxOutputTokens: 4096,
+    temperature: 0.8,
+    topP: 0.9,
+    topK: 32,
+    supportsThinking: true,
+    supportsCodeExecution: true,
+    frontierClass: true,
+    costEffective: true,
+    speed: 'very_fast',
+    quality: 'highest',
+    contextWindow: '1M input / 64k output'
+  },
+  'gemini-2.5-pro': {
+    maxOutputTokens: 4096,
+    temperature: 0.6,
+    topP: 0.9,
+    topK: 32,
+    supportsThinking: true,
+    supportsCodeExecution: false,
+    speed: 'fast',
+    quality: 'high',
+    contextWindow: '1M input / 64k output'
   },
   'gemini-2.5-flash': {
     maxOutputTokens: 2048,
     temperature: 0.7,
     topP: 0.9,
     topK: 32,
-    supportsThinking: false,
-    supportsCodeExecution: false
-  },
-  'gemini-2.0-flash-exp': {
-    maxOutputTokens: 2048,
-    temperature: 0.7,
-    topP: 0.9,
-    topK: 32,
-    supportsThinking: false,
-    supportsCodeExecution: false
-  },
-  'gemini-1.5-pro': {
-    maxOutputTokens: 2048,
-    temperature: 0.6,
-    topP: 0.9,
-    topK: 32,
-    supportsThinking: false,
-    supportsCodeExecution: false
+    supportsThinking: true,
+    supportsCodeExecution: false,
+    speed: 'very_fast',
+    quality: 'high',
+    contextWindow: '1M input / 64k output'
   },
   'gemini-pro': {
     maxOutputTokens: 1024,
@@ -88,7 +141,10 @@ const GEMINI_3_CONFIG = {
     topP: 0.9,
     topK: 32,
     supportsThinking: false,
-    supportsCodeExecution: false
+    supportsCodeExecution: false,
+    speed: 'fast',
+    quality: 'medium',
+    contextWindow: '32k input / 8k output'
   }
 };
 
@@ -112,6 +168,7 @@ FILE GENERATION CAPABILITIES (like modern AI systems):
 - When users ask for reports, suggest appropriate file formats (PDF for formal reports, Excel for data analysis, Word for documents)
 - Always offer file generation options when providing comprehensive answers
 - Mention that professional formatting, tables, and styling are included
+- Auto-detect file type requests from natural language (e.g., "generate PDF", "download Excel", "make a Word doc")
 
 Use these expert behaviors:
 - Data-driven: Always ground answers in actual inventory data
@@ -119,7 +176,8 @@ Use these expert behaviors:
 - Proactive: Suggest next steps and file generation options
 - Medical-aware: Consider medication safety, expiry, and compliance
 - Analytical: Provide insights, not just data dump
-- Modern AI capabilities: Generate professional documents like GPT-4 and Claude`;
+- Modern AI capabilities: Generate professional documents like GPT-4 and Claude
+- File-aware: Automatically detect when users want downloadable files and suggest formats`;
 
 // ─── Function Calling System (Enhanced for Generative AI) ───
 // These are the "tools" the AI can invoke to query data and perform actions
@@ -1020,16 +1078,16 @@ function detectIntention(question) {
   return 'general_inquiry';
 }
 
-// ─── Model Selection with Fallback (Gemini 3 Optimized) ───
+// ─── Model Selection with Fallback (Latest Gemini 3 Models) ───
 async function selectAvailableModel(apiKey) {
   // Try to use the best available Gemini 3 model
   // In production, you might want to test model availability first
-  return 'gemini-3.5-flash-exp';
+  return 'gemini-3.6-flash';
 }
 
 // ─── Get Model Configuration ───
 function getModelConfig(modelName) {
-  return GEMINI_3_CONFIG[modelName] || GEMINI_3_CONFIG['gemini-pro'];
+  return GEMINI_CONFIG[modelName] || GEMINI_CONFIG['gemini-pro'];
 }
 
 // ─── Check if Model Supports Advanced Features ───
@@ -1193,29 +1251,47 @@ function buildContextualResponse(question, data, intention) {
   return response;
 }
 
-// ─── File Request Detection ───
+// ─── Enhanced File Request Detection (Like Modern AI) ───
 function detectFileRequest(question) {
   const lowerQuestion = question.toLowerCase();
 
   const filePatterns = {
-    csv: ['csv', 'spreadsheet', 'download file', 'export to csv', 'comma separated'],
-    xlsx: ['excel', 'xlsx', 'spreadsheet', 'microsoft excel', 'excel file'],
-    pdf: ['pdf', 'report file', 'download report', 'pdf report', 'document'],
-    docx: ['word', 'docx', 'word document', 'microsoft word', 'word file'],
-    json: ['json', 'data file', 'api data', 'structured data', 'json file'],
-    txt: ['text file', 'txt', 'plain text', 'text document', 'text format']
+    csv: ['csv', 'spreadsheet', 'download file', 'export to csv', 'comma separated', 'data export', 'download csv'],
+    xlsx: ['excel', 'xlsx', 'spreadsheet', 'microsoft excel', 'excel file', 'download excel', 'export excel'],
+    pdf: ['pdf', 'report file', 'download report', 'pdf report', 'document', 'download pdf', 'generate pdf'],
+    docx: ['word', 'docx', 'word document', 'microsoft word', 'word file', 'download word', 'generate word'],
+    json: ['json', 'data file', 'api data', 'structured data', 'json file', 'download json', 'export json'],
+    txt: ['text file', 'txt', 'plain text', 'text document', 'text format', 'download txt', 'generate text']
   };
 
+  // Check for explicit file type requests
   for (const [fileType, patterns] of Object.entries(filePatterns)) {
     if (patterns.some(pattern => lowerQuestion.includes(pattern))) {
       return fileType;
     }
   }
 
+  // Check for general file generation requests
+  const generalFilePatterns = [
+    'download', 'export', 'generate file', 'create file', 'save as file',
+    'make a file', 'get a file', 'need a file', 'want a file', 'file download'
+  ];
+
+  if (generalFilePatterns.some(pattern => lowerQuestion.includes(pattern))) {
+    // Default to PDF for reports, Excel for data
+    if (lowerQuestion.includes('report') || lowerQuestion.includes('document')) {
+      return 'pdf';
+    }
+    if (lowerQuestion.includes('data') || lowerQuestion.includes('analysis')) {
+      return 'xlsx';
+    }
+    return 'pdf'; // Default to PDF
+  }
+
   return null;
 }
 
-// ─── Enhanced Chat with File Generation ───
+// ─── Enhanced Chat with File Generation (Like Modern AI) ───
 async function chatWithFileGeneration(question, userId, context = null) {
   const requestedFileType = detectFileRequest(question);
   const intention = detectIntention(question);
@@ -1223,18 +1299,40 @@ async function chatWithFileGeneration(question, userId, context = null) {
   // Get the standard AI response first
   const standardResponse = await modernChat(question, userId, context);
 
-  // If user requested a file, enhance the response
+  // If user requested a file, enhance the response with immediate suggestions
   if (requestedFileType) {
-    const fileHint = `I detected you want a ${requestedFileType.toUpperCase()} file. You can use the file generation endpoint with your current data to create a downloadable ${requestedFileType} file. Would you like me to help you generate that now?`;
+    const fileSuggestion = {
+      detected: true,
+      file_type: requestedFileType,
+      suggested_filename: `${intention}_report_${new Date().toISOString().split('T')[0]}.${requestedFileType}`,
+      message: `I can generate a professional ${requestedFileType.toUpperCase()} file for you with the current data. The file will include detailed analysis, recommendations, and professional formatting.`,
+      available_formats: {
+        csv: 'Data export for analysis',
+        xlsx: 'Excel spreadsheet with formatting',
+        pdf: 'Professional report with charts',
+        docx: 'Word document with structure',
+        json: 'Structured data for integration',
+        txt: 'Plain text documentation'
+      },
+      quick_action: `Simply request "generate ${requestedFileType} file" and I'll create it for you immediately.`
+    };
 
     return {
       ...standardResponse,
-      file_request: {
-        detected: true,
-        file_type: requestedFileType,
-        hint: fileHint,
-        endpoint: `/api/ai/generate-file`,
-        available_formats: ['csv', 'excel', 'pdf', 'json', 'txt']
+      file_request: fileSuggestion,
+      enhanced_response: `${standardResponse.response}\n\n📁 File Generation: I detected you want a ${requestedFileType.toUpperCase()} file. I can generate a professional ${requestedFileType} document with the current inventory data, including executive summary, detailed analysis, and actionable recommendations.`
+    };
+  }
+
+  // Always suggest file generation for comprehensive answers (like modern AI)
+  if (intention === 'comprehensive' || intention === 'analysis' || intention === 'trend') {
+    return {
+      ...standardResponse,
+      file_suggestion: {
+        available: true,
+        message: "I can generate a downloadable report in PDF, Excel, or Word format with this analysis.",
+        formats: ['pdf', 'xlsx', 'docx'],
+        default: 'pdf'
       }
     };
   }
@@ -1279,7 +1377,7 @@ async function modernChat(question, userId, context = null) {
       throw new Error('AI service not configured');
     }
 
-    const selectedModels = MODEL_FALLBACK_CHAIN;
+    const selectedModels = MODEL_FALLBACK_CHAIN.slice(0, 3); // Use top 3 fastest models for quick responses
 
     let lastError = null;
 
@@ -1365,25 +1463,6 @@ async function modernChat(question, userId, context = null) {
     throw err;
   }
 }
-=======
-const { MODEL_FALLBACK_CHAIN } = require('./llmConfig');
-const { ConversationContext } = require('./conversationContext');
-const {
-  AVAILABLE_FUNCTIONS,
-  callFunction,
-  buildSystemPrompt,
-  buildGeminiTools,
-  detectIntention,
-  selectAvailableModel
-} = require('./geminiClient');
-const {
-  extractGeneratedText,
-  buildFallbackInventoryResponse
-} = require('./responseBuilder');
-const { generateReport, createStrategy, forecastDemand, analyzeEfficiency } = require('./analysisHelpers');
-const { modernChat, chatWithFileGeneration } = require('./modernChat');
-const { detectFileRequest } = require('./responseBuilder');
->>>>>>> aeddf5050fb78a25b037d8ca2285fc925142142f
 
 module.exports = {
   modernChat,
@@ -1392,11 +1471,11 @@ module.exports = {
   AVAILABLE_FUNCTIONS,
   detectIntention,
   buildSystemPrompt,
-  buildGeminiTools,
   selectAvailableModel,
   MODEL_FALLBACK_CHAIN,
-  GEMINI_3_CONFIG,
+  GEMINI_CONFIG,
   getModelConfig,
+  modelSupportsFeature,
   modelSupportsFeature,
   extractGeneratedText,
   buildFallbackInventoryResponse,

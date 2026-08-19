@@ -31,6 +31,7 @@ router.post('/set-preferred-model', ctrlEnhanced.setPreferredModel);
 
 // File generation endpoints
 router.post('/generate-file', ctrlEnhanced.generateDownloadableFile);
+router.post('/auto-generate-file', ctrlEnhanced.autoGenerateFileFromChat);
 router.post('/generate-report-download', ctrlEnhanced.generateReportWithDownload);
 
 // Export endpoints

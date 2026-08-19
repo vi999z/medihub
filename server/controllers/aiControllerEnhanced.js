@@ -4,11 +4,7 @@
  * Replaces the basic Google AI calls with sophisticated reasoning and context awareness
  */
 
-<<<<<<< HEAD
-const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand, analyzeEfficiency, chatWithFileGeneration, getModelConfig } = require('../ai/medicalLLM');
-=======
-const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, buildGeminiTools, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand: forecastDemandModel, analyzeEfficiency: analyzeEfficiencyModel, chatWithFileGeneration } = require('../ai/medicalLLM');
->>>>>>> aeddf5050fb78a25b037d8ca2285fc925142142f
+const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand, analyzeEfficiency, chatWithFileGeneration, getModelConfig, detectFileRequest } = require('../ai/medicalLLM');
 const { explainAnomaly, explainExpiryRisk, explainReorderRecommendation, generatePharmacyHealthReport } = require('../ai/modelExplainer');
 const { streamGeminiResponse } = require('../ai/streamingHandler');
 const { trainAndPersist, scoreActiveBatches } = require('../ai/expiryRiskModel');
@@ -205,7 +201,7 @@ async function forecastDemandHandler(req, res) {
   try {
     const { forecast_period = 90 } = req.body;
 
-    const result = await forecastDemandModel(forecast_period);
+    const result = await forecastDemand(forecast_period);
 
     if (result.error) {
       return res.status(500).json({ error: result.error });
@@ -232,7 +228,7 @@ async function analyzeEfficiencyHandler(req, res) {
   try {
     const { focus_area = 'overall' } = req.body;
 
-    const result = await analyzeEfficiencyModel(focus_area);
+    const result = await analyzeEfficiency(focus_area);
 
     if (result.error) {
       return res.status(500).json({ error: result.error });
@@ -264,21 +260,28 @@ async function getAvailableFunctions(req, res) {
 
 // ─── Get Available Models and Their Capabilities ───
 async function getAvailableModels(req, res) {
-  const { MODEL_FALLBACK_CHAIN, GEMINI_3_CONFIG } = require('../ai/medicalLLM');
+  const { MODEL_FALLBACK_CHAIN, GEMINI_CONFIG } = require('../ai/medicalLLM');
 
   const modelsInfo = MODEL_FALLBACK_CHAIN.map(modelName => ({
     name: modelName,
-    config: GEMINI_3_CONFIG[modelName] || {},
-    is_gemini_3: modelName.includes('3.5') || modelName.includes('3.0'),
-    supports_thinking: GEMINI_3_CONFIG[modelName]?.supportsThinking || false,
-    max_tokens: GEMINI_3_CONFIG[modelName]?.maxOutputTokens || 1024
+    config: GEMINI_CONFIG[modelName] || {},
+    is_gemini_3: modelName.includes('3.'),
+    supports_thinking: GEMINI_CONFIG[modelName]?.supportsThinking || false,
+    supports_code_execution: GEMINI_CONFIG[modelName]?.supportsCodeExecution || false,
+    supports_agentic_planning: GEMINI_CONFIG[modelName]?.supportsAgenticPlanning || false,
+    max_tokens: GEMINI_CONFIG[modelName]?.maxOutputTokens || 1024,
+    speed: GEMINI_CONFIG[modelName]?.speed || 'fast',
+    quality: GEMINI_CONFIG[modelName]?.quality || 'medium',
+    context_window: GEMINI_CONFIG[modelName]?.contextWindow || '32k input / 8k output'
   }));
 
   res.json({
     available_models: modelsInfo,
     current_primary: MODEL_FALLBACK_CHAIN[0],
     total_models: MODEL_FALLBACK_CHAIN.length,
-    gemini_3_available: modelsInfo.filter(m => m.is_gemini_3).length
+    gemini_3_available: modelsInfo.filter(m => m.is_gemini_3).length,
+    gemini_3_6_available: modelsInfo.filter(m => m.name.includes('3.6')).length,
+    gemini_3_5_available: modelsInfo.filter(m => m.name.includes('3.5')).length
   });
 }
 
@@ -286,7 +289,7 @@ async function getAvailableModels(req, res) {
 async function setPreferredModel(req, res) {
   try {
     const { model_name } = req.body;
-    const { MODEL_FALLBACK_CHAIN, GEMINI_3_CONFIG } = require('../ai/medicalLLM');
+    const { MODEL_FALLBACK_CHAIN, GEMINI_CONFIG } = require('../ai/medicalLLM');
 
     if (!model_name) {
       return res.status(400).json({ error: 'model_name is required' });
@@ -306,7 +309,7 @@ async function setPreferredModel(req, res) {
     res.json({
       success: true,
       preferred_model: model_name,
-      config: GEMINI_3_CONFIG[model_name],
+      config: GEMINI_CONFIG[model_name],
       message: `Model preference set to ${model_name}. This will be used for future AI requests.`
     });
   } catch (err) {
@@ -318,39 +321,49 @@ async function setPreferredModel(req, res) {
   }
 }
 
-// ─── Generate Downloadable File ───
+// ─── Generate Downloadable File (Like Modern AI) ───
 async function generateDownloadableFile(req, res) {
   try {
-    const { file_type, content, filename } = req.body;
-    if (!file_type || !content) {
-      return res.status(400).json({ error: 'file_type and content are required' });
+    const { file_type, content, filename, question } = req.body;
+
+    // Auto-detect file type if not provided but question is
+    let requestedFileType = file_type;
+    if (!requestedFileType && question) {
+      requestedFileType = detectFileRequest(question);
+    }
+
+    if (!requestedFileType) {
+      requestedFileType = 'pdf'; // Default to PDF like modern AI
+    }
+
+    if (!content) {
+      return res.status(400).json({ error: 'content is required for file generation' });
     }
 
     const exportCtrl = require('./exportController');
-<<<<<<< HEAD
 
     // Handle async file generation (PDF, Excel, Word)
-    if (file_type === 'pdf') {
+    if (requestedFileType === 'pdf') {
       const pdfBuffer = await exportCtrl.buildPdfBuffer(content);
-      await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${filename}`, req);
+      await logAudit(req.user.id, 'ai_file_generated', `File type: ${requestedFileType}, filename: ${filename}`, req);
       return res
         .setHeader('Content-Type', 'application/pdf')
         .setHeader('Content-Disposition', `attachment; filename="${filename || 'report.pdf'}"`)
         .send(pdfBuffer);
     }
 
-    if (file_type === 'xlsx' || file_type === 'excel') {
+    if (requestedFileType === 'xlsx' || requestedFileType === 'excel') {
       const excelBuffer = await exportCtrl.buildExcelWorkbook(content);
-      await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${filename}`, req);
+      await logAudit(req.user.id, 'ai_file_generated', `File type: ${requestedFileType}, filename: ${filename}`, req);
       return res
         .setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         .setHeader('Content-Disposition', `attachment; filename="${filename || 'report.xlsx'}"`)
         .send(excelBuffer);
     }
 
-    if (file_type === 'docx' || file_type === 'word') {
+    if (requestedFileType === 'docx' || requestedFileType === 'word') {
       const wordBuffer = await exportCtrl.buildWordDocument(content);
-      await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${filename}`, req);
+      await logAudit(req.user.id, 'ai_file_generated', `File type: ${requestedFileType}, filename: ${filename}`, req);
       return res
         .setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
         .setHeader('Content-Disposition', `attachment; filename="${filename || 'report.docx'}"`)
@@ -359,7 +372,7 @@ async function generateDownloadableFile(req, res) {
 
     // Handle synchronous file generation (CSV, TXT, JSON, Chart)
     let result;
-    switch (file_type) {
+    switch (requestedFileType) {
       case 'csv':
         result = exportCtrl.buildReportExport(content, 'csv');
         break;
@@ -371,24 +384,11 @@ async function generateDownloadableFile(req, res) {
         break;
       default:
         return res.status(400).json({ error: 'Unsupported file type' });
-=======
-    const BINARY = ['pdf', 'excel', 'xlsx', 'word', 'docx'];
-
-    if (BINARY.includes(file_type)) {
-      const { buffer, contentType, filename: outName } = await exportCtrl.buildBinaryExport(content, file_type, filename);
-      await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${outName}`, req);
-      return res
-        .setHeader('Content-Type', contentType)
-        .setHeader('Content-Disposition', `attachment; filename="${outName}"`)
-        .send(buffer);
->>>>>>> aeddf5050fb78a25b037d8ca2285fc925142142f
     }
-
-    const result = exportCtrl.buildReportExport(content, file_type);
-    await logAudit(req.user.id, 'ai_file_generated', `File type: ${file_type}, filename: ${result.filename}`, req);
+    await logAudit(req.user.id, 'ai_file_generated', `File type: ${requestedFileType}, filename: ${result.filename}`, req);
     return res.json({
       success: true,
-      file_type,
+      file_type: requestedFileType,
       filename: result.filename || filename,
       content: result.body,
       content_type: result.contentType,
@@ -396,6 +396,68 @@ async function generateDownloadableFile(req, res) {
   } catch (err) {
     console.error('File generation failed:', err);
     res.status(500).json({ error: 'Failed to generate file', detail: err.message });
+  }
+}
+
+// ─── Auto-Generate File from Chat Request (Like Modern AI) ───
+async function autoGenerateFileFromChat(req, res) {
+  try {
+    const { question, context_data } = req.body;
+
+    if (!question) {
+      return res.status(400).json({ error: 'question is required' });
+    }
+
+    // Detect file type from the question
+    const requestedFileType = detectFileRequest(question);
+
+    if (!requestedFileType) {
+      return res.status(400).json({
+        error: 'No file type detected in request',
+        message: 'Please specify the file format you want (PDF, Excel, Word, CSV, JSON, or TXT)',
+        available_formats: ['pdf', 'xlsx', 'docx', 'csv', 'json', 'txt']
+      });
+    }
+
+    // Get data from context or generate it
+    let content = context_data;
+
+    if (!content) {
+      // Auto-generate data based on the question type
+      const intention = detectIntention(question);
+      const data = await callFunction('get_inventory_summary', {});
+
+      if (intention === 'expiry') {
+        const expiryData = await callFunction('get_expiry_analysis', { days_window: 30 });
+        content = {
+          title: 'Expiry Risk Analysis',
+          summary: data.summary,
+          rows: expiryData,
+          recommendations: ['Review expiring items', 'Consider discounts', 'Optimize stock levels']
+        };
+      } else if (intention === 'reorder') {
+        const reorderData = await callFunction('get_low_stock_items', { limit: 10 });
+        content = {
+          title: 'Reorder Recommendations',
+          summary: data.summary,
+          rows: reorderData,
+          recommendations: ['Order high-priority items', 'Review supplier lead times', 'Optimize reorder points']
+        };
+      } else {
+        content = {
+          title: 'Inventory Analysis',
+          summary: data.summary,
+          rows: [],
+          recommendations: ['Review overall inventory', 'Optimize stock levels', 'Improve turnover']
+        };
+      }
+    }
+
+    // Generate the file
+    return await generateDownloadableFile(req, res);
+  } catch (err) {
+    console.error('Auto file generation failed:', err);
+    res.status(500).json({ error: 'Failed to auto-generate file', detail: err.message });
   }
 }
 
@@ -543,13 +605,8 @@ Answer questions about inventory based on this data:
 
 Keep responses concise, conversational, and data-driven. If data is empty, provide helpful suggestions about what data would be needed.`;
 
-<<<<<<< HEAD
-    // Try working models in order (Gemini 3 optimized)
-    const models = ['gemini-3.5-flash-exp', 'gemini-3.5-flash', 'gemini-3.0-flash', 'gemini-2.5-flash'];
-=======
-    // Try working models in order
-    const models = ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
->>>>>>> aeddf5050fb78a25b037d8ca2285fc925142142f
+    // Try working models in order (Latest Gemini 3 models optimized for speed)
+    const models = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
     let lastError = null;
 
     for (const model of models) {
@@ -751,6 +808,7 @@ module.exports = {
 
   // File generation endpoints
   generateDownloadableFile,
+  autoGenerateFileFromChat,
   generateReportWithDownload,
 
   // Weather-aware inventory recommendations
