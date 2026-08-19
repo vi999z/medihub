@@ -22,6 +22,8 @@ export default function Maintenance() {
     setLoading(action.key);
     try {
       const res = await api.delete(action.endpoint);
+      // Bust all cached data so every page reflects the post-wipe state immediately
+      api.clearAllCache();
       addToast(res.data.message || 'Action completed', 'success');
     } catch (err) {
       addToast(err.response?.data?.error || 'Maintenance action failed', 'error');

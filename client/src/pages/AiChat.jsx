@@ -263,7 +263,12 @@ export default function AiChat() {
     if (id === activeConvId) return;
     try {
       const res = await api.get(`/ai/conversations/${id}`);
-      setMessages(res.data.messages?.length ? res.data.messages : BLANK_MESSAGES);
+      // Always prepend the greeting so it shows at the top, but strip any
+      // persisted greeting from the DB to avoid duplication.
+      const loaded = (res.data.messages || []).filter(
+        m => m.content !== BLANK_MESSAGES[0].content
+      );
+      setMessages(loaded.length ? [...BLANK_MESSAGES, ...loaded] : BLANK_MESSAGES);
       activeConvIdRef.current = id;
       setActiveConvId(id);
     } catch {
@@ -283,12 +288,15 @@ export default function AiChat() {
   }
 
   const saveConversation = useCallback(async (msgs, convId) => {
-    if (msgs.length <= 1) return { id: convId, title: null };
-    const title = msgs.find(m => m.role === 'user')?.content?.slice(0, 60) || 'New Conversation';
+    // Strip the static greeting before saving — it's always re-prepended on load
+    // so we never want it stored (prevents duplication on reload).
+    const saveable = msgs.filter(m => m !== BLANK_MESSAGES[0] && m.content !== BLANK_MESSAGES[0].content);
+    if (saveable.length === 0) return { id: convId, title: null };
+    const title = saveable.find(m => m.role === 'user')?.content?.slice(0, 60) || 'New Conversation';
     try {
       const res = convId
-        ? await api.put(`/ai/conversations/${convId}`, { title, messages: msgs })
-        : await api.post('/ai/conversations', { title, messages: msgs });
+        ? await api.put(`/ai/conversations/${convId}`, { title, messages: saveable })
+        : await api.post('/ai/conversations', { title, messages: saveable });
       return { id: res.data.id, title };
     } catch {
       return { id: convId, title };
