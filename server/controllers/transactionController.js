@@ -46,12 +46,12 @@ async function create(req, res) {
 
     if (newQuantity === 0) {
       await conn.query(
-        'UPDATE batches SET quantity_remaining = ?, status = "depleted" WHERE id = ?',
+        "UPDATE batches SET quantity_remaining = ?, status = 'depleted' WHERE id = ?",
         [newQuantity, batch_id]
       );
     } else if (transaction_type === 'return' && batch.status === 'depleted') {
       await conn.query(
-        'UPDATE batches SET quantity_remaining = ?, status = "active" WHERE id = ?',
+        "UPDATE batches SET quantity_remaining = ?, status = 'active' WHERE id = ?",
         [newQuantity, batch_id]
       );
     } else {
