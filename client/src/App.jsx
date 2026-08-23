@@ -11,7 +11,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Medicines = lazy(() => import('./pages/Medicines'));
-const Batches = lazy(() => import('./pages/Batches'));
 const Transactions = lazy(() => import('./pages/Transactions'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const AiInsights = lazy(() => import('./pages/AiInsights'));
@@ -42,7 +41,6 @@ export default function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
                 <Route path="/medicines" element={<ProtectedRoute><Layout><Medicines /></Layout></ProtectedRoute>} />
-                <Route path="/batches" element={<ProtectedRoute><Layout><Batches /></Layout></ProtectedRoute>} />
                 <Route path="/transactions" element={<ProtectedRoute><Layout><Transactions /></Layout></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
                 <Route path="/scanner" element={<ProtectedRoute><Layout><Scanner /></Layout></ProtectedRoute>} />

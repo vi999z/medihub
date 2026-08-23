@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   Plus, Pencil, Trash2, RefreshCw, Download, Search, X,
-  ChevronDown, ChevronRight, LayoutGrid, List, ArrowUpDown, FileWarning, Upload
+  FileWarning, Upload, QrCode
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
@@ -15,6 +15,7 @@ import AnimatedNumber from '../components/AnimatedNumber';
 import StaggeredList from '../components/StaggeredList';
 import AnimatedModal from '../components/AnimatedModal';
 import Skeleton from '../components/Skeleton';
+import QRCodeDisplay from '../components/QRCode';
 
 const CATEGORY_OPTIONS = [
   'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
@@ -44,6 +45,11 @@ const emptyForm = {
   strength: '', unit: '', reorder_level: 10, requires_prescription: false
 };
 
+const emptyBatchForm = {
+  supplier_id: '', batch_number: '', quantity_received: '',
+  quantity_remaining: '', cost_price: '', selling_price: '', manufacture_date: '', expiry_date: '', status: 'active'
+};
+
 function categoryOf(medicine) {
   return medicine.category || 'Other';
 }
@@ -63,10 +69,22 @@ function expiryLabel(medicine) {
   return { cls: 'safe', label: new Date(medicine.nearest_expiry).toLocaleDateString() };
 }
 
+function batchStatusPill(batch) {
+  if (batch.status === 'expired') return { cls: 'critical', label: 'Expired' };
+  if (batch.status === 'depleted') return { cls: 'warning', label: 'Depleted' };
+  if (batch.status === 'recalled') return { cls: 'critical', label: 'Recalled' };
+  const days = daysUntil(batch.expiry_date);
+  if (days <= 7) return { cls: 'critical', label: `${days}d left` };
+  if (days <= 30) return { cls: 'warning', label: `${days}d left` };
+  return { cls: 'safe', label: 'Active' };
+}
+
 export default function Medicines() {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [medicines, setMedicines] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -75,19 +93,33 @@ export default function Medicines() {
   const [loading, setLoading] = useState(true);
   const prefersReducedMotion = useReducedMotion();
 
+  // Medicine detail modal state
+  const [detailMedicine, setDetailMedicine] = useState(null);
+  const [showBatchForm, setShowBatchForm] = useState(false);
+  const [editingBatchId, setEditingBatchId] = useState(null);
+  const [batchForm, setBatchForm] = useState(emptyBatchForm);
+  const [batchError, setBatchError] = useState('');
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrBatch, setQrBatch] = useState(null);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get('q') || '';
   const [activeCategory, setActiveCategory] = useState('All');
   const [stockFilter, setStockFilter] = useState('all');
   const [prescriptionOnly, setPrescriptionOnly] = useState(false);
   const [sortBy, setSortBy] = useState('name-asc');
-  const [grouped, setGrouped] = useState(true);
-  const [collapsed, setCollapsed] = useState({});
 
   function resetForm() {
     setForm(emptyForm);
     setEditingId(null);
     setShowForm(false);
+  }
+
+  function resetBatchForm() {
+    setBatchForm(emptyBatchForm);
+    setEditingBatchId(null);
+    setShowBatchForm(false);
+    setBatchError('');
   }
 
   function handleCsvImportComplete(result) {
@@ -115,7 +147,41 @@ export default function Medicines() {
     }
   }
 
-  useEffect(() => { fetchMedicines(); }, []);
+  async function fetchBatches() {
+    try {
+      const res = await api.cachedGet('/batches');
+      setBatches(res.data);
+    } catch (err) {
+      // Non-fatal; batches are supplementary on this page
+    }
+  }
+
+  async function fetchSuppliers() {
+    try {
+      const res = await api.cachedGet('/suppliers');
+      setSuppliers(res.data);
+    } catch (err) {
+      // Non-fatal
+    }
+  }
+
+  useEffect(() => {
+    fetchMedicines();
+    fetchBatches();
+    fetchSuppliers();
+  }, []);
+
+  // Handle scanner "Add to Stock" navigation: open the first medicine's batch form
+  useEffect(() => {
+    if (searchParams.get('addBatch') === 'true' && medicines.length > 0) {
+      const target = medicines[0];
+      setDetailMedicine(target);
+      setShowBatchForm(true);
+      setBatchForm((prev) => ({ ...prev, batch_number: searchParams.get('code') || '' }));
+      // Clear the param so it doesn't re-trigger
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, medicines, setSearchParams]);
 
   function openCreate() {
     resetForm();
@@ -170,17 +236,6 @@ export default function Medicines() {
     });
   }, [medicines, search, activeCategory, stockFilter, prescriptionOnly, sortBy]);
 
-  const groups = useMemo(() => {
-    if (!grouped) return [['All results', visibleMedicines]];
-    const map = new Map();
-    visibleMedicines.forEach((medicine) => {
-      const category = categoryOf(medicine);
-      if (!map.has(category)) map.set(category, []);
-      map.get(category).push(medicine);
-    });
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [visibleMedicines, grouped]);
-
   const filtersActive = search || activeCategory !== 'All' || stockFilter !== 'all' || prescriptionOnly;
 
   function updateSearch(value) {
@@ -192,10 +247,6 @@ export default function Medicines() {
     setActiveCategory('All');
     setStockFilter('all');
     setPrescriptionOnly(false);
-  }
-
-  function toggleGroup(category) {
-    setCollapsed((prev) => ({ ...prev, [category]: !prev[category] }));
   }
 
   function openEdit(medicine) {
@@ -241,6 +292,7 @@ export default function Medicines() {
       api.invalidateCache('/notifications?unread=true');
       api.invalidateCache('/batches');
       await fetchMedicines();
+      await fetchBatches();
       addToast('Medicine deleted', 'success');
     } catch (err) {
       addToast(err.response?.data?.error || 'Failed to delete medicine', 'error');
@@ -250,7 +302,8 @@ export default function Medicines() {
   async function handleRefresh() {
     setLoading(true);
     api.invalidateCache('/medicines');
-    await fetchMedicines();
+    api.invalidateCache('/batches');
+    await Promise.all([fetchMedicines(), fetchBatches()]);
     addToast('Catalog refreshed', 'success');
   }
 
@@ -273,6 +326,125 @@ export default function Medicines() {
       'id', 'name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit',
       'total_stock', 'reorder_level', 'stock_status', 'nearest_expiry', 'requires_prescription'
     ]);
+  }
+
+  // ---- Batch handlers (integrated into medicine detail modal) ----
+
+  function openDetail(medicine) {
+    setDetailMedicine(medicine);
+    resetBatchForm();
+  }
+
+  function closeDetail() {
+    setDetailMedicine(null);
+    resetBatchForm();
+  }
+
+  const detailBatches = useMemo(() => {
+    if (!detailMedicine) return [];
+    return batches
+      .filter((b) => Number(b.medicine_id) === Number(detailMedicine.id))
+      .sort((a, b) => {
+        const av = a.expiry_date ? new Date(a.expiry_date).getTime() : Infinity;
+        const bv = b.expiry_date ? new Date(b.expiry_date).getTime() : Infinity;
+        return av - bv;
+      });
+  }, [batches, detailMedicine]);
+
+  function openBatchCreate() {
+    setEditingBatchId(null);
+    setBatchForm(emptyBatchForm);
+    setShowBatchForm(true);
+    setBatchError('');
+  }
+
+  function openBatchEdit(batch) {
+    setEditingBatchId(batch.id);
+    setBatchForm({
+      supplier_id: batch.supplier_id || '',
+      batch_number: batch.batch_number || '',
+      quantity_received: batch.quantity_received ?? '',
+      quantity_remaining: batch.quantity_remaining ?? '',
+      cost_price: batch.cost_price ?? '',
+      selling_price: batch.selling_price ?? '',
+      manufacture_date: batch.manufacture_date ? String(batch.manufacture_date).slice(0, 10) : '',
+      expiry_date: batch.expiry_date ? String(batch.expiry_date).slice(0, 10) : '',
+      status: batch.status || 'active'
+    });
+    setShowBatchForm(true);
+    setBatchError('');
+  }
+
+  async function handleBatchSubmit(e) {
+    e.preventDefault();
+    setBatchError('');
+    const payload = { ...batchForm, medicine_id: detailMedicine.id };
+    try {
+      if (editingBatchId) {
+        await api.put(`/batches/${editingBatchId}`, payload);
+        addToast('Batch updated', 'success');
+      } else {
+        await api.post('/batches', payload);
+        addToast('Batch received', 'success');
+      }
+      api.invalidateCache('/batches');
+      api.invalidateCache('/medicines');
+      api.invalidateCache('/notifications');
+      api.invalidateCache('/notifications?unread=true');
+      resetBatchForm();
+      await Promise.all([fetchBatches(), fetchMedicines()]);
+      // Refresh the detail medicine object so stock/expiry reflect the new batch
+      const updated = medicines.find((m) => Number(m.id) === Number(detailMedicine.id));
+      if (updated) setDetailMedicine(updated);
+    } catch (err) {
+      setBatchError(err.response?.data?.error || 'Failed to save batch');
+    }
+  }
+
+  async function handleBatchDelete(batch) {
+    if (!window.confirm(`Delete batch ${batch.batch_number || batch.id}?`)) return;
+    try {
+      await api.delete(`/batches/${batch.id}`);
+      api.invalidateCache('/batches');
+      api.invalidateCache('/medicines');
+      api.invalidateCache('/notifications');
+      api.invalidateCache('/notifications?unread=true');
+      await Promise.all([fetchBatches(), fetchMedicines()]);
+      const updated = medicines.find((m) => Number(m.id) === Number(detailMedicine.id));
+      if (updated) setDetailMedicine(updated);
+      addToast('Batch deleted', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'Failed to delete batch', 'error');
+    }
+  }
+
+  async function handleRemoveDepleted() {
+    if (!window.confirm('Remove all batches that are already depleted?')) return;
+    try {
+      const res = await api.delete('/batches/depleted');
+      api.invalidateCache('/batches');
+      api.invalidateCache('/medicines');
+      api.invalidateCache('/notifications');
+      api.invalidateCache('/notifications?unread=true');
+      await Promise.all([fetchBatches(), fetchMedicines()]);
+      addToast(res.data.message || 'Depleted batches removed', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'Could not remove depleted batches', 'error');
+    }
+  }
+
+  function handleBatchExport() {
+    const rows = detailBatches.map((batch) => ({
+      id: batch.id,
+      medicine: batch.medicine_name,
+      batch_number: batch.batch_number,
+      supplier: batch.supplier_name || '—',
+      quantity_remaining: batch.quantity_remaining,
+      expiry_date: batch.expiry_date,
+      status: batch.status,
+      selling_price: batch.selling_price || ''
+    }));
+    downloadCsv('batches.csv', rows, ['id', 'medicine', 'batch_number', 'supplier', 'quantity_remaining', 'expiry_date', 'status', 'selling_price']);
   }
 
   return (
@@ -493,6 +665,7 @@ export default function Medicines() {
                   transition: 'all 0.2s ease'
                 }}
                 whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
+                onClick={() => openDetail(m)}
               >
                 {/* Top Row: ID & Status */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -537,7 +710,7 @@ export default function Medicines() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => openEdit(m)}
+                    onClick={(e) => { e.stopPropagation(); openEdit(m); }}
                     style={{
                       width: '36px',
                       height: '36px',
@@ -563,6 +736,211 @@ export default function Medicines() {
         </motion.div>
       )}
 
+      {/* Medicine detail modal with integrated batches */}
+      <AnimatedModal isOpen={Boolean(detailMedicine)} onClose={closeDetail}>
+        {detailMedicine && (
+          <div style={{ maxHeight: '80vh', overflowY: 'auto', padding: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <div>
+                <h2 style={{ margin: 0 }}>{detailMedicine.name}</h2>
+                <p style={{ margin: '4px 0 0', color: 'var(--steel)', fontSize: 13 }}>
+                  {[detailMedicine.generic_name, detailMedicine.dosage_form, detailMedicine.strength].filter(Boolean).join(' · ') || '—'}
+                </p>
+              </div>
+              <span className={`status-pill ${stockStateOf(detailMedicine).cls}`}>{stockStateOf(detailMedicine).label}</span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
+              <div className="card" style={{ padding: '12px 16px' }}>
+                <div style={{ color: 'var(--steel)', fontSize: 11 }}>Total stock</div>
+                <div style={{ fontWeight: 700, fontSize: 18 }}>{detailMedicine.total_stock ?? 0} {detailMedicine.unit}</div>
+              </div>
+              <div className="card" style={{ padding: '12px 16px' }}>
+                <div style={{ color: 'var(--steel)', fontSize: 11 }}>Reorder level</div>
+                <div style={{ fontWeight: 700, fontSize: 18 }}>{detailMedicine.reorder_level ?? 0}</div>
+              </div>
+              <div className="card" style={{ padding: '12px 16px' }}>
+                <div style={{ color: 'var(--steel)', fontSize: 11 }}>Batches</div>
+                <div style={{ fontWeight: 700, fontSize: 18 }}>{detailBatches.length}</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+              <h3 style={{ margin: 0 }}>Batches</h3>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="btn btn-secondary" onClick={handleBatchExport}>
+                  <Download size={14} /> Export
+                </button>
+                {user.role === 'admin' && (
+                  <button className="btn btn-secondary" onClick={handleRemoveDepleted}>
+                    <Trash2 size={14} /> Remove depleted
+                  </button>
+                )}
+                <button className="btn btn-primary" onClick={openBatchCreate}>
+                  <Plus size={14} /> Receive stock
+                </button>
+              </div>
+            </div>
+
+            {showBatchForm && (
+              <form onSubmit={handleBatchSubmit} className="card" style={{ marginBottom: 16, padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                <div className="field">
+                  <label>Supplier</label>
+                  <select value={batchForm.supplier_id} onChange={(e) => setBatchForm({ ...batchForm, supplier_id: e.target.value })}>
+                    <option value="">No supplier</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field"><label>Batch number</label><input value={batchForm.batch_number} onChange={(e) => setBatchForm({ ...batchForm, batch_number: e.target.value })} required /></div>
+                <div className="field"><label>Quantity received</label><input type="number" min="1" value={batchForm.quantity_received} onChange={(e) => setBatchForm({ ...batchForm, quantity_received: e.target.value })} required /></div>
+                <div className="field"><label>Remaining quantity</label><input type="number" min="0" value={batchForm.quantity_remaining} onChange={(e) => setBatchForm({ ...batchForm, quantity_remaining: e.target.value })} /></div>
+                <div className="field"><label>Expiry date</label><input type="date" value={batchForm.expiry_date} onChange={(e) => setBatchForm({ ...batchForm, expiry_date: e.target.value })} required /></div>
+                <div className="field"><label>Manufacture date</label><input type="date" value={batchForm.manufacture_date} onChange={(e) => setBatchForm({ ...batchForm, manufacture_date: e.target.value })} /></div>
+                <div className="field"><label>Cost price</label><input type="number" step="0.01" value={batchForm.cost_price} onChange={(e) => setBatchForm({ ...batchForm, cost_price: e.target.value })} /></div>
+                <div className="field"><label>Selling price</label><input type="number" step="0.01" value={batchForm.selling_price} onChange={(e) => setBatchForm({ ...batchForm, selling_price: e.target.value })} /></div>
+                <div className="field"><label>Status</label><select value={batchForm.status} onChange={(e) => setBatchForm({ ...batchForm, status: e.target.value })}><option value="active">Active</option><option value="recalled">Recalled</option><option value="depleted">Depleted</option><option value="expired">Expired</option></select></div>
+                <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
+                  <button type="submit" className="btn btn-primary">{editingBatchId ? 'Update batch' : 'Save batch'}</button>
+                  <button type="button" className="btn btn-secondary" onClick={resetBatchForm}>Cancel</button>
+                </div>
+                {batchError && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{batchError}</p>}
+              </form>
+            )}
+
+            {detailBatches.length === 0 && !showBatchForm && (
+              <div className="empty-state" style={{ padding: '24px' }}>
+                <strong>No batches for this medicine</strong>
+                <p style={{ margin: '6px 0 0' }}>Receive stock to add a batch.</p>
+              </div>
+            )}
+
+            {detailBatches.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                <StaggeredList staggerDelay={0.03}>
+                  {detailBatches.map((b) => {
+                    const pill = batchStatusPill(b);
+                    const borderColorMap = { 'safe': 'var(--green)', 'warning': 'var(--gold)', 'critical': 'var(--red)' };
+                    return (
+                      <motion.div
+                        key={b.id}
+                        className="card"
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          padding: '14px',
+                          borderTop: `4px solid ${borderColorMap[pill.cls]}`
+                        }}
+                        whileHover={{ y: -2, boxShadow: 'var(--shadow-md)' }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <span className="stamp" style={{ fontSize: '11px' }}>Batch: {b.batch_number}</span>
+                          <span className={`status-pill ${pill.cls}`} style={{ fontSize: '10px', padding: '3px 8px' }}>{pill.label}</span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12, marginBottom: 8 }}>
+                          <div>
+                            <div style={{ color: 'var(--steel)', fontSize: 11 }}>Remaining</div>
+                            <div style={{ fontWeight: 600 }}>{b.quantity_remaining}</div>
+                          </div>
+                          <div>
+                            <div style={{ color: 'var(--steel)', fontSize: 11 }}>Expiry</div>
+                            <div style={{ fontWeight: 600 }}>{new Date(b.expiry_date).toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                        {b.supplier_name && (
+                          <div style={{ fontSize: 11, color: 'var(--steel)', marginBottom: 8 }}>
+                            Supplier: <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{b.supplier_name}</span>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 'auto' }}>
+                          <button
+                            type="button"
+                            onClick={() => openBatchEdit(b)}
+                            style={{
+                              width: '30px', height: '30px', borderRadius: '50%', background: 'var(--bg-subtle)',
+                              border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                            }}
+                            title="Edit batch"
+                          >
+                            <Pencil size={13} color="var(--ink)" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setQrBatch(b); setShowQRModal(true); }}
+                            style={{
+                              width: '30px', height: '30px', borderRadius: '50%', background: 'var(--bg-subtle)',
+                              border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                            }}
+                            title="Show QR code"
+                          >
+                            <QrCode size={13} color="var(--ink)" />
+                          </button>
+                          {user.role === 'admin' && (
+                            <button
+                              type="button"
+                              onClick={() => handleBatchDelete(b)}
+                              style={{
+                                width: '30px', height: '30px', borderRadius: '50%', background: 'var(--bg-subtle)',
+                                border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                              }}
+                              title="Delete batch"
+                            >
+                              <Trash2 size={13} color="var(--red)" />
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </StaggeredList>
+              </div>
+            )}
+          </div>
+        )}
+      </AnimatedModal>
+
+      {/* QR code modal */}
+      {showQRModal && qrBatch && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowQRModal(false)}>
+          <motion.div 
+            className="card" 
+            style={{ padding: 24, maxWidth: 400, width: '90%' }}
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0 }}>Batch QR Code</h3>
+              <button className="btn-icon" onClick={() => setShowQRModal(false)}><X size={18} /></button>
+            </div>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <QRCodeDisplay value={qrBatch.id.toString()} size={250} />
+            </div>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <p style={{ fontWeight: 500, margin: '0 0 4px' }}>{qrBatch.medicine_name}</p>
+              <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>Batch: {qrBatch.batch_number}</p>
+              <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>ID: {qrBatch.id}</p>
+            </div>
+            <button 
+              className="btn btn-primary" 
+              style={{ width: '100%' }}
+              onClick={() => {
+                const canvas = document.querySelector('.qr-code-container canvas');
+                if (canvas) {
+                  const link = document.createElement('a');
+                  link.download = `batch-${qrBatch.batch_number}-qr.png`;
+                  link.href = canvas.toDataURL();
+                  link.click();
+                }
+              }}
+            >
+              Download QR Code
+            </button>
+          </motion.div>
+        </div>
+      )}
 
       <AnimatedModal isOpen={showCsvImport} onClose={() => setShowCsvImport(false)}>
         <CsvImport

@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useMemo } from 'react';
 import {
-  IconLayoutDashboard, IconPill, IconPackage, IconReceipt, IconBellRinging,
+  IconLayoutDashboard, IconPill, IconReceipt, IconBellRinging,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
   IconTools, IconQrcode, IconMessage, IconCloudRain, IconSun, IconMoon
 } from '@tabler/icons-react';
@@ -14,7 +14,6 @@ import api from '../api/axios';
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: IconLayoutDashboard, section: 'MAIN MENU' },
   { to: '/medicines', label: 'Medicines', icon: IconPill, section: 'MAIN MENU' },
-  { to: '/batches', label: 'Batches', icon: IconPackage, section: 'MAIN MENU' },
   { to: '/transactions', label: 'Transactions', icon: IconReceipt, section: 'MAIN MENU' },
   { to: '/notifications', label: 'Alerts', icon: IconBellRinging, section: 'MAIN MENU' },
   { to: '/scanner', label: 'Scanner', icon: IconQrcode, section: 'MAIN MENU' },

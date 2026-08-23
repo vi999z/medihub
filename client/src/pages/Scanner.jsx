@@ -356,8 +356,8 @@ export default function Scanner() {
                 whileHover={{ y: -2 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => {
-                  // Navigate to add medicine/batch form with pre-filled data
-                  navigate(`/batches?add=true&code=${encodeURIComponent(scanResult.code)}`);
+                  // Navigate to medicines page to add stock with pre-filled data
+                  navigate(`/medicines?addBatch=true&code=${encodeURIComponent(scanResult.code)}`);
                 }}
               >
                 Add to Stock
