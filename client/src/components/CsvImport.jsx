@@ -1,6 +1,33 @@
 import { useState, useRef } from 'react';
-import { Upload, X, Check, AlertTriangle, Download, FileText } from 'lucide-react';
+import { Upload, X, Check, AlertTriangle, Download, FileText, Package, Bell } from 'lucide-react';
 import api from '../api/axios';
+
+const ENTITY_CONFIG = {
+  medicines: {
+    label: 'Medicine',
+    plural: 'Medicines',
+    templateHeaders: ['name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'reorder_level', 'requires_prescription', 'batch_number', 'quantity_received', 'cost_price', 'selling_price', 'manufacture_date', 'expiry_date', 'supplier_name'],
+    templateExample: ['Paracetamol', 'Acetaminophen', 'Analgesic', 'Tablet', '500mg', 'tablet', '50', 'false', 'BATCH-001', '100', '5.00', '8.00', '2025-01-15', '2026-01-15', 'MedSupply Co.'],
+    requiredColumns: ['name', 'unit'],
+    displayColumns: ['Medicine', 'Batch #', 'Expiry', 'Status', 'Errors']
+  },
+  batches: {
+    label: 'Batch',
+    plural: 'Batches',
+    templateHeaders: ['medicine_name', 'batch_number', 'quantity_received', 'cost_price', 'selling_price', 'manufacture_date', 'expiry_date', 'supplier_name'],
+    templateExample: ['Paracetamol', 'BATCH-001', '100', '5.00', '8.00', '2025-01-15', '2026-01-15', 'MedSupply Co.'],
+    requiredColumns: ['medicine_name', 'batch_number', 'quantity_received', 'expiry_date'],
+    displayColumns: ['Medicine', 'Batch #', 'Status', 'Errors']
+  },
+  suppliers: {
+    label: 'Supplier',
+    plural: 'Suppliers',
+    templateHeaders: ['name', 'contact_person', 'phone', 'email', 'address'],
+    templateExample: ['MedSupply Co.', 'John Doe', '555-1234', 'john@medsupply.com', '123 Main St'],
+    requiredColumns: ['name'],
+    displayColumns: ['Name', 'Contact', 'Status', 'Errors']
+  }
+};
 
 export default function CsvImport({ onClose, onImportComplete, entityType = 'medicines' }) {
   const [step, setStep] = useState('upload'); // upload, preview, complete
@@ -10,11 +37,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef(null);
 
-  const entityLabels = {
-    medicines: 'Medicine',
-    batches: 'Batch',
-    suppliers: 'Supplier'
-  };
+  const config = ENTITY_CONFIG[entityType] || ENTITY_CONFIG.medicines;
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -107,7 +130,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
 
   if (step === 'complete') {
     return (
-      <div className="card" style={{ padding: 24 }}>
+      <div className="card" style={{ padding: 24, border: 'none', boxShadow: 'none' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Check size={20} style={{ color: 'var(--success)' }} />
@@ -120,10 +143,24 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✓</div>
           <p style={{ fontSize: 16, marginBottom: 8 }}>
-            <strong>{validationResult?.validRows || 0}</strong> {entityLabels[entityType]}(s) imported successfully
+            <strong>{validationResult?.validRows || 0}</strong> {config.label}(s) imported successfully
           </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
+            <div className="stat-card accent-green" style={{ padding: '12px 16px', minWidth: 100, minHeight: 0 }}>
+              <div className="value">{validationResult?.validRows || 0}</div>
+              <div className="label">Medicines</div>
+            </div>
+            <div className="stat-card accent-amber" style={{ padding: '12px 16px', minWidth: 100, minHeight: 0 }}>
+              <div className="value">{validationResult?.batchesCreated || 0}</div>
+              <div className="label">Batches</div>
+            </div>
+            <div className="stat-card accent-red" style={{ padding: '12px 16px', minWidth: 100, minHeight: 0 }}>
+              <div className="value">{validationResult?.alertsCreated || 0}</div>
+              <div className="label">Alerts</div>
+            </div>
+          </div>
           {invalidRows.length > 0 && (
-            <p style={{ color: 'var(--danger)', fontSize: 14 }}>
+            <p style={{ color: 'var(--danger)', fontSize: 14, marginTop: 12 }}>
               {invalidRows.length} row(s) skipped due to errors
             </p>
           )}
@@ -138,9 +175,9 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
   }
 
   return (
-    <div className="card" style={{ padding: 24 }}>
+    <div className="card" style={{ padding: 24, border: 'none', boxShadow: 'none' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h3 style={{ margin: 0 }}>Import {entityLabels[entityType]}s from CSV</h3>
+        <h3 style={{ margin: 0 }}>Import {config.plural} from CSV</h3>
         <button className="btn-icon" onClick={onClose} title="Close">
           <X size={18} />
         </button>
@@ -149,8 +186,8 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
       {step === 'upload' && (
         <>
           <div style={{ marginBottom: 16 }}>
-            <button 
-              className="btn btn-secondary" 
+            <button
+              className="btn btn-secondary"
               onClick={handleDownloadTemplate}
               style={{ fontSize: 13 }}
             >
@@ -192,6 +229,12 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
             />
           </div>
 
+          {entityType === 'medicines' && (
+            <div style={{ marginTop: 16, padding: 12, backgroundColor: 'var(--bg-subtle)', borderRadius: 6, fontSize: 13, color: 'var(--steel)' }}>
+              <strong style={{ color: 'var(--ink)' }}>Tip:</strong> Include batch columns (batch_number, quantity_received, expiry_date, etc.) to import medicines with their stock batches and generate alerts automatically. Rows without batch data will import as medicines only.
+            </div>
+          )}
+
           {file && (
             <div style={{ marginTop: 16, padding: 12, backgroundColor: 'var(--bg-subtle)', borderRadius: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -215,16 +258,16 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
 
       {step === 'preview' && validationResult && (
         <>
-          <div style={{ marginBottom: 16, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <div className="stat-card accent-green" style={{ padding: 12, minWidth: 120 }}>
+          <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div className="stat-card accent-green" style={{ padding: '12px 16px', minWidth: 100, minHeight: 0 }}>
               <div className="value">{validationResult.validRows}</div>
               <div className="label">Valid rows</div>
             </div>
-            <div className="stat-card accent-red" style={{ padding: 12, minWidth: 120 }}>
+            <div className="stat-card accent-red" style={{ padding: '12px 16px', minWidth: 100, minHeight: 0 }}>
               <div className="value">{validationResult.invalidRows}</div>
               <div className="label">Invalid rows</div>
             </div>
-            <div className="stat-card" style={{ padding: 12, minWidth: 120 }}>
+            <div className="stat-card" style={{ padding: '12px 16px', minWidth: 100, minHeight: 0 }}>
               <div className="value">{validationResult.totalRows}</div>
               <div className="label">Total rows</div>
             </div>
@@ -244,10 +287,12 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
 
           <div className="table-scroll" style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, marginBottom: 16 }}>
             <table className="data-table" style={{ fontSize: 13 }}>
-              <thead style={{ position: 'sticky', top: 0, backgroundColor: 'var(--bg)' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'var(--surface-strong)' }}>
                 <tr>
                   <th style={{ width: 60 }}>Row</th>
-                  <th>Name</th>
+                  <th>Medicine</th>
+                  <th>Batch #</th>
+                  <th>Expiry</th>
                   <th>Status</th>
                   <th>Errors</th>
                 </tr>
@@ -256,7 +301,9 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
                 {validationResult.results.map((row, idx) => (
                   <tr key={idx} style={{ backgroundColor: row.valid ? 'transparent' : 'var(--bg-error)' }}>
                     <td>{row.row}</td>
-                    <td>{row.data.name || '—'}</td>
+                    <td>{row.data.name || row.data.medicine_name || '—'}</td>
+                    <td>{row.data.batch_number || '—'}</td>
+                    <td>{row.data.expiry_date || '—'}</td>
                     <td>
                       {row.valid ? (
                         <span className="status-pill safe">Valid</span>
@@ -283,7 +330,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
             </table>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             <button
               className="btn btn-secondary"
               onClick={() => {
@@ -299,7 +346,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
               onClick={handleCommit}
               disabled={importing || validRows.length === 0}
             >
-              {importing ? 'Importing...' : `Import ${validRows.length} ${entityLabels[entityType]}(s)`}
+              {importing ? 'Importing...' : `Import ${validRows.length} ${config.label}(s)`}
             </button>
           </div>
         </>

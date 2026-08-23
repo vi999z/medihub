@@ -3,6 +3,14 @@ const { pool } = require('../config/db');
 const { logAudit } = require('../utils/auditLogger');
 const { parse } = require('csv-parse');
 const fs = require('fs');
+const {
+  createNearExpiryAlert,
+  createExpiredAlert,
+  createLowStockAlert
+} = require('../utils/alertHelpers');
+
+const MEDICINE_COLUMNS = ['name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'reorder_level', 'requires_prescription'];
+const BATCH_COLUMNS = ['batch_number', 'quantity_received', 'cost_price', 'selling_price', 'manufacture_date', 'expiry_date', 'supplier_name'];
 
 async function getAll(req, res) {
   const medicines = await medicineModel.getAll();
@@ -53,6 +61,14 @@ async function remove(req, res) {
   res.status(204).send();
 }
 
+function hasBatchData(row) {
+  return BATCH_COLUMNS.some((col) => row[col] && String(row[col]).trim() !== '');
+}
+
+function normalizeBoolean(value) {
+  return ['true', 'yes', '1'].includes(String(value).toLowerCase());
+}
+
 async function validateCsvImport(req, res) {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -61,7 +77,7 @@ async function validateCsvImport(req, res) {
   const results = [];
   const requiredColumns = ['name', 'unit'];
   const optionalColumns = ['generic_name', 'category', 'dosage_form', 'strength', 'reorder_level', 'requires_prescription'];
-  
+
   // Get existing medicine names for duplicate check
   const [existingMedicines] = await pool.query('SELECT name FROM medicines');
   const existingNames = new Set(existingMedicines.map(m => m.name.toLowerCase()));
@@ -106,12 +122,41 @@ async function validateCsvImport(req, res) {
       }
     }
 
+    // Batch validation (only when batch data is present)
+    const hasBatch = hasBatchData(row);
+    if (hasBatch) {
+      if (!row.batch_number || row.batch_number.trim() === '') {
+        errors.push('Missing required field: batch_number');
+      }
+      if (!row.quantity_received || isNaN(Number(row.quantity_received)) || Number(row.quantity_received) <= 0) {
+        errors.push('quantity_received must be a positive number');
+      }
+      if (!row.expiry_date) {
+        errors.push('Missing required field: expiry_date');
+      } else {
+        const expiry = new Date(row.expiry_date);
+        if (isNaN(expiry.getTime())) {
+          errors.push('expiry_date must be a valid date (YYYY-MM-DD)');
+        }
+      }
+      if (row.cost_price && isNaN(Number(row.cost_price))) {
+        errors.push('cost_price must be a number');
+      }
+      if (row.selling_price && isNaN(Number(row.selling_price))) {
+        errors.push('selling_price must be a number');
+      }
+      if (row.manufacture_date && isNaN(new Date(row.manufacture_date).getTime())) {
+        errors.push('manufacture_date must be a valid date (YYYY-MM-DD)');
+      }
+    }
+
     results.push({
       row: rowNum,
       data: row,
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
+      hasBatch
     });
   });
 
@@ -137,9 +182,20 @@ async function validateCsvImport(req, res) {
   fs.createReadStream(req.file.path).pipe(parser);
 }
 
+async function resolveSupplierId(conn, supplierName) {
+  if (!supplierName || String(supplierName).trim() === '') return null;
+  const name = String(supplierName).trim();
+
+  const [existing] = await conn.query('SELECT id FROM suppliers WHERE name = ?', [name]);
+  if (existing.length) return existing[0].id;
+
+  const [result] = await conn.query('INSERT INTO suppliers (name) VALUES (?)', [name]);
+  return result.insertId;
+}
+
 async function commitCsvImport(req, res) {
   const { results } = req.body;
-  
+
   if (!Array.isArray(results)) {
     return res.status(400).json({ error: 'Invalid results format' });
   }
@@ -147,44 +203,120 @@ async function commitCsvImport(req, res) {
   const validRows = results.filter(r => r.valid);
   const created = [];
   const failed = [];
+  let batchesCreated = 0;
+  let alertsCreated = 0;
 
-  for (const row of validRows) {
-    try {
-      const data = {
-        name: row.data.name,
-        generic_name: row.data.generic_name || '',
-        category: row.data.category || 'Other',
-        dosage_form: row.data.dosage_form || '',
-        strength: row.data.strength || '',
-        unit: row.data.unit,
-        reorder_level: row.data.reorder_level ? Number(row.data.reorder_level) : 10,
-        requires_prescription: ['true', 'yes', '1'].includes(String(row.data.requires_prescription).toLowerCase())
-      };
+  const conn = await pool.getConnection();
 
-      const id = await medicineModel.create(data);
-      created.push({ id, name: data.name });
-    } catch (err) {
-      failed.push({ name: row.data.name, error: err.message });
+  try {
+    await conn.beginTransaction();
+
+    for (const row of validRows) {
+      try {
+        const data = {
+          name: row.data.name,
+          generic_name: row.data.generic_name || '',
+          category: row.data.category || 'Other',
+          dosage_form: row.data.dosage_form || '',
+          strength: row.data.strength || '',
+          unit: row.data.unit,
+          reorder_level: row.data.reorder_level ? Number(row.data.reorder_level) : 10,
+          requires_prescription: normalizeBoolean(row.data.requires_prescription)
+        };
+
+        const [medicineResult] = await conn.query(
+          `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [data.name, data.generic_name, medicineModel.normalizeCategory(data.category), data.dosage_form, data.strength, data.unit, data.reorder_level, data.requires_prescription]
+        );
+        const medicineId = medicineResult.insertId;
+        created.push({ id: medicineId, name: data.name });
+
+        // Create batch if batch data is present
+        if (row.hasBatch) {
+          const supplierId = await resolveSupplierId(conn, row.data.supplier_name);
+          const quantityReceived = Number(row.data.quantity_received);
+          const expiryDate = row.data.expiry_date;
+          const isExpired = new Date(expiryDate) < new Date(new Date().toDateString());
+
+          const [batchResult] = await conn.query(
+            `INSERT INTO batches
+             (medicine_id, supplier_id, batch_number, quantity_received, quantity_remaining, cost_price, selling_price, manufacture_date, expiry_date, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              medicineId,
+              supplierId,
+              row.data.batch_number,
+              quantityReceived,
+              quantityReceived,
+              row.data.cost_price ? Number(row.data.cost_price) : null,
+              row.data.selling_price ? Number(row.data.selling_price) : null,
+              row.data.manufacture_date || null,
+              expiryDate,
+              isExpired ? 'expired' : 'active'
+            ]
+          );
+          const batchId = batchResult.insertId;
+          batchesCreated++;
+
+          // Generate alerts immediately
+          const batchForAlert = {
+            id: batchId,
+            batch_number: row.data.batch_number,
+            expiry_date: expiryDate,
+            quantity_remaining: quantityReceived,
+            medicine_name: data.name
+          };
+
+          if (isExpired) {
+            if (await createExpiredAlert(batchForAlert)) alertsCreated++;
+          } else {
+            const alertType = await createNearExpiryAlert(batchForAlert);
+            if (alertType) alertsCreated++;
+          }
+
+          // Low stock check for the medicine
+          const medicineForAlert = {
+            id: medicineId,
+            name: data.name,
+            reorder_level: data.reorder_level,
+            total_remaining: quantityReceived
+          };
+          if (await createLowStockAlert(medicineForAlert)) alertsCreated++;
+        }
+      } catch (err) {
+        failed.push({ name: row.data.name, error: err.message });
+      }
     }
+
+    await conn.commit();
+
+    await logAudit(
+      req.user.id,
+      'csv_import_medicines',
+      `CSV import: ${created.length} created, ${batchesCreated} batches, ${alertsCreated} alerts, ${failed.length} failed`,
+      req
+    );
+
+    res.json({
+      created: created.length,
+      batchesCreated,
+      alertsCreated,
+      failed: failed.length,
+      createdDetails: created,
+      failedDetails: failed
+    });
+  } catch (err) {
+    await conn.rollback();
+    console.error('CSV import transaction failed:', err);
+    res.status(500).json({ error: 'Failed to import data' });
+  } finally {
+    conn.release();
   }
-
-  await logAudit(
-    req.user.id,
-    'csv_import_medicines',
-    `CSV import: ${created.length} created, ${failed.length} failed`,
-    req
-  );
-
-  res.json({
-    created: created.length,
-    failed: failed.length,
-    createdDetails: created,
-    failedDetails: failed
-  });
 }
 
 async function downloadCsvTemplate(req, res) {
-  const headers = ['name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'reorder_level', 'requires_prescription'];
+  const headers = [...MEDICINE_COLUMNS, ...BATCH_COLUMNS];
   const exampleRow = [
     'Paracetamol',
     'Acetaminophen',
@@ -193,7 +325,14 @@ async function downloadCsvTemplate(req, res) {
     '500mg',
     'tablet',
     '50',
-    'false'
+    'false',
+    'BATCH-001',
+    '100',
+    '5.00',
+    '8.00',
+    '2025-01-15',
+    '2026-01-15',
+    'MedSupply Co.'
   ];
 
   const csv = [

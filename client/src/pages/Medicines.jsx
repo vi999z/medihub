@@ -92,8 +92,11 @@ export default function Medicines() {
 
   function handleCsvImportComplete(result) {
     api.invalidateCache('/medicines');
+    api.invalidateCache('/batches');
+    api.invalidateCache('/notifications');
+    api.invalidateCache('/notifications?unread=true');
     fetchMedicines();
-    addToast(`Imported ${result.created} medicines successfully`, 'success');
+    addToast(`Imported ${result.created} medicines, ${result.batchesCreated || 0} batches, ${result.alertsCreated || 0} alerts`, 'success');
     if (result.failed > 0) {
       addToast(`${result.failed} rows failed to import`, 'error');
     }

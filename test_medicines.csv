@@ -1,6 +1,6 @@
-name,generic_name,category,dosage_form,strength,unit,reorder_level,requires_prescription
-Amoxicillin,Amoxicillin trihydrate,Antibiotic,Capsule,500mg,capsule,30,true
-Ibuprofen,Ibuprofen,Analgesic,Tablet,400mg,tablet,50,false
-Omeprazole,Omeprazole,Antacid,Capsule,20mg,capsule,25,false
-Metformin,Metformin hydrochloride,Cardiovascular,Tablet,500mg,tablet,40,true
-Loratadine,Loratadine,Antihistamine,Tablet,10mg,tablet,60,false
+name,generic_name,category,dosage_form,strength,unit,reorder_level,requires_prescription,batch_number,quantity_received,cost_price,selling_price,manufacture_date,expiry_date,supplier_name
+Amoxicillin,Amoxicillin trihydrate,Antibiotic,Capsule,500mg,capsule,30,true,BATCH-AMX-001,100,5.00,8.00,2025-01-15,2026-01-15,MedSupply Co.
+Ibuprofen,Ibuprofen,Analgesic,Tablet,400mg,tablet,50,false,BATCH-IBU-001,200,3.00,6.00,2025-02-01,2026-02-01,MedSupply Co.
+Omeprazole,Omeprazole,Antacid,Capsule,20mg,capsule,25,false,BATCH-OME-001,150,4.50,7.50,2025-03-01,2026-03-01,PharmaDirect
+Metformin,Metformin hydrochloride,Cardiovascular,Tablet,500mg,tablet,40,true,BATCH-MET-001,80,2.50,5.00,2025-04-01,2026-04-01,PharmaDirect
+Loratadine,Loratadine,Antihistamine,Tablet,10mg,tablet,60,false,BATCH-LOR-001,120,3.50,6.50,2025-05-01,2026-05-01,MedSupply Co.
