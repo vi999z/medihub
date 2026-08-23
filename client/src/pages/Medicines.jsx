@@ -16,6 +16,8 @@ import StaggeredList from '../components/StaggeredList';
 import AnimatedModal from '../components/AnimatedModal';
 import Skeleton from '../components/Skeleton';
 import QRCodeDisplay from '../components/QRCode';
+import ReceiveStockModal from '../components/ReceiveStockModal';
+import StockMovementModal from '../components/StockMovementModal';
 
 const CATEGORY_OPTIONS = [
   'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
@@ -87,6 +89,10 @@ export default function Medicines() {
   const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showCsvImport, setShowCsvImport] = useState(false);
+  const [showReceiveStock, setShowReceiveStock] = useState(false);
+  const [receiveStockError, setReceiveStockError] = useState('');
+  const [showStockMovement, setShowStockMovement] = useState(false);
+  const [stockMovementError, setStockMovementError] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
@@ -162,6 +168,45 @@ export default function Medicines() {
       setSuppliers(res.data);
     } catch (err) {
       // Non-fatal
+    }
+  }
+
+  async function handleReceiveStock(form) {
+    setReceiveStockError('');
+    try {
+      await api.post('/batches', {
+        ...form,
+        quantity_remaining: form.quantity_received,
+        status: 'active'
+      });
+      api.invalidateCache('/batches');
+      api.invalidateCache('/medicines');
+      api.invalidateCache('/notifications');
+      api.invalidateCache('/notifications?unread=true');
+      await Promise.all([fetchBatches(), fetchMedicines()]);
+      addToast('Stock received', 'success');
+    } catch (err) {
+      const message = err.response?.data?.error || 'Failed to receive stock';
+      setReceiveStockError(message);
+      throw err;
+    }
+  }
+
+  async function handleStockMovement(form) {
+    setStockMovementError('');
+    try {
+      await api.post('/transactions', form);
+      api.invalidateCache('/transactions/recent');
+      api.invalidateCache('/batches');
+      api.invalidateCache('/medicines');
+      api.invalidateCache('/notifications');
+      api.invalidateCache('/notifications?unread=true');
+      await Promise.all([fetchBatches(), fetchMedicines()]);
+      addToast('Stock movement recorded', 'success');
+    } catch (err) {
+      const message = err.response?.data?.error || 'Failed to record stock movement';
+      setStockMovementError(message);
+      throw err;
     }
   }
 
@@ -470,12 +515,17 @@ export default function Medicines() {
           {user.role === 'admin' && (
             <>
               <button className="btn btn-secondary" onClick={() => setShowCsvImport(true)}>
-                <Upload size={15} /> Import CSV
+                <Upload size={15} /> Import medicine list
               </button>
               <button className="btn btn-primary" onClick={openCreate}>
                 <Plus size={15} /> Add medicine
               </button>
             </>
+          )}
+          {(user.role === 'admin' || user.role === 'pharmacist') && (
+            <button className="btn btn-primary" onClick={() => { setReceiveStockError(''); setShowReceiveStock(true); }}>
+              <Plus size={15} /> Receive stock
+            </button>
           )}
         </div>
       </div>
@@ -771,6 +821,9 @@ export default function Medicines() {
                 <button className="btn btn-secondary" onClick={handleBatchExport}>
                   <Download size={14} /> Export
                 </button>
+                <button className="btn btn-secondary" onClick={() => { setStockMovementError(''); setShowStockMovement(true); }} disabled={detailBatches.length === 0}>
+                  Record movement
+                </button>
                 {user.role === 'admin' && (
                   <button className="btn btn-secondary" onClick={handleRemoveDepleted}>
                     <Trash2 size={14} /> Remove depleted
@@ -949,6 +1002,26 @@ export default function Medicines() {
           entityType="medicines"
         />
       </AnimatedModal>
+
+      <ReceiveStockModal
+        isOpen={showReceiveStock}
+        onClose={() => setShowReceiveStock(false)}
+        medicines={medicines}
+        suppliers={suppliers}
+        onSubmit={handleReceiveStock}
+        error={receiveStockError}
+      />
+
+      {detailMedicine && (
+        <StockMovementModal
+          isOpen={showStockMovement}
+          onClose={() => setShowStockMovement(false)}
+          medicine={detailMedicine}
+          batches={detailBatches.filter((batch) => batch.status === 'active' && Number(batch.quantity_remaining) > 0)}
+          onSubmit={handleStockMovement}
+          error={stockMovementError}
+        />
+      )}
     </motion.div>
   );
 }

@@ -1,13 +1,13 @@
 import { useState, useRef } from 'react';
-import { Upload, X, Check, AlertTriangle, Download, FileText, Package, Bell } from 'lucide-react';
+import { Upload, X, Check, AlertTriangle, Download, FileText } from 'lucide-react';
 import api from '../api/axios';
 
 const ENTITY_CONFIG = {
   medicines: {
     label: 'Medicine',
     plural: 'Medicines',
-    templateHeaders: ['name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'reorder_level', 'requires_prescription', 'batch_number', 'quantity_received', 'cost_price', 'selling_price', 'manufacture_date', 'expiry_date', 'supplier_name'],
-    templateExample: ['Paracetamol', 'Acetaminophen', 'Analgesic', 'Tablet', '500mg', 'tablet', '50', 'false', 'BATCH-001', '100', '5.00', '8.00', '2025-01-15', '2026-01-15', 'MedSupply Co.'],
+    templateHeaders: ['name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'reorder_level', 'requires_prescription'],
+    templateExample: ['Paracetamol', 'Acetaminophen', 'Analgesic', 'Tablet', '500mg', 'tablet', '50', 'false'],
     requiredColumns: ['name', 'unit'],
     displayColumns: ['Medicine', 'Batch #', 'Expiry', 'Status', 'Errors']
   },
@@ -231,7 +231,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
 
           {entityType === 'medicines' && (
             <div style={{ marginTop: 16, padding: 12, backgroundColor: 'var(--bg-subtle)', borderRadius: 6, fontSize: 13, color: 'var(--steel)' }}>
-              <strong style={{ color: 'var(--ink)' }}>Tip:</strong> Include batch columns (batch_number, quantity_received, expiry_date, etc.) to import medicines with their stock batches and generate alerts automatically. Rows without batch data will import as medicines only.
+              Upload your medicine list first. After importing, use <strong style={{ color: 'var(--ink)' }}>Receive stock</strong> to add quantities, batches, and expiry dates.
             </div>
           )}
 
