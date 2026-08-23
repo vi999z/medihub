@@ -33,10 +33,18 @@ async function create(req, res) {
     return res.status(400).json({ error: 'Expiry date must be in the future' });
   }
 
-  const id = await batchModel.create(req.body);
+  const payload = {
+    ...req.body,
+    supplier_id: req.body.supplier_id || null,
+    cost_price: req.body.cost_price === '' || req.body.cost_price == null ? null : req.body.cost_price,
+    selling_price: req.body.selling_price === '' || req.body.selling_price == null ? null : req.body.selling_price,
+    manufacture_date: req.body.manufacture_date || null
+  };
+
+  const id = await batchModel.create(payload);
   await logAudit(req.user.id, 'created_batch', `Received batch ${batch_number} for ${medicine.name} (qty: ${quantity_received})`, req);
 
-  res.status(201).json({ id, ...req.body });
+  res.status(201).json({ id, ...payload });
 }
 
 async function update(req, res) {

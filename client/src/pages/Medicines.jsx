@@ -463,35 +463,6 @@ export default function Medicines() {
     }
   }
 
-  async function handleRemoveDepleted() {
-    if (!window.confirm('Remove all batches that are already depleted?')) return;
-    try {
-      const res = await api.delete('/batches/depleted');
-      api.invalidateCache('/batches');
-      api.invalidateCache('/medicines');
-      api.invalidateCache('/notifications');
-      api.invalidateCache('/notifications?unread=true');
-      await Promise.all([fetchBatches(), fetchMedicines()]);
-      addToast(res.data.message || 'Depleted batches removed', 'success');
-    } catch (err) {
-      addToast(err.response?.data?.error || 'Could not remove depleted batches', 'error');
-    }
-  }
-
-  function handleBatchExport() {
-    const rows = detailBatches.map((batch) => ({
-      id: batch.id,
-      medicine: batch.medicine_name,
-      batch_number: batch.batch_number,
-      supplier: batch.supplier_name || '—',
-      quantity_remaining: batch.quantity_remaining,
-      expiry_date: batch.expiry_date,
-      status: batch.status,
-      selling_price: batch.selling_price || ''
-    }));
-    downloadCsv('batches.csv', rows, ['id', 'medicine', 'batch_number', 'supplier', 'quantity_remaining', 'expiry_date', 'status', 'selling_price']);
-  }
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -797,7 +768,10 @@ export default function Medicines() {
                   {[detailMedicine.generic_name, detailMedicine.dosage_form, detailMedicine.strength].filter(Boolean).join(' · ') || '—'}
                 </p>
               </div>
-              <span className={`status-pill ${stockStateOf(detailMedicine).cls}`}>{stockStateOf(detailMedicine).label}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className={`status-pill ${stockStateOf(detailMedicine).cls}`}>{stockStateOf(detailMedicine).label}</span>
+                <button type="button" className="btn-icon" onClick={closeDetail} title="Close medicine details"><X size={18} /></button>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
@@ -818,17 +792,9 @@ export default function Medicines() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
               <h3 style={{ margin: 0 }}>Batches</h3>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className="btn btn-secondary" onClick={handleBatchExport}>
-                  <Download size={14} /> Export
-                </button>
                 <button className="btn btn-secondary" onClick={() => { setStockMovementError(''); setShowStockMovement(true); }} disabled={detailBatches.length === 0}>
                   Record movement
                 </button>
-                {user.role === 'admin' && (
-                  <button className="btn btn-secondary" onClick={handleRemoveDepleted}>
-                    <Trash2 size={14} /> Remove depleted
-                  </button>
-                )}
                 <button className="btn btn-primary" onClick={openBatchCreate}>
                   <Plus size={14} /> Receive stock
                 </button>
@@ -954,19 +920,12 @@ export default function Medicines() {
       </AnimatedModal>
 
       {/* QR code modal */}
-      {showQRModal && qrBatch && (
-        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowQRModal(false)}>
-          <motion.div 
-            className="card" 
-            style={{ padding: 24, maxWidth: 400, width: '90%' }}
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-          >
+      <AnimatedModal isOpen={showQRModal && Boolean(qrBatch)} onClose={() => setShowQRModal(false)}>
+        {qrBatch && (
+          <div className="card" style={{ padding: 24, border: 'none', boxShadow: 'none' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ margin: 0 }}>Batch QR Code</h3>
-              <button className="btn-icon" onClick={() => setShowQRModal(false)}><X size={18} /></button>
+              <button type="button" className="btn-icon" onClick={() => setShowQRModal(false)} title="Close QR code"><X size={18} /></button>
             </div>
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
               <QRCodeDisplay value={qrBatch.id.toString()} size={250} />
@@ -991,9 +950,9 @@ export default function Medicines() {
             >
               Download QR Code
             </button>
-          </motion.div>
-        </div>
-      )}
+          </div>
+        )}
+      </AnimatedModal>
 
       <AnimatedModal isOpen={showCsvImport} onClose={() => setShowCsvImport(false)}>
         <CsvImport
