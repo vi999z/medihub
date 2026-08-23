@@ -68,6 +68,7 @@ export default function Batches() {
   const visibleBatches = useMemo(() => {
     const term = search.trim().toLowerCase();
     return batches.filter((batch) => {
+      if (statusFilter === 'all' && Number(batch.quantity_remaining) <= 0) return false;
       if (statusFilter === 'expiring') {
         if (batch.status !== 'active' || daysUntil(batch.expiry_date) > 30) return false;
       } else if (statusFilter !== 'all' && batch.status !== statusFilter) {

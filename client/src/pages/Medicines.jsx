@@ -388,7 +388,7 @@ export default function Medicines() {
   const detailBatches = useMemo(() => {
     if (!detailMedicine) return [];
     return batches
-      .filter((b) => Number(b.medicine_id) === Number(detailMedicine.id))
+      .filter((b) => Number(b.medicine_id) === Number(detailMedicine.id) && Number(b.quantity_remaining) > 0)
       .sort((a, b) => {
         const av = a.expiry_date ? new Date(a.expiry_date).getTime() : Infinity;
         const bv = b.expiry_date ? new Date(b.expiry_date).getTime() : Infinity;

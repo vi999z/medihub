@@ -1,45 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Camera, X, Search, Plus, RefreshCw, AlertCircle } from 'lucide-react';
+import { Camera, X, Plus, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useZxing } from 'react-zxing';
-import api from '../api/axios';
-import { useToast } from '../context/ToastContext';
-import { daysUntil } from '../utils/date';
 import Skeleton from '../components/Skeleton';
 
-// Drug Database API (free tier: 100 req/day)
-const DRUG_API_BASE = 'https://api.drug-database.com/v1';
-
-async function lookupDrugByBarcode(code) {
-  try {
-    const response = await fetch(`${DRUG_API_BASE}/drugs/lookup?system=gtin&code=${code}`);
-    if (!response.ok) return null;
-    const data = await response.json();
-    return data;
-  } catch (err) {
-    console.error('Drug lookup error:', err);
-    return null;
-  }
-}
-
-function statusPillFor(batch) {
-  if (batch.status === 'expired') return { cls: 'critical', label: 'Expired' };
-  if (batch.status === 'depleted') return { cls: 'warning', label: 'Depleted' };
-  if (batch.status === 'recalled') return { cls: 'critical', label: 'Recalled' };
-  const days = daysUntil(batch.expiry_date);
-  if (days <= 7) return { cls: 'critical', label: `${days}d left` };
-  if (days <= 30) return { cls: 'warning', label: `${days}d left` };
-  return { cls: 'safe', label: 'Active' };
-}
-
 export default function Scanner() {
-  const { addToast } = useToast();
   const navigate = useNavigate();
-  const [mode, setMode] = useState('lookup'); // 'lookup' | 'import'
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
-  const [batchData, setBatchData] = useState(null);
   const [drugData, setDrugData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -89,50 +58,12 @@ export default function Scanner() {
     setLoading(true);
     setError('');
 
-    try {
-      if (mode === 'lookup') {
-        // Try to find batch by ID (if QR code) or batch number
-        let batch = null;
-        
-        // First try as batch ID (QR code)
-        try {
-          const res = await api.get(`/batches/${code}`);
-          batch = res.data;
-        } catch {
-          // Not found by ID, try by batch number
-          try {
-            const res = await api.get('/batches');
-            batch = res.data.find(b => b.batch_number === code);
-          } catch {
-            // Batch not found
-          }
-        }
-
-        if (batch) {
-          setBatchData(batch);
-        } else {
-          setError('No batch found for this code');
-        }
-      } else {
-        // Import mode - try drug lookup
-        const drug = await lookupDrugByBarcode(code);
-        if (drug) {
-          setDrugData(drug);
-        } else {
-          // No drug found, save code for manual entry
-          setDrugData({ scannedCode: code, scannedFormat: format });
-        }
-      }
-    } catch (err) {
-      setError(err.message || 'Lookup failed');
-    } finally {
-      setLoading(false);
-    }
+    setDrugData({ scannedCode: code, scannedFormat: format });
+    setLoading(false);
   }
 
   function startScanning() {
     setScanResult(null);
-    setBatchData(null);
     setDrugData(null);
     setError('');
     setIsScanning(true);
@@ -140,7 +71,6 @@ export default function Scanner() {
 
   function resetScanner() {
     setScanResult(null);
-    setBatchData(null);
     setDrugData(null);
     setError('');
     setIsScanning(false);
@@ -155,7 +85,7 @@ export default function Scanner() {
       <div className="page-header">
         <div>
           <h1>Scanner</h1>
-          <p>Scan QR codes or barcodes to look up batches or import new stock</p>
+          <p>Scan a QR code or barcode to add stock</p>
         </div>
       </div>
 
@@ -166,34 +96,12 @@ export default function Scanner() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
       >
-        {/* Mode Toggle */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20, background: 'var(--bg-soft)', padding: 4, borderRadius: 12 }}>
-          <button
-            className={`btn ${mode === 'lookup' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ flex: 1, borderRadius: 8 }}
-            onClick={() => { setMode('lookup'); resetScanner(); }}
-          >
-            <Search size={16} style={{ marginRight: 8 }} />
-            Lookup
-          </button>
-          <button
-            className={`btn ${mode === 'import' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ flex: 1, borderRadius: 8 }}
-            onClick={() => { setMode('import'); resetScanner(); }}
-          >
-            <Plus size={16} style={{ marginRight: 8 }} />
-            Import
-          </button>
-        </div>
-
         {/* Scanner View */}
-        {!isScanning && !scanResult && !batchData && !drugData && (
+        {!isScanning && !scanResult && !drugData && (
           <div style={{ textAlign: 'center', padding: '40px 20px' }}>
             <Camera size={64} style={{ color: 'var(--steel)', marginBottom: 16 }} />
             <p style={{ color: 'var(--steel)', marginBottom: 20 }}>
-              {mode === 'lookup' 
-                ? 'Scan a batch QR code or barcode to look up batch details'
-                : 'Scan a product barcode to import new stock'}
+              Scan a product code to add it to stock
             </p>
             <button className="btn btn-primary" onClick={startScanning} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
               <Camera size={18} style={{ marginRight: 8 }} />
@@ -275,41 +183,8 @@ export default function Scanner() {
           </div>
         )}
 
-        {/* Lookup Result */}
-        {mode === 'lookup' && batchData && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{ padding: 20 }}
-          >
-            <h3 style={{ margin: '0 0 16px' }}>Batch Found</h3>
-            <div style={{ background: 'var(--bg-soft)', padding: 16, borderRadius: 12, marginBottom: 16 }}>
-              <p style={{ fontWeight: 500, fontSize: 16, margin: '0 0 8px' }}>{batchData.medicine_name}</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
-                <div><span style={{ color: 'var(--steel)' }}>Batch:</span> {batchData.batch_number}</div>
-                <div><span style={{ color: 'var(--steel)' }}>Remaining:</span> {batchData.quantity_remaining}</div>
-                <div><span style={{ color: 'var(--steel)' }}>Expiry:</span> {new Date(batchData.expiry_date).toLocaleDateString()}</div>
-                <div>
-                  <span style={{ color: 'var(--steel)' }}>Status:</span>{' '}
-                  <span className={`status-pill ${statusPillFor(batchData).cls}`}>
-                    {statusPillFor(batchData).label}
-                  </span>
-                </div>
-                {batchData.supplier_name && (
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <span style={{ color: 'var(--steel)' }}>Supplier:</span> {batchData.supplier_name}
-                  </div>
-                )}
-              </div>
-            </div>
-            <button className="btn btn-primary" style={{ width: '100%' }} onClick={resetScanner} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-              Scan Another
-            </button>
-          </motion.div>
-        )}
-
-        {/* Import Result */}
-        {mode === 'import' && drugData && (
+        {/* Scan Result */}
+        {drugData && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -322,29 +197,14 @@ export default function Scanner() {
             {drugData.scannedCode ? (
               <div style={{ background: 'var(--bg-soft)', padding: 16, borderRadius: 12, marginBottom: 16 }}>
                 <p style={{ color: 'var(--steel)', marginBottom: 8 }}>
-                  No product data found in database. The scanned code has been saved for manual entry.
+                  Code captured. Add the medicine and batch details to your inventory.
                 </p>
                 <div style={{ fontSize: 14 }}>
                   <div><span style={{ color: 'var(--steel)' }}>Code:</span> {drugData.scannedCode}</div>
                   <div><span style={{ color: 'var(--steel)' }}>Format:</span> {drugData.scannedFormat}</div>
                 </div>
               </div>
-            ) : (
-              <div style={{ background: 'var(--bg-soft)', padding: 16, borderRadius: 12, marginBottom: 16 }}>
-                <p style={{ fontWeight: 500, fontSize: 16, margin: '0 0 8px' }}>
-                  {drugData.name || drugData.brand_name || 'Unknown Product'}
-                </p>
-                {drugData.strength && (
-                  <p style={{ margin: '0 0 8px' }}>Strength: {drugData.strength}</p>
-                )}
-                {drugData.dosage_form && (
-                  <p style={{ margin: '0 0 8px' }}>Form: {drugData.dosage_form}</p>
-                )}
-                {drugData.manufacturer && (
-                  <p style={{ margin: 0, color: 'var(--steel)' }}>Manufacturer: {drugData.manufacturer}</p>
-                )}
-              </div>
-            )}
+            ) : null}
             
             <div style={{ display: 'flex', gap: 12 }}>
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={resetScanner} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
