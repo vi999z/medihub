@@ -7,9 +7,14 @@ const { logAudit } = require('../utils/auditLogger');
 // transaction_type: 'sale' | 'adjustment' | 'disposal' | 'return' (stock_in handled separately via batch creation)
 async function create(req, res) {
   const { batch_id, transaction_type, quantity, reason } = req.body;
+  const numericQuantity = Number(quantity);
 
   if (!batch_id || !transaction_type || !quantity) {
     return res.status(400).json({ error: 'batch_id, transaction_type, and quantity are required' });
+  }
+
+  if (!Number.isInteger(numericQuantity) || numericQuantity <= 0) {
+    return res.status(400).json({ error: 'quantity must be a positive whole number' });
   }
 
   const validTypes = ['sale', 'adjustment', 'disposal', 'return'];
@@ -31,18 +36,26 @@ async function create(req, res) {
 
     // Sales, disposals reduce stock. Returns add stock back. Adjustments can go either way (quantity can be negative).
     const isReduction = ['sale', 'disposal'].includes(transaction_type);
-    const delta = isReduction ? -Math.abs(quantity) : quantity;
-    const newQuantity = batch.quantity_remaining + delta;
+    const delta = isReduction ? -numericQuantity : numericQuantity;
+    const newQuantity = Number(batch.quantity_remaining) + delta;
 
     if (newQuantity < 0) {
       await conn.rollback();
       return res.status(400).json({ error: `Insufficient stock. Only ${batch.quantity_remaining} remaining in this batch.` });
     }
 
-    await conn.query('UPDATE batches SET quantity_remaining = ? WHERE id = ?', [newQuantity, batch_id]);
-
     if (newQuantity === 0) {
-      await conn.query('UPDATE batches SET status = "depleted" WHERE id = ?', [batch_id]);
+      await conn.query(
+        'UPDATE batches SET quantity_remaining = ?, status = "depleted" WHERE id = ?',
+        [newQuantity, batch_id]
+      );
+    } else if (transaction_type === 'return' && batch.status === 'depleted') {
+      await conn.query(
+        'UPDATE batches SET quantity_remaining = ?, status = "active" WHERE id = ?',
+        [newQuantity, batch_id]
+      );
+    } else {
+      await conn.query('UPDATE batches SET quantity_remaining = ? WHERE id = ?', [newQuantity, batch_id]);
     }
 
     const [result] = await conn.query(

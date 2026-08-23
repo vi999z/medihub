@@ -17,6 +17,7 @@ export default function Transactions() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ batch_id: '', transaction_type: 'sale', quantity: '', reason: '' });
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const prefersReducedMotion = useReducedMotion();
@@ -25,7 +26,7 @@ export default function Transactions() {
     try {
       const [t, b] = await Promise.all([api.cachedGet('/transactions/recent'), api.cachedGet('/batches')]);
       setTransactions(t.data || []);
-      setBatches((b.data || []).filter((batch) => batch.status === 'active'));
+      setBatches((b.data || []).filter((batch) => batch.status === 'active' || batch.status === 'depleted'));
       setError('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load transactions');
@@ -55,7 +56,7 @@ export default function Transactions() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError('');
+    setFormError('');
     try {
       await api.post('/transactions', form);
       api.invalidateCache('/transactions/recent');
@@ -65,7 +66,7 @@ export default function Transactions() {
       await fetchAll();
       addToast('Transaction recorded', 'success');
     } catch (err) {
-      setError(err.response?.data?.error || 'Transaction failed');
+      setFormError(err.response?.data?.error || 'Transaction failed');
     }
   }
 
@@ -116,7 +117,7 @@ export default function Transactions() {
             <button type="submit" className="btn btn-primary">Save transaction</button>
             <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
           </div>
-          {error && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{error}</p>}
+          {formError && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{formError}</p>}
         </motion.form>
       )}
 

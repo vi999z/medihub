@@ -5,6 +5,7 @@ const { detectAnomalies } = require('../ai/anomalyDetection');
 const { logAudit } = require('../utils/auditLogger');
 const { buildReportExport, buildPdfBuffer, getSupportedExportTypes } = require('./exportController');
 const { MODEL_FALLBACK_CHAIN, getModelConfig, GEMINI_CONFIG } = require('../ai/medicalLLM');
+const { explainTensorFlowRisk } = require('../ai/geminiClient');
 
 // Helper function to convert data to rows array for exports
 function toRowsArray(data) {
@@ -115,6 +116,10 @@ function generatePharmacyHealthReport(data) {
 async function getExpiryRisk(req, res) {
   try {
     const results = await scoreActiveBatches();
+    if (req.query.explain === 'true' && process.env.GOOGLE_AI_API_KEY) {
+      const explanation = await explainTensorFlowRisk(results, process.env.GOOGLE_AI_API_KEY);
+      return res.json({ results, explanation });
+    }
     res.json(results);
   } catch (err) {
     console.error('Expiry risk scoring failed:', err);

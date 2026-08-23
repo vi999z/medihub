@@ -758,10 +758,10 @@ export default function Medicines() {
       )}
 
       {/* Medicine detail modal with integrated batches */}
-      <AnimatedModal isOpen={Boolean(detailMedicine)} onClose={closeDetail}>
+      <AnimatedModal isOpen={Boolean(detailMedicine)} onClose={closeDetail} className="medicine-detail-modal">
         {detailMedicine && (
-          <div style={{ maxHeight: '80vh', overflowY: 'auto', padding: '4px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div className="medicine-detail-modal__body">
+            <div className="medicine-detail-modal__header">
               <div>
                 <h2 style={{ margin: 0 }}>{detailMedicine.name}</h2>
                 <p style={{ margin: '4px 0 0', color: 'var(--steel)', fontSize: 13 }}>
@@ -774,22 +774,22 @@ export default function Medicines() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
-              <div className="card" style={{ padding: '12px 16px' }}>
+            <div className="medicine-detail-stats">
+              <div className="medicine-detail-stat">
                 <div style={{ color: 'var(--steel)', fontSize: 11 }}>Total stock</div>
                 <div style={{ fontWeight: 700, fontSize: 18 }}>{detailMedicine.total_stock ?? 0} {detailMedicine.unit}</div>
               </div>
-              <div className="card" style={{ padding: '12px 16px' }}>
+              <div className="medicine-detail-stat">
                 <div style={{ color: 'var(--steel)', fontSize: 11 }}>Reorder level</div>
                 <div style={{ fontWeight: 700, fontSize: 18 }}>{detailMedicine.reorder_level ?? 0}</div>
               </div>
-              <div className="card" style={{ padding: '12px 16px' }}>
+              <div className="medicine-detail-stat">
                 <div style={{ color: 'var(--steel)', fontSize: 11 }}>Batches</div>
                 <div style={{ fontWeight: 700, fontSize: 18 }}>{detailBatches.length}</div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <div className="medicine-detail-modal__section-header">
               <h3 style={{ margin: 0 }}>Batches</h3>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button className="btn btn-secondary" onClick={() => { setStockMovementError(''); setShowStockMovement(true); }} disabled={detailBatches.length === 0}>
@@ -836,7 +836,7 @@ export default function Medicines() {
             )}
 
             {detailBatches.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+              <div className="medicine-detail-batches">
                 <StaggeredList staggerDelay={0.03}>
                   {detailBatches.map((b) => {
                     const pill = batchStatusPill(b);
@@ -976,7 +976,7 @@ export default function Medicines() {
           isOpen={showStockMovement}
           onClose={() => setShowStockMovement(false)}
           medicine={detailMedicine}
-          batches={detailBatches.filter((batch) => batch.status === 'active' && Number(batch.quantity_remaining) > 0)}
+          batches={detailBatches.filter((batch) => batch.status === 'active' || batch.status === 'depleted')}
           onSubmit={handleStockMovement}
           error={stockMovementError}
         />

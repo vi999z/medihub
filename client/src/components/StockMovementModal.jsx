@@ -58,7 +58,7 @@ export default function StockMovementModal({ isOpen, onClose, medicine, batches,
             <label>Batch</label>
             <select value={form.batch_id} onChange={(event) => setForm({ ...form, batch_id: event.target.value })} required>
               <option value="">Choose a batch</option>
-              {batches.map((batch) => <option key={batch.id} value={batch.id}>{batch.batch_number} ({batch.quantity_remaining} {medicine.unit} left)</option>)}
+              {batches.map((batch) => <option key={batch.id} value={batch.id}>{batch.batch_number} ({batch.quantity_remaining} {medicine.unit} left{batch.status === 'depleted' ? ', depleted' : ''})</option>)}
             </select>
           </div>
           <div className="field">

@@ -5,6 +5,7 @@
  */
 
 const { MEDICAL_INSTRUCTIONS } = require('./llmConfig');
+const { GoogleGenAI } = require('@google/genai');
 const {
   getInventorySummary,
   getExpiryAnalysis,
@@ -155,6 +156,41 @@ function buildGeminiTools() {
   return [{ functionDeclarations }];
 }
 
+async function explainTensorFlowRisk(results, apiKey) {
+  if (!apiKey || !Array.isArray(results) || results.length === 0) return null;
+
+  const ai = new GoogleGenAI({ apiKey });
+  const evidence = results.slice(0, 5).map((item) => ({
+    medicine: item.medicine_name,
+    batch: item.batch_number,
+    risk_score: item.risk_score,
+    method: item.method,
+    days_left: item.days_left,
+    quantity_remaining: item.quantity_remaining,
+    daily_velocity: item.daily_velocity,
+    severity: item.insight_severity,
+  }));
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.7-flash',
+      contents: [{
+        role: 'user',
+        parts: [{ text: `Explain these TensorFlow expiry-risk results for pharmacy staff. Use only the supplied values. Give 3 concise actions, no markdown, and mention that the risk score is a prioritization signal, not a diagnosis.\n\n${JSON.stringify(evidence)}` }]
+      }],
+      config: {
+        systemInstruction: MEDICAL_INSTRUCTIONS,
+        maxOutputTokens: 300,
+        thinkingConfig: { thinkingBudget: 1024 }
+      }
+    });
+    return response.text || null;
+  } catch (err) {
+    console.warn('Gemini risk explanation unavailable:', err.message);
+    return null;
+  }
+}
+
 // ─── Intention Detection ───
 function detectIntention(question) {
   const keywords = {
@@ -191,6 +227,7 @@ module.exports = {
   callFunction,
   buildSystemPrompt,
   buildGeminiTools,
+  explainTensorFlowRisk,
   detectIntention,
   selectAvailableModel
 };
