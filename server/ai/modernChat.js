@@ -15,7 +15,7 @@
 
 const { GoogleGenAI, HarmCategory, HarmBlockThreshold } = require('@google/genai');
 const { buildSystemPrompt, buildGeminiTools, detectIntention, callFunction } = require('./geminiClient');
-const { extractGeneratedText, buildFallbackInventoryResponse, detectFileRequest, detectGeneratedContent } = require('./responseBuilder');
+const { extractGeneratedText, buildFallbackInventoryResponse, detectFileRequest, detectGeneratedContent, buildChatVisualizations } = require('./responseBuilder');
 
 // ─── Model fallback chain (best → reliable) ───
 // Current model names as listed in the official Gemini API docs.
@@ -122,7 +122,7 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
       // ── Handle function calls (run in parallel for speed) ──
       const fnCallParts = parts.filter(p => p.functionCall);
       if (fnCallParts.length > 0) {
-        const fnResponseParts = await Promise.all(
+        const toolResults = await Promise.all(
           fnCallParts.map(async p => {
             const { name, args, id } = p.functionCall;
             console.log(`[AI] fn: ${name}`, JSON.stringify(args || {}));
@@ -130,9 +130,10 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
             // Gemini 3.x requires id + name to match the originating FunctionCall
             const response = { name, response: { result } };
             if (id) response.id = id;
-            return { functionResponse: response };
+            return { name, result, functionResponse: { functionResponse: response } };
           })
         );
+        const fnResponseParts = toolResults.map((item) => item.functionResponse);
 
         // ── Second call: feed function results back ──
         const secondResult = await ai.models.generateContent({
@@ -146,13 +147,19 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
         });
 
         const finalText = extractGeneratedText(secondResult) || await buildFallbackInventoryResponse(question);
-        return { response: finalText, intention, model: modelName, timestamp: new Date().toISOString() };
+        return {
+          response: finalText,
+          visualizations: buildChatVisualizations(toolResults),
+          intention,
+          model: modelName,
+          timestamp: new Date().toISOString()
+        };
       }
 
       // ── No function call — use direct text ──
       const aiText    = extractGeneratedText(firstResult);
       const finalText = aiText || await buildFallbackInventoryResponse(question);
-      return { response: finalText, intention, model: modelName, timestamp: new Date().toISOString() };
+      return { response: finalText, visualizations: [], intention, model: modelName, timestamp: new Date().toISOString() };
     } catch (err) {
       console.warn(`[AI] ${modelName} failed: ${err.message}`);
       lastError = err;
@@ -162,7 +169,7 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
   // All models failed — DB-driven local fallback
   console.error('[AI] All models in chain failed:', lastError?.message);
   const recoveryResponse = await buildFallbackInventoryResponse(question);
-  return { response: recoveryResponse, intention, model: 'local_fallback', timestamp: new Date().toISOString() };
+  return { response: recoveryResponse, visualizations: [], intention, model: 'local_fallback', timestamp: new Date().toISOString() };
 }
 
 async function chatWithFileGeneration(question, userId, context = null, imageBase64 = null, mimeType = null) {

@@ -561,6 +561,7 @@ async function chatModern(req, res) {
 
         return res.json({
           response: result.response,
+          visualizations: result.visualizations || [],
           intention: result.intention,
           model: result.model,
           timestamp: result.timestamp,

@@ -6,6 +6,18 @@ import {
   IconMessage, IconPaperclip, IconPhoto,
 } from '@tabler/icons-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import Skeleton from '../components/Skeleton';
@@ -20,6 +32,37 @@ const STARTER_PROMPTS = [
 const BLANK_MESSAGES = [
   { role: 'assistant', content: "Hello! I'm your MediHub AI assistant. Ask me anything about your inventory, expiry dates, stock levels, or sales data." }
 ];
+
+function ChatVisualization({ visualization }) {
+  if (!visualization?.data?.length) return null;
+
+  const chart = visualization.type === 'line' ? (
+    <LineChart data={visualization.data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+      <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+      <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+      <Tooltip />
+      <Line type="monotone" dataKey="value" stroke="var(--amber)" strokeWidth={2} dot={false} />
+    </LineChart>
+  ) : (
+    <BarChart data={visualization.data} layout={visualization.data.length > 4 ? 'vertical' : 'horizontal'} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+      {visualization.data.length > 4 ? <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} /> : <XAxis dataKey="label" tick={{ fontSize: 10 }} />}
+      {visualization.data.length > 4 ? <YAxis dataKey="label" type="category" width={90} tick={{ fontSize: 10 }} /> : <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />}
+      <Tooltip />
+      <Bar dataKey="value" fill="var(--amber)" radius={[3, 3, 0, 0]} />
+    </BarChart>
+  );
+
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: 'var(--steel)' }}>{visualization.title}</div>
+      <div style={{ width: '100%', height: 190 }}>
+        <ResponsiveContainer>{chart}</ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
 
 // ─── Markdown renderer config ───
 const MD_COMPONENTS = {
@@ -376,6 +419,7 @@ export default function AiChat() {
         file_requests: data?.file_requests
           || (data?.file_request ? [data.file_request] : null)
           || (data?.export ? [{ detected: true, file_type: data.export.type, filename: `medihub_export.${data.export.type}` }] : null),
+        visualizations: data?.visualizations || [],
       };
       const finalMessages = [...nextMessages, assistantMsg];
       setMessages(finalMessages);
@@ -532,7 +576,10 @@ export default function AiChat() {
 
                 {msg.role === 'assistant' ? (
                   <>
-                    <ReactMarkdown components={MD_COMPONENTS}>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{msg.content}</ReactMarkdown>
+                    {msg.visualizations?.map((visualization, i) => (
+                      <ChatVisualization key={i} visualization={visualization} />
+                    ))}
                     {msg.file_requests?.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                         {msg.file_requests.map((fr, i) => (
@@ -559,7 +606,7 @@ export default function AiChat() {
                 <IconRobot size={16} />
               </div>
               <div style={{ padding: '10px 14px', borderRadius: 14, borderBottomLeftRadius: 3, background: 'var(--bg-subtle)', fontSize: 13, lineHeight: 1.55, wordBreak: 'break-word', maxWidth: '100%' }} className="markdown-message">
-                <ReactMarkdown components={MD_COMPONENTS}>{streamingText}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{streamingText}</ReactMarkdown>
                 <TypingCursor />
               </div>
             </motion.div>

@@ -306,6 +306,52 @@ function detectGeneratedContent(responseText, question = '') {
   return results;
 }
 
+// Build chart data from trusted tool results rather than model-generated values.
+function buildChatVisualizations(toolResults = []) {
+  const visualizations = [];
+  const resultFor = (name) => toolResults.find((item) => item.name === name)?.result;
+
+  const expiry = resultFor('get_expiry_analysis');
+  if (expiry?.expiring_soon?.length) {
+    const expiring = expiry.expiring_soon.filter((item) => Number(item.days_until_expiry) >= 0);
+    const expired = expiry.expiring_soon.filter((item) => Number(item.days_until_expiry) < 0);
+    visualizations.push({
+      type: 'bar',
+      title: 'Expiry status',
+      data: [
+        { label: 'Expiring soon', value: expiring.length },
+        { label: 'Expired', value: expired.length },
+      ],
+    });
+  }
+
+  const lowStock = resultFor('get_low_stock_items');
+  if (lowStock?.low_stock_items?.length) {
+    visualizations.push({
+      type: 'bar',
+      title: 'Units needed to reach reorder level',
+      data: lowStock.low_stock_items.slice(0, 8).map((item) => ({
+        label: item.name,
+        value: Math.max(0, Number(item.quantity_needed) || 0),
+      })),
+    });
+  }
+
+  const sales = resultFor('get_sales_trends');
+  if (sales?.daily_trends?.length) {
+    visualizations.push({
+      type: 'line',
+      title: `Sales activity, last ${sales.days_analyzed || 30} days`,
+      data: sales.daily_trends.slice().reverse().map((item) => ({
+        label: String(item.date).slice(5),
+        value: Number(item.total_sold) || 0,
+      })),
+    });
+  }
+
+  return visualizations;
+}
+
 module.exports = {
   validateAndCleanMarkdown,
   extractGeneratedText,
@@ -314,5 +360,6 @@ module.exports = {
   buildContextualResponse,
   detectFileRequest,
   detectGeneratedContent,
+  buildChatVisualizations,
   deriveFilename,
 };
