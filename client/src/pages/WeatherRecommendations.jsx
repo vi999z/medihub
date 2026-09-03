@@ -72,6 +72,7 @@ function MultiplierBadge({ multiplier }) {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StatTile({ label, value, unit, sub }) {
+  const displayValue = value !== null && value !== undefined ? value : '—';
   return (
     <div style={{
       background: '#fff',
@@ -85,7 +86,7 @@ function StatTile({ label, value, unit, sub }) {
         {label}
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-        <span style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>{value ?? '—'}</span>
+        <span style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>{displayValue}</span>
         {unit && <span style={{ fontSize: 13, color: '#888', fontWeight: 500 }}>{unit}</span>}
       </div>
       {sub && <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{sub}</div>}
@@ -186,14 +187,17 @@ function CurrentWeatherCard({ weather, loading }) {
         <div style={{ flex: 1, display: 'flex', gap: 12, flexWrap: 'wrap', alignContent: 'flex-start' }}>
           <StatTile
             label="Feels Like"
-            value={current?.feels_like_c != null ? `${current.feels_like_c}°` : '—'}
+            value={current?.feels_like_c}
+            unit="°"
             sub="Apparent temperature"
           />
           <StatTile
             label="Humidity"
             value={current?.humidity_pct}
             unit="%"
-            sub={current?.humidity_pct >= 80 ? 'High — cold/flu risk up' : current?.humidity_pct >= 60 ? 'Moderate' : 'Low'}
+            sub={current?.humidity_pct != null 
+              ? (current?.humidity_pct >= 80 ? 'High — cold/flu risk up' : current?.humidity_pct >= 60 ? 'Moderate' : 'Low')
+              : 'N/A'}
           />
           <StatTile
             label="Wind"

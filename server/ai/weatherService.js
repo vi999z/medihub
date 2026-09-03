@@ -233,10 +233,23 @@ async function getWeatherContext(city = 'Lucena City,PH') {
   const season = getPhilippineSeason(month);
   const rainyDays = forecast.filter(d => d.is_rainy).length;
 
+  // Ensure current weather has all required fields, even with fallback values
+  const safeCurrent = current || {
+    city: city.replace(/,.*$/, '').trim(),
+    country: 'PH',
+    condition: condition,
+    description: wmoToDescription(condition === 'Rain' ? 61 : condition === 'Clear' ? 0 : 2),
+    temp_c: null,
+    feels_like_c: null,
+    humidity_pct: null,
+    wind_kph: null,
+    precip_mm: null,
+  };
+
   return {
-    location: current?.city || city,
-    country: current?.country || 'PH',
-    current_weather: current,
+    location: safeCurrent.city,
+    country: safeCurrent.country,
+    current_weather: safeCurrent,
     forecast_5day: forecast,
     month,
     season,
@@ -314,13 +327,14 @@ function buildWeatherRecommendations(weatherContext, medicines) {
 
     // Adjusted demand velocity factoring in weather
     const adjustedDailyDemand = Math.ceil(dailyVelocity * multiplier);
-    const daysOfStock = adjustedDailyDemand > 0 ? Math.floor(currentStock / adjustedDailyDemand) : 999;
+    const daysOfStock = currentStock <= 0 ? 0 : (adjustedDailyDemand > 0 ? Math.floor(currentStock / adjustedDailyDemand) : 999);
 
     // Recommended buffer: 30 days of weather-adjusted demand
     const recommended30dayStock = adjustedDailyDemand * 30;
     const shortfall = Math.max(0, recommended30dayStock - currentStock);
 
     const urgency =
+      currentStock <= 0 ? 'critical' :
       daysOfStock <= 7  ? 'critical' :
       daysOfStock <= 14 ? 'high' :
       shortfall > reorderLevel ? 'medium' :
