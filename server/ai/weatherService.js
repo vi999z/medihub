@@ -114,11 +114,16 @@ function mode(arr) {
   return Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || arr[0];
 }
 
+const WEATHER_CACHE_TTL = 10 * 60 * 1000;
+const WEATHER_FAILURE_TTL = 60 * 1000;
+const weatherCache = new Map();
+const weatherRequests = new Map();
+
 /**
  * Single Open-Meteo request that returns both current conditions and the
  * 5-day daily forecast. No API key. Returns { current, forecast } or null.
  */
-async function fetchOpenMeteo(city = 'Lucena City,PH') {
+async function fetchOpenMeteoUncached(city = 'Lucena City,PH') {
   const coords = resolveCoords(city);
 
   const params = new URLSearchParams({
@@ -145,6 +150,10 @@ async function fetchOpenMeteo(city = 'Lucena City,PH') {
       try {
         const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, { signal: controller.signal });
         if (!res.ok) {
+          if (res.status === 429) {
+            console.warn('[Weather] Open-Meteo rate limit reached; using cached or seasonal data');
+            return null;
+          }
           throw new Error(`Open-Meteo returned ${res.status}`);
         }
         data = await res.json();
@@ -204,6 +213,34 @@ async function fetchOpenMeteo(city = 'Lucena City,PH') {
     console.warn('[Weather] Open-Meteo fetch error:', err.message);
     return null;
   }
+}
+
+async function fetchOpenMeteo(city = 'Lucena City,PH') {
+  const coords = resolveCoords(city);
+  const cacheKey = `${coords.lat},${coords.lon}`;
+  const cached = weatherCache.get(cacheKey);
+
+  if (cached && Date.now() - cached.createdAt < cached.ttl) {
+    return cached.data;
+  }
+
+  if (weatherRequests.has(cacheKey)) {
+    return weatherRequests.get(cacheKey);
+  }
+
+  const request = fetchOpenMeteoUncached(city)
+    .then((data) => {
+      weatherCache.set(cacheKey, {
+        data,
+        createdAt: Date.now(),
+        ttl: data ? WEATHER_CACHE_TTL : WEATHER_FAILURE_TTL,
+      });
+      return data;
+    })
+    .finally(() => weatherRequests.delete(cacheKey));
+
+  weatherRequests.set(cacheKey, request);
+  return request;
 }
 
 // ─── Seasonal + Weather Context Builder ─────────────────────────────────────
