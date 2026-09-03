@@ -93,13 +93,15 @@ export default function AuditLog() {
       )}
 
       {!loading && !error && visibleLogs.length > 0 && (
-        <motion.div 
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
+        <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <StaggeredList staggerDelay={0.03}>
+          <StaggeredList
+            staggerDelay={0.03}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
+          >
             {visibleLogs.map((l) => {
               const actionColorMap = { 'create': 'var(--green)', 'update': 'var(--amber)', 'delete': 'var(--red)', 'login': 'var(--green)', 'logout': 'var(--steel)', 'export': 'var(--gold)' };
               const actionKey = l.action.split('_')[0].toLowerCase();

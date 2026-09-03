@@ -3,7 +3,6 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { RefreshCw, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import StaggeredList from '../components/StaggeredList';
 
 function riskPill(score) {
   if (score >= 0.66) return 'critical';
@@ -199,8 +198,7 @@ export default function AiInsights() {
             <table className="data-table">
               <thead><tr><th>Medicine</th><th>Batch</th><th>Days left</th><th>Qty</th><th>Signal</th><th>Action</th></tr></thead>
               {loading ? <TableSkeleton cols={6} /> : (
-                <StaggeredList staggerDelay={0.03}>
-                  <tbody>
+                <tbody>
                     {risk.map((d) => (
                       <tr key={d.batch_id}>
                         <td style={{ fontWeight: 500 }}>{d.medicine_name}</td>
@@ -221,8 +219,7 @@ export default function AiInsights() {
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </StaggeredList>
+                </tbody>
               )}
             </table>
           </div>
@@ -248,8 +245,7 @@ export default function AiInsights() {
             <table className="data-table">
               <thead><tr><th>Medicine</th><th>Current stock</th><th>Avg demand/day</th><th>Days left</th><th>Signal</th><th>Suggested order</th></tr></thead>
               {loading ? <TableSkeleton cols={6} /> : (
-                <StaggeredList staggerDelay={0.03}>
-                  <tbody>
+                <tbody>
                     {reorder.map((r) => (
                       <tr key={r.medicine_id}>
                         <td style={{ fontWeight: 500 }}>{r.medicine_name}</td>
@@ -270,8 +266,7 @@ export default function AiInsights() {
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </StaggeredList>
+                </tbody>
               )}
             </table>
           </div>
@@ -297,8 +292,7 @@ export default function AiInsights() {
             <table className="data-table">
               <thead><tr><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>Signal</th><th>Action</th></tr></thead>
               {loading ? <TableSkeleton cols={6} /> : (
-                <StaggeredList staggerDelay={0.03}>
-                  <tbody>
+                <tbody>
                     {anomalies.map((a) => (
                       <tr key={a.transaction_id}>
                         <td style={{ fontWeight: 500 }}>{a.medicine_name}</td>
@@ -319,8 +313,7 @@ export default function AiInsights() {
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </StaggeredList>
+                </tbody>
               )}
             </table>
           </div>
