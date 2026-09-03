@@ -136,12 +136,31 @@ async function fetchOpenMeteo(city = 'Lucena City,PH') {
   });
 
   try {
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
-    if (!res.ok) {
-      console.warn(`[Weather] Open-Meteo failed (${res.status})`);
+    let data;
+    let lastError;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, { signal: controller.signal });
+        if (!res.ok) {
+          throw new Error(`Open-Meteo returned ${res.status}`);
+        }
+        data = await res.json();
+        break;
+      } catch (err) {
+        lastError = err;
+        if (attempt === 0) continue;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    if (!data) {
+      console.warn('[Weather] Open-Meteo unavailable:', lastError?.message || 'unknown error');
       return null;
     }
-    const data = await res.json();
 
     // ── Current conditions ──
     const cur     = data.current || {};
