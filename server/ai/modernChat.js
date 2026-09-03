@@ -141,7 +141,8 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
           contents: [
             ...contents,
             { role: 'model',    parts },
-            { role: 'function', parts: fnResponseParts },
+            // The @google/genai SDK expects function responses as user content.
+            { role: 'user',     parts: fnResponseParts },
           ],
           config,
         });
