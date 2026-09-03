@@ -220,8 +220,14 @@ async function fetchOpenMeteo(city = 'Lucena City,PH') {
   const cacheKey = `${coords.lat},${coords.lon}`;
   const cached = weatherCache.get(cacheKey);
 
-  if (cached && Date.now() - cached.createdAt < cached.ttl) {
-    return cached.data;
+  if (cached) {
+    const now = Date.now();
+    if (cached.data && now - cached.createdAt < WEATHER_CACHE_TTL) {
+      return cached.data;
+    }
+    if (cached.retryAfter && now < cached.retryAfter) {
+      return cached.data;
+    }
   }
 
   if (weatherRequests.has(cacheKey)) {
@@ -230,12 +236,19 @@ async function fetchOpenMeteo(city = 'Lucena City,PH') {
 
   const request = fetchOpenMeteoUncached(city)
     .then((data) => {
-      weatherCache.set(cacheKey, {
-        data,
-        createdAt: Date.now(),
-        ttl: data ? WEATHER_CACHE_TTL : WEATHER_FAILURE_TTL,
-      });
-      return data;
+      if (data) {
+        weatherCache.set(cacheKey, { data, createdAt: Date.now() });
+        return data;
+      }
+
+      // Keep stale data available while the provider is rate-limited or down.
+      if (cached?.data) {
+        weatherCache.set(cacheKey, { ...cached, retryAfter: Date.now() + WEATHER_FAILURE_TTL });
+        return cached.data;
+      }
+
+      weatherCache.set(cacheKey, { data: null, retryAfter: Date.now() + WEATHER_FAILURE_TTL });
+      return null;
     })
     .finally(() => weatherRequests.delete(cacheKey));
 
