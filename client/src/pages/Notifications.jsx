@@ -180,12 +180,14 @@ export default function Notifications() {
       {/* Cards grid */}
       {!loading && !error && visibleNotifications.length > 0 && (
         <motion.div
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
         >
-          <StaggeredList staggerDelay={0.03}>
+          <StaggeredList
+            staggerDelay={0.03}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
+          >
             {visibleNotifications.map((n) => {
               const cfg = severityConfig(n.severity);
               const SevIcon = cfg.icon;

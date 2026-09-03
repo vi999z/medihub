@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useReducedMotion } from 'framer-motion';
 import { Children, cloneElement, isValidElement } from 'react';
 
-export default function StaggeredList({ children, staggerDelay = 0.05, className = '' }) {
+export default function StaggeredList({ children, staggerDelay = 0.05, className = '', style }) {
   const prefersReducedMotion = useReducedMotion();
   
   const containerVariants = {
@@ -31,6 +31,7 @@ export default function StaggeredList({ children, staggerDelay = 0.05, className
   return (
     <motion.div
       className={className}
+      style={style}
       variants={containerVariants}
       initial="hidden"
       animate="visible"
