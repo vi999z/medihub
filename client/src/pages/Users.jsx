@@ -124,13 +124,12 @@ export default function Users() {
         </motion.form>
       )}
 
-      <motion.div 
-        className="card table-card" 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
       >
-        <div className="filter-bar">
+        <div className="filter-bar" style={{ padding: 16, margin: 0, marginBottom: 16, background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -156,73 +155,45 @@ export default function Users() {
         )}
 
         {!loading && !error && visibleUsers.length === 0 && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                <tr className="empty-row">
-                  <td colSpan={5}>
-                    <div className="empty-state compact-empty-state">No accounts match “{search}”.</div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <div className="empty-state compact-empty-state">No accounts match “{search}”.</div>
         )}
 
         {loading && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                {[1, 2, 3, 4].map((i) => (
-                  <tr key={i}>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="card" style={{ minHeight: 210, padding: 16 }}>
+                <Skeleton height={14} style={{ marginBottom: 14, width: '35%' }} />
+                <Skeleton height={18} style={{ marginBottom: 10 }} />
+                <Skeleton height={14} style={{ marginBottom: 8, width: '75%' }} />
+                <Skeleton height={14} style={{ marginBottom: 18, width: '45%' }} />
+                <Skeleton height={32} style={{ borderRadius: 999 }} />
+              </div>
+            ))}
           </div>
         )}
 
-        {!loading && !error && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
-              </thead>
-              <StaggeredList staggerDelay={0.03}>
-                <tbody>
-                  {visibleUsers.map((u) => (
-                    <tr key={u.id}>
-                      <td style={{ fontWeight: 500 }}>{u.full_name}</td>
-                      <td>{u.email}</td>
-                      <td style={{ textTransform: 'capitalize' }}>{u.role}</td>
-                      <td><span className={`status-pill ${u.is_active ? 'safe' : 'critical'}`}>{u.is_active ? 'Active' : 'Inactive'}</span></td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn-icon" onClick={() => openEdit(u)} title="Edit account"><Pencil size={14} /></button>
-                          {u.id !== me.id && (
-                            <button className="btn-icon" onClick={() => toggleActive(u)} title={u.is_active ? 'Deactivate' : 'Reactivate'}>
-                              {u.is_active ? <X size={14} /> : <Plus size={14} />}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </StaggeredList>
-            </table>
-          </div>
+        {!loading && !error && visibleUsers.length > 0 && (
+          <StaggeredList staggerDelay={0.03}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+              {visibleUsers.map((u) => (
+                <motion.div key={u.id} className="card" style={{ padding: 16, borderTop: `4px solid ${u.is_active ? 'var(--green)' : 'var(--red)'}`, display: 'flex', flexDirection: 'column', minHeight: 205 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <span className="stamp">ID: {u.id}</span>
+                    <span className={`status-pill ${u.is_active ? 'safe' : 'critical'}`} style={{ fontSize: 10, padding: '3px 8px' }}>{u.is_active ? 'Active' : 'Inactive'}</span>
+                  </div>
+                  <div style={{ flex: 1, marginBottom: 14 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{u.full_name}</div>
+                    <div style={{ color: 'var(--steel)', fontSize: 12, marginBottom: 12, overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}><div style={{ color: 'var(--steel)', fontSize: 11 }}>Role</div><div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{u.role}</div></div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--gradient-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{u.full_name.charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Account</span></div>
+                    <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(u)} title="Edit account"><Pencil size={14} /></button>{u.id !== me.id && <button className="btn-icon" onClick={() => toggleActive(u)} title={u.is_active ? 'Deactivate' : 'Reactivate'}>{u.is_active ? <X size={14} /> : <Plus size={14} />}</button>}</div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </StaggeredList>
         )}
       </motion.div>
     </motion.div>

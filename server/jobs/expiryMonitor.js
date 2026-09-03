@@ -30,7 +30,7 @@ async function flipExpiredBatches() {
   );
 
   for (const batch of expired) {
-    await pool.query('UPDATE batches SET status = "expired" WHERE id = ?', [batch.id]);
+    await pool.query('UPDATE batches SET status = ? WHERE id = ?', ['expired', batch.id]);
     await createExpiredAlert(batch);
   }
 }

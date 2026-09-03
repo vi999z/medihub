@@ -156,12 +156,11 @@ export default function Suppliers() {
       )}
 
       <motion.div
-        className="card table-card"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
       >
-        <div className="filter-bar">
+        <div className="filter-bar" style={{ padding: 16, margin: 0, marginBottom: 16, background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -187,69 +186,51 @@ export default function Suppliers() {
         )}
 
         {!loading && !error && visibleSuppliers.length === 0 && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
-              <tbody>
-                <tr className="empty-row">
-                  <td colSpan={user.role === 'admin' ? 6 : 5}>
-                    <div className="empty-state compact-empty-state">
-                      {suppliers.length === 0 ? 'No suppliers yet. Add your first one above.' : `No suppliers match "${search}".`}
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="empty-state compact-empty-state">
+            {suppliers.length === 0 ? 'No suppliers yet. Add your first one above.' : `No suppliers match "${search}".`}
           </div>
         )}
 
         {loading && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
-              <tbody>
-                {[1, 2, 3, 4].map((i) => (
-                  <tr key={i}>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    <td><Skeleton height={16} /></td>
-                    {user.role === 'admin' && <td><Skeleton height={16} /></td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="card" style={{ minHeight: 210, padding: 16 }}>
+                <Skeleton height={14} style={{ marginBottom: 14, width: '35%' }} />
+                <Skeleton height={18} style={{ marginBottom: 10 }} />
+                <Skeleton height={14} style={{ marginBottom: 8, width: '75%' }} />
+                <Skeleton height={14} style={{ marginBottom: 18, width: '60%' }} />
+                <Skeleton height={32} style={{ borderRadius: 999 }} />
+              </div>
+            ))}
           </div>
         )}
 
-        {!loading && !error && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th>{user.role === 'admin' && <th>Actions</th>}</tr></thead>
-              <StaggeredList staggerDelay={0.03}>
-                <tbody>
-                  {visibleSuppliers.map((s) => (
-                    <tr key={s.id}>
-                      <td style={{ fontWeight: 500 }}>{s.name}</td>
-                      <td>{s.contact_person || '—'}</td>
-                      <td>{s.phone || '—'}</td>
-                      <td>{s.email || '—'}</td>
-                      <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.address || '—'}</td>
-                      {user.role === 'admin' && (
-                        <td>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button className="btn-icon" onClick={() => openEdit(s)} title="Edit supplier"><Pencil size={14} /></button>
-                            <button className="btn-icon" onClick={() => handleDelete(s.id)} title="Remove supplier"><Trash2 size={14} /></button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </StaggeredList>
-            </table>
-          </div>
+        {!loading && !error && visibleSuppliers.length > 0 && (
+          <StaggeredList staggerDelay={0.03}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+              {visibleSuppliers.map((s) => (
+                <motion.div key={s.id} className="card" style={{ padding: 16, borderTop: '4px solid var(--green)', display: 'flex', flexDirection: 'column', minHeight: 220 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <span className="stamp">ID: {s.id}</span>
+                    <span className="status-pill safe" style={{ fontSize: 10, padding: '3px 8px' }}>Active supplier</span>
+                  </div>
+                  <div style={{ flex: 1, marginBottom: 14 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{s.name}</div>
+                    <div style={{ color: 'var(--steel)', fontSize: 12, marginBottom: 12 }}>{s.contact_person || 'No contact person listed'}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
+                      <div><div style={{ color: 'var(--steel)', fontSize: 11 }}>Phone</div><div style={{ fontWeight: 600 }}>{s.phone || '—'}</div></div>
+                      <div><div style={{ color: 'var(--steel)', fontSize: 11 }}>Email</div><div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.email || '—'}</div></div>
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10, color: 'var(--steel)', fontSize: 11 }}>{s.address || 'No address listed'}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--gradient-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{s.name.charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Supplier</span></div>
+                    {user.role === 'admin' && <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(s)} title="Edit supplier"><Pencil size={14} /></button><button className="btn-icon" onClick={() => handleDelete(s.id)} title="Remove supplier"><Trash2 size={14} /></button></div>}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </StaggeredList>
         )}
       </motion.div>
     </motion.div>
