@@ -3,8 +3,8 @@
  * Fetches real-time weather and builds seasonal/weather context
  * for the Philippines. Used to inform weather-aware inventory recommendations.
  *
- * Uses Open-Meteo (https://open-meteo.com) — completely free, no API key required.
- * Falls back to pure Philippine seasonal heuristics if the network call fails.
+ * Uses MET Norway and Open-Meteo — both are free and require no API key.
+ * Falls back to pure Philippine seasonal heuristics if weather providers fail.
  */
 
 // ─── Philippine Seasonal Calendar ───────────────────────────────────────────
@@ -52,7 +52,7 @@ const WEATHER_DEMAND_BOOST = {
   Dust:         { antihistamine: 0.3 },
 };
 
-// ─── Open-Meteo API Client (no key required) ─────────────────────────────────
+// ─── Keyless weather providers ──────────────────────────────────────────────
 
 // Philippine city coordinates for Open-Meteo (lat/lon based)
 const PH_CITY_COORDS = {
@@ -118,6 +118,78 @@ const WEATHER_CACHE_TTL = 10 * 60 * 1000;
 const WEATHER_FAILURE_TTL = 60 * 1000;
 const weatherCache = new Map();
 const weatherRequests = new Map();
+
+function metSymbolToCondition(symbol = '') {
+  const value = symbol.toLowerCase();
+  if (value.includes('thunder')) return 'Thunderstorm';
+  if (value.includes('rain') || value.includes('shower')) return 'Rain';
+  if (value.includes('sleet') || value.includes('snow')) return 'Snow';
+  if (value.includes('fog')) return 'Fog';
+  if (value.includes('clearsky')) return 'Clear';
+  if (value.includes('partlycloudy') || value.includes('cloudy')) return 'Clouds';
+  return 'Clouds';
+}
+
+async function fetchMetNorway(city = 'Lucena City,PH') {
+  const coords = resolveCoords(city);
+  const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${coords.lat}&lon=${coords.lon}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'MediHub pharmacy inventory app' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) throw new Error(`MET Norway returned ${response.status}`);
+
+    const payload = await response.json();
+    const points = payload.properties?.timeseries || [];
+    const first = points[0];
+    const details = first?.data?.instant?.details;
+    if (!details) throw new Error('MET Norway returned no current conditions');
+
+    const current = {
+      city: coords.label,
+      country: 'PH',
+      condition: metSymbolToCondition(first.data.next_1_hours?.summary?.symbol_code || first.data.next_6_hours?.summary?.symbol_code),
+      description: first.data.next_1_hours?.summary?.symbol_code?.replace(/_/g, ' ') || 'variable conditions',
+      temp_c: Math.round(details.air_temperature),
+      feels_like_c: Math.round(details.air_temperature),
+      humidity_pct: Math.round(details.relative_humidity),
+      wind_kph: Math.round(details.wind_speed * 3.6),
+      precip_mm: first.data.next_1_hours?.details?.precipitation_amount || 0,
+    };
+
+    const daily = new Map();
+    for (const point of points) {
+      const date = point.time?.slice(0, 10);
+      const pointDetails = point.data?.instant?.details;
+      if (!date || !pointDetails) continue;
+      if (!daily.has(date)) daily.set(date, []);
+      daily.get(date).push({ point, details: pointDetails });
+    }
+
+    const forecast = [...daily.entries()].slice(1, 6).map(([date, entries]) => {
+      const temperatures = entries.map(({ details: item }) => item.air_temperature).filter(Number.isFinite);
+      const rainy = entries.filter(({ point }) => {
+        const symbol = point.data.next_1_hours?.summary?.symbol_code || point.data.next_6_hours?.summary?.symbol_code;
+        return ['Rain', 'Drizzle', 'Thunderstorm'].includes(metSymbolToCondition(symbol));
+      });
+      return {
+        date,
+        max_temp_c: Math.round(Math.max(...temperatures)),
+        min_temp_c: Math.round(Math.min(...temperatures)),
+        dominant_condition: rainy.length > 0 ? 'Rain' : current.condition,
+        total_precip_mm: 0,
+        is_rainy: rainy.length > 0,
+      };
+    });
+
+    return { current, forecast };
+  } catch (err) {
+    console.warn('[Weather] MET Norway unavailable:', err.message);
+    return null;
+  }
+}
 
 /**
  * Single Open-Meteo request that returns both current conditions and the
@@ -234,7 +306,8 @@ async function fetchOpenMeteo(city = 'Lucena City,PH') {
     return weatherRequests.get(cacheKey);
   }
 
-  const request = fetchOpenMeteoUncached(city)
+  const request = fetchMetNorway(city)
+    .then((data) => data || fetchOpenMeteoUncached(city))
     .then((data) => {
       if (data) {
         weatherCache.set(cacheKey, { data, createdAt: Date.now() });
