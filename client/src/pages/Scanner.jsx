@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Camera, X, Plus, AlertCircle } from 'lucide-react';
+import { Camera, X, ImagePlus, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useZxing } from 'react-zxing';
+import { readBarcodes } from 'zxing-wasm/reader';
 import Skeleton from '../components/Skeleton';
 
 export default function Scanner() {
@@ -14,7 +15,8 @@ export default function Scanner() {
   const [error, setError] = useState('');
   const prefersReducedMotion = useReducedMotion();
   
-  const videoRef = useRef(null);
+  const photoInputRef = useRef(null);
+  const barcodeFormats = ['QRCode', 'EAN13', 'UPCA', 'Code128', 'EAN8', 'UPCE'];
 
   const { ref } = useZxing({
     paused: !isScanning,
@@ -62,6 +64,32 @@ export default function Scanner() {
     setLoading(false);
   }
 
+  async function handlePhotoSelect(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setIsScanning(false);
+    setScanResult(null);
+    setDrugData(null);
+    setError('');
+    setLoading(true);
+
+    try {
+      const results = await readBarcodes(file, {
+        formats: barcodeFormats,
+        tryHarder: true,
+        maxNumberOfSymbols: 1,
+      });
+      const result = results[0];
+      if (!result?.text) throw new Error('No QR code or barcode was found in that photo');
+      await handleScanSuccess(result.text, result.format);
+    } catch (decodeError) {
+      setLoading(false);
+      setError(decodeError?.message || 'Could not read a code from that photo');
+    }
+  }
+
   function startScanning() {
     setScanResult(null);
     setDrugData(null);
@@ -104,9 +132,20 @@ export default function Scanner() {
               Scan a product code to add it to stock
             </p>
             <button className="btn btn-primary" onClick={startScanning} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-              <Camera size={18} style={{ marginRight: 8 }} />
+              <Camera size={18} />
               Start Scanning
             </button>
+            <button className="btn btn-secondary" onClick={() => photoInputRef.current?.click()} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+              <ImagePlus size={18} />
+              Upload Photo
+            </button>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoSelect}
+              style={{ display: 'none' }}
+            />
           </div>
         )}
 
