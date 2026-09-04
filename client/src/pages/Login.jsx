@@ -30,7 +30,9 @@ export default function Login() {
       await login(email.trim(), password);
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
+      const message = err.response?.data?.error || 'Login failed';
+      setError(message);
+      window.alert(message);
     } finally {
       setLoading(false);
     }

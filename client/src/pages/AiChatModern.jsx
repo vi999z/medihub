@@ -49,6 +49,25 @@ async function triggerExportDownload(prompt) {
   if (!exportType) return false;
 
   try {
+    if (exportType === 'pdf' || exportType === 'docx') {
+      const response = await api.post('/ai/auto-generate-file', { question: prompt }, { responseType: 'blob' });
+      const blob = new Blob([response.data], {
+        type: response.headers['content-type'] || 'application/octet-stream'
+      });
+      const contentDisposition = response.headers['content-disposition'] || '';
+      const serverFilename = contentDisposition.match(/filename="?([^";]+)"?/)?.[1];
+      const filename = serverFilename || `${getExportTitle(prompt).replace(/\s+/g, '_').toLowerCase()}.${exportType}`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      return true;
+    }
+
     const [summaryRes, expiringRes, lowStockRes, salesRes] = await Promise.all([
       api.get('/reports/summary'),
       api.get('/reports/expiring-soon?days=30'),

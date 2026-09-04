@@ -57,7 +57,9 @@ api.setAuthLogout = function setAuthLogout(callback) {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401 && on401Callback) {
+    const requestUrl = err.config?.url || '';
+    const isLoginRequest = requestUrl.endsWith('/auth/login');
+    if (err.response?.status === 401 && on401Callback && !isLoginRequest) {
       on401Callback();
     }
     return Promise.reject(err);
