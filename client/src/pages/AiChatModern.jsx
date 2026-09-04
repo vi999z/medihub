@@ -293,11 +293,12 @@ export default function AiChatModern() {
     api.post('/ai/conversation/clear').catch(() => {});
   }
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e, submittedText = null) {
     e.preventDefault();
-    if ((!input.trim() && !pendingImage) || loading) return;
+    const textToSend = submittedText ?? input;
+    if ((!textToSend.trim() && !pendingImage) || loading) return;
 
-    const userMessage = input.trim();
+    const userMessage = textToSend.trim();
     const imageToSend = pendingImage;
     setInput('');
     setPendingImage(null);
@@ -379,7 +380,10 @@ export default function AiChatModern() {
       content: responseText,
       timestamp: new Date(),
       intention: res?.data?.intention,
-      model: res?.data?.model
+      model: res?.data?.model,
+      visualizations: res?.data?.visualizations || [],
+      file_requests: res?.data?.file_requests
+        || (res?.data?.file_request ? [res.data.file_request] : null),
     }]);
     setIntention(res?.data?.intention);
     setConversationTurn(res?.data?.conversation_turn || conversationTurn + 1);
@@ -495,7 +499,9 @@ export default function AiChatModern() {
   }
 
   function handleStarterPrompt(prompt) {
+    if (loading || streaming) return;
     setInput(prompt);
+    window.requestAnimationFrame(() => handleSubmit({ preventDefault: () => {} }, prompt));
   }
 
   async function clearChat() {
@@ -893,6 +899,7 @@ export default function AiChatModern() {
                 }}
               >
                 <IconSend size={18} />
+                <span>Send</span>
               </button>
             )}
           </form>

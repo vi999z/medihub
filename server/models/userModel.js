@@ -39,4 +39,8 @@ async function updateUser(id, { full_name, email, role, is_active }) {
   );
 }
 
-module.exports = { findByEmail, findById, createUser, getAllUsers, setActive, updateUser };
+async function updatePasswordHash(id, passwordHash) {
+  await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id]);
+}
+
+module.exports = { findByEmail, findById, createUser, getAllUsers, setActive, updateUser, updatePasswordHash };

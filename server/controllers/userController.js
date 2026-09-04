@@ -1,3 +1,5 @@
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const userModel = require('../models/userModel');
 const { pool } = require('../config/db');
 const { logAudit } = require('../utils/auditLogger');
@@ -56,4 +58,30 @@ async function remove(req, res) {
   res.json({ success: true });
 }
 
-module.exports = { getAll, update, setStatus, remove };
+async function resetPassword(req, res) {
+  const userId = Number(req.params.id);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+  if (userId === Number(req.user.id)) {
+    return res.status(400).json({ error: "You can't reset your own password here" });
+  }
+
+  const existing = await userModel.findById(userId);
+  if (!existing) return res.status(404).json({ error: 'User not found' });
+
+  const temporaryPassword = crypto.randomBytes(12).toString('base64url');
+  const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+  await userModel.updatePasswordHash(userId, passwordHash);
+
+  await logAudit(req.user.id, 'reset_user_password', `Reset password for user ${userId}`, req);
+
+  res.json({
+    success: true,
+    user: { id: existing.id, full_name: existing.full_name, email: existing.email },
+    temporary_password: temporaryPassword,
+    message: 'Temporary password generated. It will not be shown again.'
+  });
+}
+
+module.exports = { getAll, update, setStatus, remove, resetPassword };

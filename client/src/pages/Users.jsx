@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Plus, Pencil, Search, X } from 'lucide-react';
+import { KeyRound, Plus, Pencil, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -77,6 +77,17 @@ export default function Users() {
       addToast(`${u.full_name} ${u.is_active ? 'deactivated' : 'reactivated'}`, 'success');
     } catch (err) {
       addToast(err.response?.data?.error || 'Failed to update account status', 'error');
+    }
+  }
+
+  async function resetPassword(u) {
+    if (!window.confirm(`Generate a new temporary password for ${u.full_name}?`)) return;
+    try {
+      const res = await api.post(`/users/${u.id}/reset-password`);
+      window.alert(`Temporary password for ${u.full_name}:\n\n${res.data.temporary_password}\n\nThis password will not be shown again.`);
+      addToast('Temporary password generated', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'Failed to reset password', 'error');
     }
   }
 
@@ -188,7 +199,7 @@ export default function Users() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--gradient-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{u.full_name.charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Account</span></div>
-                    <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(u)} title="Edit account"><Pencil size={14} /></button>{u.id !== me.id && <button className="btn-icon" onClick={() => toggleActive(u)} title={u.is_active ? 'Deactivate' : 'Reactivate'}>{u.is_active ? <X size={14} /> : <Plus size={14} />}</button>}</div>
+                    <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(u)} title="Edit account"><Pencil size={14} /></button>{u.id !== me.id && <><button className="btn-icon" onClick={() => resetPassword(u)} title="Generate temporary password"><KeyRound size={14} /></button><button className="btn-icon" onClick={() => toggleActive(u)} title={u.is_active ? 'Deactivate' : 'Reactivate'}>{u.is_active ? <X size={14} /> : <Plus size={14} />}</button></>}</div>
                   </div>
                 </motion.div>
               ))}

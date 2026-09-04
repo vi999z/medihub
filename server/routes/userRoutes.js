@@ -8,6 +8,7 @@ router.use(verifyToken, requireRole('admin'));
 router.get('/', ctrl.getAll);
 router.post('/', register);
 router.put('/:id', ctrl.update);
+router.post('/:id/reset-password', ctrl.resetPassword);
 router.patch('/:id/status', ctrl.setStatus);
 router.delete('/:id', ctrl.remove);
 
