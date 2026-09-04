@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Plus, Trash2, Pencil, Download, Search, X, QrCode } from 'lucide-react';
+import { Plus, Trash2, Pencil, Download, Search, X, QrCode, ChevronDown } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -10,10 +10,77 @@ import StaggeredList from '../components/StaggeredList';
 import QRCodeDisplay from '../components/QRCode';
 import Skeleton from '../components/Skeleton';
 
+// ── Export dropdown button ────────────────────────────────────────────────────
+function ExportDropdown({ onExport }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const EXPORT_OPTIONS = [
+    { label: 'Active batches (Excel)', status: 'active', format: 'excel' },
+    { label: 'Expiring soon (Excel)', status: 'expiring', format: 'excel' },
+    { label: 'Expired batches (Excel)', status: 'expired', format: 'excel' },
+    { label: 'Depleted batches (Excel)', status: 'depleted', format: 'excel' },
+    { label: 'Recalled batches (Excel)', status: 'recalled', format: 'excel' },
+    { label: 'Wasted medicines (Excel)', status: 'wasted', format: 'excel' },
+    null, // divider
+    { label: 'Expired batches (PDF)', status: 'expired', format: 'pdf' },
+    { label: 'Wasted medicines (PDF)', status: 'wasted', format: 'pdf' },
+    { label: 'Expired batches (Word)', status: 'expired', format: 'docx' },
+    null, // divider
+    { label: 'Current view (CSV)', status: 'csv', format: 'csv' },
+  ];
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        className="btn btn-secondary"
+        onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+      >
+        <Download size={15} /> Export <ChevronDown size={13} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 230,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 12, boxShadow: 'var(--shadow-xl)', zIndex: 50,
+          padding: '6px 0', overflow: 'hidden'
+        }}>
+          {EXPORT_OPTIONS.map((opt, idx) =>
+            opt === null ? (
+              <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+            ) : (
+              <button
+                key={idx}
+                onClick={() => { onExport(opt.status, opt.format); setOpen(false); }}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '9px 16px', background: 'none', border: 'none',
+                  cursor: 'pointer', fontSize: 13, color: 'var(--ink)',
+                  transition: 'background 0.12s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                {opt.label}
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const STATUS_FILTERS = [
   { value: 'all', label: 'All statuses' },
   { value: 'active', label: 'Active' },
-  { value: 'expiring', label: 'Expiring in 30 days' },
+  { value: 'expiring', label: 'Expiring in 14 days' },
   { value: 'expired', label: 'Expired' },
   { value: 'depleted', label: 'Depleted' },
   { value: 'recalled', label: 'Recalled' }
@@ -21,11 +88,12 @@ const STATUS_FILTERS = [
 
 function statusPillFor(batch) {
   if (batch.status === 'expired') return { cls: 'critical', label: 'Expired' };
-  if (batch.status === 'depleted') return { cls: 'warning', label: 'Depleted' };
-  if (batch.status === 'recalled') return { cls: 'critical', label: 'Recalled' };
+  if (batch.status === 'depleted') return { cls: 'orange', label: 'Depleted' };
+  if (batch.status === 'recalled') return { cls: 'purple', label: 'Recalled' };
   const days = daysUntil(batch.expiry_date);
-  if (days <= 7) return { cls: 'critical', label: `${days}d left` };
-  if (days <= 30) return { cls: 'warning', label: `${days}d left` };
+  if (days <= 3) return { cls: 'critical', label: `${days}d left` };
+  if (days <= 14) return { cls: 'warning', label: `${days}d left` };
+  if (days <= 60) return { cls: 'orange', label: `${days}d left` };
   return { cls: 'safe', label: 'Active' };
 }
 
@@ -70,7 +138,7 @@ export default function Batches() {
     return batches.filter((batch) => {
       if (statusFilter === 'all' && Number(batch.quantity_remaining) <= 0) return false;
       if (statusFilter === 'expiring') {
-        if (batch.status !== 'active' || daysUntil(batch.expiry_date) > 30) return false;
+        if (batch.status !== 'active' || daysUntil(batch.expiry_date) > 14) return false;
       } else if (statusFilter !== 'all' && batch.status !== statusFilter) {
         return false;
       }
@@ -147,18 +215,37 @@ export default function Batches() {
     }
   }
 
-  function handleExport() {
-    const rows = visibleBatches.map((batch) => ({
-      id: batch.id,
-      medicine: batch.medicine_name,
-      batch_number: batch.batch_number,
-      supplier: batch.supplier_name || '—',
-      quantity_remaining: batch.quantity_remaining,
-      expiry_date: batch.expiry_date,
-      status: batch.status,
-      selling_price: batch.selling_price || ''
-    }));
-    downloadCsv('batches.csv', rows, ['id', 'medicine', 'batch_number', 'supplier', 'quantity_remaining', 'expiry_date', 'status', 'selling_price']);
+  async function handleExport(status, format) {
+    if (status === 'csv') {
+      // CSV of currently visible batches
+      const rows = visibleBatches.map((batch) => ({
+        id: batch.id, medicine: batch.medicine_name, batch_number: batch.batch_number,
+        supplier: batch.supplier_name || '—', quantity_remaining: batch.quantity_remaining,
+        expiry_date: batch.expiry_date ? String(batch.expiry_date).slice(0, 10) : '',
+        status: batch.status, selling_price: batch.selling_price || ''
+      }));
+      downloadCsv('batches.csv', rows, ['id', 'medicine', 'batch_number', 'supplier', 'quantity_remaining', 'expiry_date', 'status', 'selling_price']);
+      return;
+    }
+    try {
+      const endpoint = status === 'wasted'
+        ? `/reports/export/wasted?format=${format}`
+        : `/reports/export/batches?status=${status}&format=${format}`;
+      const res = await api.get(endpoint, { responseType: 'blob' });
+      const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
+      const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${status}_batches_${new Date().toISOString().slice(0, 10)}.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      addToast(`Export downloaded`, 'success');
+    } catch (err) {
+      addToast('Export failed', 'error');
+    }
   }
 
   return (
@@ -173,9 +260,7 @@ export default function Batches() {
           <p>{loading ? 'Loading batches…' : `${visibleBatches.length} of ${batches.length} batches shown, sorted by nearest expiry`}</p>
         </div>
         <div className="page-header-actions">
-          <button className="btn btn-secondary" onClick={handleExport}>
-            <Download size={15} /> Export CSV
-          </button>
+          <ExportDropdown onExport={handleExport} />
           {user.role === 'admin' && (
             <button className="btn btn-secondary" onClick={handleRemoveDepleted}>
               <Trash2 size={15} /> Remove depleted

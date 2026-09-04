@@ -1,11 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { IconSend, IconRobot, IconUser, IconRefresh, IconAlertTriangle, IconSparkles, IconPaperclip, IconX, IconPhoto } from '@tabler/icons-react';
+import { IconSend, IconRobot, IconUser, IconRefresh, IconAlertTriangle, IconSparkles, IconPaperclip, IconX, IconDownload } from '@tabler/icons-react';
 import ReactMarkdown from 'react-markdown';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Skeleton from '../components/Skeleton';
+
+// ── Starter prompt button with proper hover state ─────────────────────────────
+function StarterPromptButton({ prompt, onClick }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        padding: '10px 12px',
+        border: `1px solid ${hovered ? 'var(--amber)' : 'var(--border)'}`,
+        borderRadius: 10,
+        background: hovered ? 'var(--amber-tint)' : 'var(--surface)',
+        cursor: 'pointer',
+        fontSize: 12,
+        color: hovered ? 'var(--amber)' : 'var(--ink-soft)',
+        fontWeight: hovered ? 600 : 500,
+        textAlign: 'left',
+        transition: 'all 0.18s ease',
+        transform: hovered ? 'translateY(-1px)' : 'none',
+        lineHeight: 1.4
+      }}
+    >
+      {prompt}
+    </button>
+  );
+}
 
 const STARTER_PROMPTS = [
   "What's expiring this week?",
@@ -527,10 +555,10 @@ export default function AiChatModern() {
     try {
       const res = await api.get('/ai/health-report');
       const healthReport = res.data.health_report;
-      setMessages(prev => [...prev, 
+      setMessages(prev => [...prev,
         { role: 'user', content: 'Generate pharmacy health report', timestamp: new Date() },
-        { 
-          role: 'assistant', 
+        {
+          role: 'assistant',
           content: healthReport,
           timestamp: new Date(),
           isHealthReport: true
@@ -538,6 +566,78 @@ export default function AiChatModern() {
       ]);
     } catch (err) {
       addToast('Failed to generate health report', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function downloadAiReport(format = 'pdf') {
+    setLoading(true);
+    try {
+      const [summaryRes, expiringRes, lowStockRes, salesRes] = await Promise.all([
+        api.get('/reports/summary'),
+        api.get('/reports/expiring-soon?days=14'),
+        api.get('/reports/low-stock'),
+        api.get('/reports/sales-trend?days=30')
+      ]);
+      const summary = summaryRes.data || {};
+      const expiring = Array.isArray(expiringRes.data) ? expiringRes.data : [];
+      const lowStock = Array.isArray(lowStockRes.data) ? lowStockRes.data : [];
+      const salesTrend = Array.isArray(salesRes.data) ? salesRes.data : [];
+
+      // Include recent AI conversation insights as notes
+      const aiMessages = messages
+        .filter(m => m.role === 'assistant' && m.content && !m.isHealthReport)
+        .slice(-5)
+        .map(m => m.content.slice(0, 300))
+        .join('\n\n---\n\n');
+
+      const report = {
+        title: 'MediHub AI Chat Report',
+        summary: {
+          total_medicines: summary.total_medicines || 0,
+          inventory_value: `₱${(summary.inventory_value || 0).toLocaleString()}`,
+          expiring_soon_14d: expiring.length,
+          low_stock_items: lowStock.length,
+          expired: summary.expired || 0,
+        },
+        rows: [
+          ...expiring.slice(0, 20).map(item => ({
+            section: 'Expiring Soon',
+            medicine: item.medicine_name,
+            batch: item.batch_number,
+            expiry_date: item.expiry_date ? String(item.expiry_date).slice(0, 10) : '',
+            days_left: item.days_left,
+            qty_remaining: item.quantity_remaining,
+          })),
+          ...lowStock.slice(0, 20).map(item => ({
+            section: 'Low Stock',
+            medicine: item.name,
+            reorder_level: item.reorder_level,
+            total_remaining: item.total_remaining,
+          })),
+        ],
+        recommendations: [
+          expiring.length ? `⚠ ${expiring.length} item(s) expiring within 14 days — review immediately.` : '✓ No imminent expiry items.',
+          lowStock.length ? `⚠ ${lowStock.length} medicine(s) at or below reorder level — place orders.` : '✓ All stock levels healthy.',
+          summary.expired ? `✗ ${summary.expired} expired batch(es) must be removed from shelves.` : '✓ No expired batches on record.',
+        ],
+        notes: aiMessages ? `Recent AI Conversation Insights:\n\n${aiMessages}` : undefined,
+      };
+
+      const response = await api.post('/ai/report/export', { type: format, report }, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `medihub_ai_report_${new Date().toISOString().slice(0, 10)}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      addToast(`AI report downloaded as ${format.toUpperCase()}`, 'success');
+    } catch (err) {
+      addToast('Failed to generate report', 'error');
     } finally {
       setLoading(false);
     }
@@ -568,6 +668,12 @@ export default function AiChatModern() {
           </button>
           <button className="btn btn-secondary" onClick={getHealthReport} disabled={loading}>
             <IconSparkles size={15} /> Health Report
+          </button>
+          <button className="btn btn-secondary" onClick={() => downloadAiReport('pdf')} disabled={loading} title="Export conversation report as PDF">
+            <IconDownload size={15} /> PDF Report
+          </button>
+          <button className="btn btn-secondary" onClick={() => downloadAiReport('docx')} disabled={loading} title="Export conversation report as Word document">
+            <IconDownload size={15} /> Word Report
           </button>
           <button className="btn btn-secondary" onClick={clearChat}>
             <IconRefresh size={15} /> Clear
@@ -759,31 +865,16 @@ export default function AiChatModern() {
 
         {/* Starter Prompts */}
         {messages.length === 1 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}
-          >
-            {STARTER_PROMPTS.map((prompt, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleStarterPrompt(prompt)}
-                style={{
-                  padding: 12,
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  background: 'var(--bg)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  transition: 'all 0.2s',
-                  ':hover': { borderColor: 'var(--primary)' }
-                }}
-              >
-                {prompt}
-              </button>
-            ))}
-          </motion.div>
-        )}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}
+        >
+          {STARTER_PROMPTS.map((prompt, idx) => (
+            <StarterPromptButton key={idx} prompt={prompt} onClick={() => handleStarterPrompt(prompt)} />
+          ))}
+        </motion.div>
+      )}
 
         {/* Input Area */}
         <div style={{ borderTop: '1px solid var(--border)' }}>

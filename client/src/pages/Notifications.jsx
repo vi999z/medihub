@@ -1,10 +1,58 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { CheckCheck, RefreshCw, BellRing, Search, X, AlertTriangle, Info, Bell } from 'lucide-react';
+import { CheckCheck, RefreshCw, BellRing, Search, X, AlertTriangle, Info, Bell, Download, ChevronDown } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import StaggeredList from '../components/StaggeredList';
 import Skeleton from '../components/Skeleton';
+
+// ── Alerts export dropdown ────────────────────────────────────────────────────
+function AlertsExportDropdown({ onExport }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const OPTIONS = [
+    { label: 'All alerts (Excel)', severity: null, format: 'excel' },
+    { label: 'Critical only (Excel)', severity: 'critical', format: 'excel' },
+    { label: 'Warnings only (Excel)', severity: 'warning', format: 'excel' },
+    null,
+    { label: 'All alerts (PDF)', severity: null, format: 'pdf' },
+    { label: 'Critical alerts (PDF)', severity: 'critical', format: 'pdf' },
+    { label: 'All alerts (Word)', severity: null, format: 'docx' },
+  ];
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button className="btn btn-secondary" onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Download size={15} /> Export <ChevronDown size={13} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 220,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 12, boxShadow: 'var(--shadow-xl)', zIndex: 50, padding: '6px 0'
+        }}>
+          {OPTIONS.map((opt, idx) => opt === null ? (
+            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+          ) : (
+            <button
+              key={idx}
+              onClick={() => { onExport(opt.severity, opt.format); setOpen(false); }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--ink)', transition: 'background 0.12s ease' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >{opt.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const UNREAD_URL = '/notifications?unread=true';
 
@@ -87,6 +135,27 @@ export default function Notifications() {
     addToast('Alerts refreshed', 'success');
   }
 
+  async function handleExport(severity, format) {
+    try {
+      const params = new URLSearchParams({ format });
+      if (severity) params.set('severity', severity);
+      const res = await api.get(`/reports/export/notifications?${params}`, { responseType: 'blob' });
+      const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
+      const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `alerts${severity ? `_${severity}` : ''}_${new Date().toISOString().slice(0, 10)}.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      addToast('Alerts exported', 'success');
+    } catch (err) {
+      addToast('Export failed', 'error');
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -99,6 +168,7 @@ export default function Notifications() {
           <p>{loading ? 'Loading alerts…' : `${unreadCount} unread of ${notifications.length}`}</p>
         </div>
         <div className="page-header-actions">
+          <AlertsExportDropdown onExport={handleExport} />
           <button className="btn btn-secondary" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>

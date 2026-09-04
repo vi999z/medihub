@@ -1,10 +1,61 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Plus, Search, X } from 'lucide-react';
+import { Plus, Search, X, Download, ChevronDown } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import StaggeredList from '../components/StaggeredList';
 import Skeleton from '../components/Skeleton';
+import { downloadCsv } from '../utils/csv';
+
+// ── Transactions export dropdown ──────────────────────────────────────────────
+function TransactionExportDropdown({ onExport }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const OPTIONS = [
+    { label: 'All transactions (CSV)', key: 'csv', format: 'csv' },
+    null,
+    { label: 'All transactions — 30d (Excel)', key: 'all', format: 'excel', days: 30 },
+    { label: 'Sales only — 30d (Excel)', key: 'sale', format: 'excel', days: 30 },
+    { label: 'Disposals only — 30d (Excel)', key: 'disposal', format: 'excel', days: 30 },
+    { label: 'All transactions — 90d (Excel)', key: 'all', format: 'excel', days: 90 },
+    null,
+    { label: 'All transactions — 30d (PDF)', key: 'all', format: 'pdf', days: 30 },
+    { label: 'All transactions — 30d (Word)', key: 'all', format: 'docx', days: 30 },
+  ];
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button className="btn btn-secondary" onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Download size={15} /> Export <ChevronDown size={13} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 240,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 12, boxShadow: 'var(--shadow-xl)', zIndex: 50, padding: '6px 0'
+        }}>
+          {OPTIONS.map((opt, idx) => opt === null ? (
+            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+          ) : (
+            <button
+              key={idx}
+              onClick={() => { onExport(opt.key, opt.format, opt.days); setOpen(false); }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--ink)', transition: 'background 0.12s ease' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >{opt.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const TYPES = ['sale', 'adjustment', 'disposal', 'return'];
 const TYPE_FILTERS = [{ value: 'all', label: 'All types' }, ...TYPES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))];
@@ -70,6 +121,35 @@ export default function Transactions() {
     }
   }
 
+  async function handleExport(key, format, days = 30) {
+    if (key === 'csv') {
+      const rows = visibleTransactions.map(t => ({
+        id: t.id, type: t.transaction_type, medicine: t.medicine_name,
+        batch: t.batch_number, quantity: t.quantity, reason: t.reason || '',
+        user: t.user_name, date: new Date(t.created_at).toLocaleDateString()
+      }));
+      downloadCsv('transactions.csv', rows, ['id', 'type', 'medicine', 'batch', 'quantity', 'reason', 'user', 'date']);
+      return;
+    }
+    try {
+      const typeParam = key !== 'all' ? `&type=${key}` : '';
+      const res = await api.get(`/reports/export/transactions?days=${days}&format=${format}${typeParam}`, { responseType: 'blob' });
+      const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
+      const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `transactions_${key}_${days}d.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      addToast('Transactions exported', 'success');
+    } catch (err) {
+      addToast('Export failed', 'error');
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -81,9 +161,12 @@ export default function Transactions() {
           <h1>Transactions</h1>
           <p>{loading ? 'Loading movements…' : `${visibleTransactions.length} of ${transactions.length} movements shown`}</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-          <Plus size={15} /> {showForm ? 'Close form' : 'Record transaction'}
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <TransactionExportDropdown onExport={handleExport} />
+          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+            <Plus size={15} /> {showForm ? 'Close form' : 'Record transaction'}
+          </button>
+        </div>
       </div>
 
       {showForm && (

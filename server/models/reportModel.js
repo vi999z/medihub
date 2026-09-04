@@ -4,13 +4,13 @@ async function getSummary() {
   const [[medicineCount]] = await pool.query('SELECT COUNT(*) AS total FROM medicines');
 
   const [[inventoryValue]] = await pool.query(
-    `SELECT COALESCE(SUM(quantity_remaining * cost_price), 0) AS total
-     FROM batches WHERE status = 'active'`
+    `SELECT COALESCE(SUM(quantity_remaining * COALESCE(cost_price, 0)), 0) AS total
+     FROM batches WHERE status = 'active' AND expiry_date >= CURDATE()`
   );
 
   const [[expiringSoon]] = await pool.query(
     `SELECT COUNT(*) AS total FROM batches
-     WHERE status = 'active' AND expiry_date BETWEEN CURDATE() AND (CURDATE() + INTERVAL 30 DAY)`
+     WHERE status = 'active' AND expiry_date BETWEEN CURDATE() AND (CURDATE() + INTERVAL 14 DAY)`
   );
 
   const [[expiredCount]] = await pool.query(
@@ -36,7 +36,7 @@ async function getSummary() {
   };
 }
 
-async function getExpiringSoon(days = 30) {
+async function getExpiringSoon(days = 14) {
   const [rows] = await pool.query(
     `SELECT b.id, b.batch_number, b.expiry_date, b.quantity_remaining, m.name AS medicine_name,
             DATEDIFF(b.expiry_date, CURDATE()) AS days_left
@@ -92,4 +92,79 @@ async function getByCategory() {
   return rows;
 }
 
-module.exports = { getSummary, getExpiringSoon, getLowStock, getSalesTrend, getByCategory };
+async function getBatchesByStatus(status) {
+  const validStatuses = ['active', 'expired', 'depleted', 'recalled'];
+  const safeStatus = validStatuses.includes(status) ? status : 'active';
+  const [rows] = await pool.query(
+    `SELECT b.id, b.batch_number, b.status, b.quantity_received, b.quantity_remaining,
+            b.cost_price, b.selling_price, b.expiry_date, b.manufacture_date,
+            b.created_at,
+            m.name AS medicine_name, m.category, m.unit,
+            s.name AS supplier_name,
+            DATEDIFF(b.expiry_date, CURDATE()) AS days_until_expiry
+     FROM batches b
+     JOIN medicines m ON b.medicine_id = m.id
+     LEFT JOIN suppliers s ON b.supplier_id = s.id
+     WHERE b.status = ?
+     ORDER BY b.expiry_date ASC`,
+    [safeStatus]
+  );
+  return rows;
+}
+
+async function getWastedMedicines() {
+  // Wasted = depleted or expired batches with cost_price info
+  const [rows] = await pool.query(
+    `SELECT b.id, b.batch_number, b.status, b.quantity_received, b.quantity_remaining,
+            b.cost_price, b.selling_price, b.expiry_date,
+            (b.quantity_remaining * COALESCE(b.cost_price, 0)) AS estimated_waste_value,
+            m.name AS medicine_name, m.category, m.unit,
+            s.name AS supplier_name
+     FROM batches b
+     JOIN medicines m ON b.medicine_id = m.id
+     LEFT JOIN suppliers s ON b.supplier_id = s.id
+     WHERE b.status IN ('expired', 'depleted')
+     ORDER BY estimated_waste_value DESC`
+  );
+  return rows;
+}
+
+async function getNotificationsReport(severity = null, unreadOnly = false) {
+  const params = [];
+  const clauses = [];
+  if (severity) { clauses.push('n.severity = ?'); params.push(severity); }
+  if (unreadOnly) { clauses.push('n.is_read = 0'); }
+  const whereStr = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const [rows] = await pool.query(
+    `SELECT n.id, n.type, n.severity, n.message, n.is_read, n.created_at
+     FROM notifications n
+     ${whereStr}
+     ORDER BY n.created_at DESC
+     LIMIT 200`,
+    params
+  );
+  return rows;
+}
+
+async function getTransactionsReport(days = 30, type = null) {
+  const params = [days];
+  const typeClause = type ? 'AND st.transaction_type = ?' : '';
+  if (type) params.push(type);
+  const [rows] = await pool.query(
+    `SELECT st.id, st.transaction_type, st.quantity, st.reason, st.created_at,
+            m.name AS medicine_name, m.category,
+            b.batch_number, b.expiry_date,
+            u.name AS user_name
+     FROM stock_transactions st
+     JOIN batches b ON st.batch_id = b.id
+     JOIN medicines m ON b.medicine_id = m.id
+     LEFT JOIN users u ON st.user_id = u.id
+     WHERE st.created_at >= (CURDATE() - INTERVAL ? DAY)
+     ${typeClause}
+     ORDER BY st.created_at DESC`,
+    params
+  );
+  return rows;
+}
+
+module.exports = { getSummary, getExpiringSoon, getLowStock, getSalesTrend, getByCategory, getBatchesByStatus, getWastedMedicines, getTransactionsReport, getNotificationsReport };

@@ -110,6 +110,16 @@ html.dark body::before {
   animation: none;
 }
 
+/* Dark mode: status pill color overrides for dark backgrounds */
+html.dark .status-pill.safe    { background: #064e3b; color: #6ee7b7; border-color: #059669; }
+html.dark .status-pill.warning { background: #451a03; color: #fcd34d; border-color: #d97706; }
+html.dark .status-pill.critical { background: #450a0a; color: #fca5a5; border-color: #dc2626; }
+html.dark .status-pill.info    { background: #0c1a3d; color: #93c5fd; border-color: #2563eb; }
+html.dark .status-pill.purple  { background: #2e1065; color: #c4b5fd; border-color: #7c3aed; }
+html.dark .status-pill.orange  { background: #431407; color: #fdba74; border-color: #ea580c; }
+html.dark .status-pill.teal    { background: #042f2e; color: #5eead4; border-color: #0d9488; }
+html.dark .status-pill.blue    { background: #0c1a3d; color: #93c5fd; border-color: #1d4ed8; }
+
 /* Dark mode: fix hardcoded #fff in inputs, tables, filter controls */
 html.dark .field input,
 html.dark .field select,
@@ -417,10 +427,18 @@ input, select, textarea { font-family: var(--font-body); }
 
 .stamp { display: inline-flex; align-items: center; font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 3px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--ink-soft); background: var(--bg-subtle); letter-spacing: 0.01em; }
 
-.status-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
-.status-pill.safe { background: var(--green-tint); color: var(--green); }
-.status-pill.warning { background: var(--gold-tint); color: var(--gold); }
-.status-pill.critical { background: var(--red-tint); color: var(--red); }
+.status-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; transition: filter 0.15s ease, transform 0.15s ease; }
+.status-pill:hover { filter: brightness(0.92); transform: scale(1.03); }
+/* Stock / batch status */
+.status-pill.safe    { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+.status-pill.warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.status-pill.critical { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+/* Extra semantic variants */
+.status-pill.info    { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+.status-pill.purple  { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
+.status-pill.orange  { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+.status-pill.teal    { background: #ccfbf1; color: #134e4a; border: 1px solid #5eead4; }
+.status-pill.blue    { background: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd; }
 
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--steel); font-weight: 800; padding: 16px 20px; border-bottom: 2px solid var(--border); background: transparent; white-space: nowrap; }
@@ -467,7 +485,8 @@ input, select, textarea { font-family: var(--font-body); }
 .compact-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 180px; padding: 28px 20px; }
 .empty-row td { background: #fff; }
 
-.filter-tile { text-align: left; border: 1px solid var(--border); cursor: pointer; }
+.filter-tile { text-align: left; border: 1px solid var(--border); cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease; }
+.filter-tile:hover:not(.active) { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--steel); background: var(--surface); }
 .filter-tile.active { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(165,100,23,0.14); }
 
 .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; padding: 16px; background: var(--surface-strong); border-radius: var(--radius); }

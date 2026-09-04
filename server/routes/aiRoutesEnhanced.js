@@ -21,6 +21,8 @@ router.get('/report/export', require('../controllers/exportController').generate
 router.post('/report/export', require('../controllers/exportController').generateReportExport);
 // Generate a downloadable file from AI-produced data
 router.post('/generate-file', ctrlEnhanced.generateDownloadableFile);
+// Auto-generate a file from a chat question (used by AiChatModern "Download PDF" etc.)
+router.post('/auto-generate-file', ctrlEnhanced.autoGenerateFileFromChat);
 // In-memory conversation session management
 router.post('/conversation/clear', ctrlEnhanced.clearConversation);
 router.get('/conversation/info', ctrlEnhanced.getConversationInfo);

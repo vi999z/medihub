@@ -1,8 +1,56 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { RefreshCw, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { RefreshCw, AlertCircle, CheckCircle2, Info, Download, ChevronDown } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+
+// ── AI Insights export dropdown ───────────────────────────────────────────────
+function InsightsExportDropdown({ onExport }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const OPTIONS = [
+    { label: 'Expiry risk (Excel)', key: 'risk', format: 'excel' },
+    { label: 'Reorder suggestions (Excel)', key: 'reorder', format: 'excel' },
+    { label: 'Anomalies (Excel)', key: 'anomalies', format: 'excel' },
+    null,
+    { label: 'Full AI Insights (PDF)', key: 'all', format: 'pdf' },
+    { label: 'Full AI Insights (Word)', key: 'all', format: 'docx' },
+  ];
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button className="btn btn-secondary" onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Download size={15} /> Export <ChevronDown size={13} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 220,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 12, boxShadow: 'var(--shadow-xl)', zIndex: 50, padding: '6px 0'
+        }}>
+          {OPTIONS.map((opt, idx) => opt === null ? (
+            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+          ) : (
+            <button
+              key={idx}
+              onClick={() => { onExport(opt.key, opt.format); setOpen(false); }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--ink)', transition: 'background 0.12s ease' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >{opt.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function riskPill(score) {
   if (score >= 0.66) return 'critical';
@@ -71,6 +119,7 @@ function TrainBanner({ trainMsg, trainStatus }) {
 
 export default function AiInsights() {
   const { user } = useAuth();
+  const { addToast } = useToast();
   const [tab, setTab] = useState('risk');
   const [risk, setRisk] = useState([]);
   const [reorder, setReorder] = useState([]);
@@ -143,6 +192,46 @@ export default function AiInsights() {
     }
   }
 
+  async function handleExport(key, format) {
+    try {
+      const getSection = () => {
+        if (key === 'risk') return { rows: risk.map(d => ({ medicine: d.medicine_name, batch: d.batch_number, days_left: d.days_left, qty: d.quantity_remaining, risk_pct: `${(d.risk_score * 100).toFixed(0)}%`, action: d.action })), title: 'Expiry Risk Report' };
+        if (key === 'reorder') return { rows: reorder.map(r => ({ medicine: r.medicine_name, current_stock: r.current_stock, avg_daily_demand: r.avg_daily_demand, days_of_stock: r.days_of_stock_left, suggested_order: r.suggested_reorder_qty, action: r.action })), title: 'Reorder Suggestions Report' };
+        if (key === 'anomalies') return { rows: anomalies.map(a => ({ medicine: a.medicine_name, batch: a.batch_number, type: a.transaction_type, qty: a.quantity, z_score: a.z_score, severity: a.severity, action: a.action })), title: 'Transaction Anomalies Report' };
+        // 'all' — combine
+        return {
+          title: 'AI Insights Full Report',
+          summary: { expiry_risk_items: risk.length, reorder_items: reorder.length, anomalies_detected: anomalies.length },
+          rows: [
+            ...risk.slice(0, 20).map(d => ({ section: 'Expiry Risk', medicine: d.medicine_name, batch: d.batch_number, days_left: d.days_left, risk_pct: `${(d.risk_score * 100).toFixed(0)}%`, action: d.action })),
+            ...reorder.slice(0, 20).map(r => ({ section: 'Reorder', medicine: r.medicine_name, current_stock: r.current_stock, days_of_stock: r.days_of_stock_left, suggested_order: r.suggested_reorder_qty })),
+            ...anomalies.slice(0, 20).map(a => ({ section: 'Anomaly', medicine: a.medicine_name, type: a.transaction_type, qty: a.quantity, severity: a.severity, action: a.action })),
+          ],
+          recommendations: [
+            risk.length ? `${risk.length} batches flagged for expiry risk.` : 'No expiry risk items.',
+            reorder.length ? `${reorder.length} medicines need reordering.` : 'All stock levels healthy.',
+            anomalies.length ? `${anomalies.length} suspicious transactions detected.` : 'No anomalies found.',
+          ],
+        };
+      };
+      const reportData = getSection();
+      const res = await api.post('/ai/report/export', { type: format, report: reportData }, { responseType: 'blob' });
+      const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
+      const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ai_insights_${key}_${new Date().toISOString().slice(0, 10)}.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      addToast('AI Insights exported', 'success');
+    } catch (err) {
+      addToast('Export failed', 'error');
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -154,11 +243,14 @@ export default function AiInsights() {
           <h1>AI Insights</h1>
           <p>Expiry risk, reorder timing, and transaction anomalies — computed from your real inventory data</p>
         </div>
-        {user.role === 'admin' && (
-          <button className="btn btn-secondary" onClick={handleTrain} disabled={training}>
-            <RefreshCw size={14} className={training ? 'spin' : ''} /> {training ? 'Training…' : 'Retrain model'}
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <InsightsExportDropdown onExport={handleExport} />
+          {user.role === 'admin' && (
+            <button className="btn btn-secondary" onClick={handleTrain} disabled={training}>
+              <RefreshCw size={14} className={training ? 'spin' : ''} /> {training ? 'Training…' : 'Retrain model'}
+            </button>
+          )}
+        </div>
       </div>
 
       <TrainBanner trainMsg={trainMsg} trainStatus={trainStatus} />

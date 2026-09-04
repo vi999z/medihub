@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   Plus, Pencil, Trash2, RefreshCw, Download, Search, X,
-  FileWarning, Upload, QrCode
+  FileWarning, Upload, QrCode, ChevronDown
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
@@ -19,6 +19,56 @@ import QRCodeDisplay from '../components/QRCode';
 import ReceiveStockModal from '../components/ReceiveStockModal';
 import StockMovementModal from '../components/StockMovementModal';
 
+// ── Export dropdown for medicines page ────────────────────────────────────────
+function MedicineExportDropdown({ onExport }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const OPTIONS = [
+    { label: 'Current view (CSV)', key: 'csv', format: 'csv' },
+    null,
+    { label: 'Expired batches (Excel)', key: 'expired', format: 'excel' },
+    { label: 'Depleted batches (Excel)', key: 'depleted', format: 'excel' },
+    { label: 'Recalled batches (Excel)', key: 'recalled', format: 'excel' },
+    { label: 'Wasted medicines (Excel)', key: 'wasted', format: 'excel' },
+    null,
+    { label: 'Expired batches (PDF)', key: 'expired', format: 'pdf' },
+    { label: 'Wasted medicines (PDF)', key: 'wasted', format: 'pdf' },
+  ];
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button className="btn btn-secondary" onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Download size={15} /> Export <ChevronDown size={13} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 220,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 12, boxShadow: 'var(--shadow-xl)', zIndex: 50, padding: '6px 0'
+        }}>
+          {OPTIONS.map((opt, idx) => opt === null ? (
+            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+          ) : (
+            <button
+              key={idx}
+              onClick={() => { onExport(opt.key, opt.format); setOpen(false); }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--ink)', transition: 'background 0.12s ease' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >{opt.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CATEGORY_OPTIONS = [
   'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
   'Antifungal', 'Antiviral', 'Cardiovascular', 'Respiratory', 'Dermatology', 'Gastrointestinal',
@@ -30,7 +80,7 @@ const STOCK_FILTERS = [
   { value: 'out', label: 'Out of stock' },
   { value: 'low', label: 'Low stock' },
   { value: 'healthy', label: 'Healthy stock' },
-  { value: 'expiring', label: 'Expiring in 30 days' }
+  { value: 'expiring', label: 'Expiring in 14 days' }
 ];
 
 const SORT_OPTIONS = [
@@ -67,17 +117,20 @@ function stockStateOf(medicine) {
 function expiryLabel(medicine) {
   if (!medicine.nearest_expiry) return null;
   const days = daysUntil(medicine.nearest_expiry);
-  if (days <= 30) return { cls: days <= 7 ? 'critical' : 'warning', label: `${days}d to expiry` };
+  if (days <= 3) return { cls: 'critical', label: `${days}d to expiry` };
+  if (days <= 14) return { cls: 'warning', label: `${days}d to expiry` };
+  if (days <= 60) return { cls: 'orange', label: `${days}d to expiry` };
   return { cls: 'safe', label: new Date(medicine.nearest_expiry).toLocaleDateString() };
 }
 
 function batchStatusPill(batch) {
   if (batch.status === 'expired') return { cls: 'critical', label: 'Expired' };
-  if (batch.status === 'depleted') return { cls: 'warning', label: 'Depleted' };
-  if (batch.status === 'recalled') return { cls: 'critical', label: 'Recalled' };
+  if (batch.status === 'depleted') return { cls: 'orange', label: 'Depleted' };
+  if (batch.status === 'recalled') return { cls: 'purple', label: 'Recalled' };
   const days = daysUntil(batch.expiry_date);
-  if (days <= 7) return { cls: 'critical', label: `${days}d left` };
-  if (days <= 30) return { cls: 'warning', label: `${days}d left` };
+  if (days <= 3) return { cls: 'critical', label: `${days}d left` };
+  if (days <= 14) return { cls: 'warning', label: `${days}d left` };
+  if (days <= 60) return { cls: 'orange', label: `${days}d left` };
   return { cls: 'safe', label: 'Active' };
 }
 
@@ -352,25 +405,39 @@ export default function Medicines() {
     addToast('Catalog refreshed', 'success');
   }
 
-  function handleExport() {
-    const rows = visibleMedicines.map((medicine) => ({
-      id: medicine.id,
-      name: medicine.name,
-      generic_name: medicine.generic_name || '',
-      category: categoryOf(medicine),
-      dosage_form: medicine.dosage_form || '',
-      strength: medicine.strength || '',
-      unit: medicine.unit || '',
-      total_stock: medicine.total_stock ?? '',
-      reorder_level: medicine.reorder_level || '',
-      stock_status: stockStateOf(medicine).label,
-      nearest_expiry: medicine.nearest_expiry ? String(medicine.nearest_expiry).slice(0, 10) : '',
-      requires_prescription: medicine.requires_prescription ? 'Yes' : 'No'
-    }));
-    downloadCsv('medicines.csv', rows, [
-      'id', 'name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit',
-      'total_stock', 'reorder_level', 'stock_status', 'nearest_expiry', 'requires_prescription'
-    ]);
+  async function handleExport(key, format) {
+    if (key === 'csv') {
+      const rows = visibleMedicines.map((medicine) => ({
+        id: medicine.id, name: medicine.name, generic_name: medicine.generic_name || '',
+        category: categoryOf(medicine), dosage_form: medicine.dosage_form || '',
+        strength: medicine.strength || '', unit: medicine.unit || '',
+        total_stock: medicine.total_stock ?? '', reorder_level: medicine.reorder_level || '',
+        stock_status: stockStateOf(medicine).label,
+        nearest_expiry: medicine.nearest_expiry ? String(medicine.nearest_expiry).slice(0, 10) : '',
+        requires_prescription: medicine.requires_prescription ? 'Yes' : 'No'
+      }));
+      downloadCsv('medicines.csv', rows, ['id', 'name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'total_stock', 'reorder_level', 'stock_status', 'nearest_expiry', 'requires_prescription']);
+      return;
+    }
+    try {
+      const endpoint = key === 'wasted'
+        ? `/reports/export/wasted?format=${format}`
+        : `/reports/export/batches?status=${key}&format=${format}`;
+      const res = await api.get(endpoint, { responseType: 'blob' });
+      const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
+      const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${key}_${new Date().toISOString().slice(0, 10)}.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      addToast('Export downloaded', 'success');
+    } catch (err) {
+      addToast('Export failed', 'error');
+    }
   }
 
   // ---- Batch handlers (integrated into medicine detail modal) ----
@@ -477,9 +544,7 @@ export default function Medicines() {
           </p>
         </div>
         <div className="page-header-actions">
-          <button className="btn btn-secondary" onClick={handleExport}>
-            <Download size={15} /> Export CSV
-          </button>
+          <MedicineExportDropdown onExport={handleExport} />
           <button className="btn btn-secondary" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
@@ -535,7 +600,7 @@ export default function Medicines() {
           whileTap={{ scale: 0.98 }}
         >
           <div className="value"><AnimatedNumber value={summary.expiring} /></div>
-          <div className="label">Expiring within 30 days</div>
+          <div className="label">Expiring within 14 days</div>
         </motion.button>
         <motion.button
           type="button"
