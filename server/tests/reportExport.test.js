@@ -1,7 +1,19 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildReportExport, getSupportedExportTypes } = require('../controllers/exportController');
+const {
+  buildReportExport,
+  getSupportedExportTypes,
+  buildPdfBuffer,
+  buildWordDocument,
+} = require('../controllers/exportController');
+
+const SAMPLE_REPORT = {
+  title: 'Inventory Report',
+  summary: { total_items: 2 },
+  rows: [{ medicine_name: 'Amoxicillin', quantity: 120 }],
+  recommendations: ['Review stock levels'],
+};
 
 test('buildReportExport generates CSV inventory exports', () => {
   const exportPayload = {
@@ -60,4 +72,22 @@ test('getSupportedExportTypes exposes the implemented formats', () => {
   assert.ok(supported.includes('txt'));
   assert.ok(supported.includes('json'));
   assert.ok(supported.includes('chart'));
+});
+
+test('buildPdfBuffer returns a complete PDF document', async () => {
+  const buffer = await buildPdfBuffer(SAMPLE_REPORT);
+
+  assert.ok(Buffer.isBuffer(buffer));
+  assert.match(buffer.subarray(0, 5).toString('ascii'), /^%PDF-/);
+  assert.equal(buffer.subarray(-6).toString('ascii'), '%%EOF\n');
+});
+
+test('buildWordDocument returns a readable DOCX package', async () => {
+  const buffer = await buildWordDocument(SAMPLE_REPORT);
+  const contents = buffer.toString('binary');
+
+  assert.ok(Buffer.isBuffer(buffer));
+  assert.equal(buffer.subarray(0, 2).toString('ascii'), 'PK');
+  assert.match(contents, /\[Content_Types\]\.xml/);
+  assert.match(contents, /word\/document\.xml/);
 });

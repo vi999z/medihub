@@ -454,6 +454,7 @@ async function autoGenerateFileFromChat(req, res) {
     }
 
     // Generate the file
+    req.body = { ...req.body, file_type: requestedFileType, content };
     return await generateDownloadableFile(req, res);
   } catch (err) {
     console.error('Auto file generation failed:', err);
@@ -484,6 +485,13 @@ async function generateReportWithDownload(req, res) {
           .setHeader('Content-Type', 'application/pdf')
           .setHeader('Content-Disposition', `attachment; filename="${report_type}_report.pdf"`)
           .send(pdfBuffer);
+      case 'word':
+      case 'docx':
+        const wordBuffer = await exportCtrl.buildWordDocument(reportResult);
+        return res
+          .setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+          .setHeader('Content-Disposition', `attachment; filename="${report_type}_report.docx"`)
+          .send(wordBuffer);
       case 'csv':
         fileResult = exportCtrl.buildReportExport(reportResult, 'csv');
         break;

@@ -17,6 +17,41 @@ function toRowsArray(reportData) {
   return [];
 }
 
+function normalizeReportData(reportData) {
+  if (reportData && typeof reportData === 'object' && !Buffer.isBuffer(reportData)) {
+    const nestedData = reportData.data && typeof reportData.data === 'object' && !Array.isArray(reportData.data)
+      ? reportData.data
+      : {};
+    const analysis = reportData.analysis && typeof reportData.analysis === 'object'
+      ? reportData.analysis
+      : {};
+
+    return {
+      ...reportData,
+      summary: reportData.summary || reportData.current_state || {},
+      rows: toRowsArray(reportData).length > 0
+        ? toRowsArray(reportData)
+        : Object.entries(nestedData).flatMap(([section, value]) =>
+          Array.isArray(value) ? value.map((item) => ({ section, ...item })) : []
+        ),
+      recommendations: reportData.recommendations || analysis.recommendations || [],
+      key_insights: reportData.key_insights || analysis.key_insights || [],
+      prioritized_actions: reportData.prioritized_actions || analysis.prioritized_actions || [],
+      opportunities: reportData.opportunities || analysis.opportunities || [],
+    };
+  }
+
+  if (typeof reportData === 'string') {
+    try {
+      return normalizeReportData(JSON.parse(reportData));
+    } catch {
+      return { title: 'MediHub Report', summary: {}, notes: reportData };
+    }
+  }
+
+  return { title: 'MediHub Report', summary: {} };
+}
+
 function escapeCsvValue(value) {
   if (value === null || value === undefined) return '';
   const text = String(value);
@@ -100,6 +135,7 @@ function buildChartPayload(reportData) {
 // ─── PDF Generation (Enhanced with Professional Formatting) ────────────────
 
 function buildPdfBuffer(reportData) {
+  reportData = normalizeReportData(reportData);
   const doc = new PDFDocument({ margin: 50, size: 'A4' });
   const chunks = [];
 
@@ -156,9 +192,9 @@ function buildPdfBuffer(reportData) {
       // Draw headers with better styling
       headers.forEach((header, i) => {
         doc.rect(50 + i * colWidth, tableTop, colWidth, rowHeight).fillAndStroke('#3b82f6', '#1e40af');
-        doc.fillColor('white').font.bold().text(header, 55 + i * colWidth, tableTop + 5, { width: colWidth - 10 });
+        doc.fillColor('white').font('Helvetica-Bold').text(header, 55 + i * colWidth, tableTop + 5, { width: colWidth - 10 });
       });
-      doc.fillColor('black').font.normal();
+      doc.fillColor('black').font('Helvetica');
 
       // Draw rows with alternating colors
       rows.slice(0, 30).forEach((row, rowIndex) => {
@@ -206,6 +242,13 @@ function buildPdfBuffer(reportData) {
       doc.moveDown();
     }
 
+    if (reportData?.notes) {
+      doc.fontSize(16).fillColor('#1e40af').text('Report Notes', { underline: true });
+      doc.moveDown();
+      doc.fontSize(11).fillColor('#1e293b').text(String(reportData.notes));
+      doc.moveDown();
+    }
+
     // Opportunities section
     if (reportData?.opportunities && reportData.opportunities.length > 0) {
       doc.fontSize(16).fillColor('#1e40af').text('Opportunities', { underline: true });
@@ -228,6 +271,7 @@ function buildPdfBuffer(reportData) {
 // ─── Word Document Generation (DOCX) ─────────────────────────────────────────
 
 async function buildWordDocument(reportData) {
+  reportData = normalizeReportData(reportData);
   const doc = new Document({
     sections: [{
       properties: {},
@@ -283,9 +327,9 @@ async function buildWordDocument(reportData) {
               }),
               ...toRowsArray(reportData).slice(0, 50).map(row =>
                 new TableRow({
-                  children: Object.keys(row).map(key =>
+                  children: [...new Set(toRowsArray(reportData).flatMap(item => Object.keys(item || {})))].map(key =>
                     new TableCell({
-                      children: [new Paragraph(String(row[key] || ''))],
+                      children: [new Paragraph(String(row[key] ?? ''))],
                       width: { size: 25, type: WidthType.PERCENTAGE }
                     })
                   )
@@ -319,7 +363,14 @@ async function buildWordDocument(reportData) {
           spacing: { before: 800, after: 100 },
           alignment: 'center',
           size: 18
-        })
+        }),
+
+        ...(reportData?.notes ? [
+          new Paragraph({
+            text: String(reportData.notes),
+            spacing: { before: 400 }
+          })
+        ] : [])
       ]
     }]
   });
@@ -538,4 +589,5 @@ module.exports = {
   buildPdfBuffer,
   buildWordDocument,
   buildExcelWorkbook,
+  normalizeReportData,
 };

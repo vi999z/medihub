@@ -23,8 +23,9 @@ const STARTER_PROMPTS = [
 function detectExportType(prompt = '') {
   const text = prompt.toLowerCase();
 
+  if (/word|docx|document/.test(text)) return 'docx';
   if (/csv|excel|spreadsheet|xls/.test(text)) return 'csv';
-  if (/pdf|report/.test(text)) return 'pdf';
+  if (/pdf/.test(text)) return 'pdf';
   if (/text file|txt|summary/.test(text)) return 'txt';
   if (/json|api payload|structured data/.test(text)) return 'json';
   if (/chart|graph|visual|dashboard/.test(text)) return 'chart';
@@ -102,7 +103,13 @@ async function triggerExportDownload(prompt) {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${getExportTitle(prompt).replace(/\s+/g, '_').toLowerCase()}.${exportType === 'csv' ? 'csv' : exportType === 'pdf' ? 'pdf' : exportType === 'txt' ? 'txt' : exportType === 'json' ? 'json' : 'json'}`;
+    const extension = exportType === 'csv' ? 'csv'
+      : exportType === 'pdf' ? 'pdf'
+      : exportType === 'docx' ? 'docx'
+      : exportType === 'txt' ? 'txt'
+      : exportType === 'json' ? 'json'
+      : 'json';
+    link.download = `${getExportTitle(prompt).replace(/\s+/g, '_').toLowerCase()}.${extension}`;
     document.body.appendChild(link);
     link.click();
     link.remove();
