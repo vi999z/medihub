@@ -3,7 +3,7 @@ const { pool } = require('../config/db');
 const { getReorderSuggestions } = require('../ai/demandForecastModel');
 const { detectAnomalies } = require('../ai/anomalyDetection');
 const { logAudit } = require('../utils/auditLogger');
-const { buildReportExport, buildPdfBuffer, getSupportedExportTypes } = require('./exportController');
+const { buildReportExport, buildPdfBuffer, buildWordDocument, getSupportedExportTypes } = require('./exportController');
 const { MODEL_FALLBACK_CHAIN, getModelConfig, GEMINI_CONFIG } = require('../ai/medicalLLM');
 const { explainTensorFlowRisk } = require('../ai/geminiClient');
 
@@ -231,8 +231,9 @@ async function chat(req, res) {
 
     // Detect export requests
     const exportKeywords = {
+      pdf: ['pdf'],
+      word: ['word', 'docx', 'microsoft word'],
       csv: ['csv', 'excel', 'spreadsheet', 'xls', 'export'],
-      pdf: ['pdf', 'report', 'document'],
       txt: ['text', 'txt', 'summary', 'plain text'],
       json: ['json', 'api', 'structured data', 'data export'],
       chart: ['chart', 'graph', 'visual', 'analytics', 'dashboard']
@@ -393,6 +394,20 @@ ${filteredData.anomalies ? `|- Anomalies detected: ${JSON.stringify(filteredData
         const exportData = generatePharmacyHealthReport(filteredData);
 
         try {
+          if (requestedExportType === 'pdf' || requestedExportType === 'word') {
+            const buffer = requestedExportType === 'pdf'
+              ? await buildPdfBuffer(exportData)
+              : await buildWordDocument(exportData);
+            const extension = requestedExportType === 'pdf' ? 'pdf' : 'docx';
+            const contentType = requestedExportType === 'pdf'
+              ? 'application/pdf'
+              : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+            return res
+              .setHeader('Content-Type', contentType)
+              .setHeader('Content-Disposition', `attachment; filename="pharmacy_report.${extension}"`)
+              .send(buffer);
+          }
+
           const exportResult = buildReportExport(exportData, requestedExportType);
 
           // Log the export generation
