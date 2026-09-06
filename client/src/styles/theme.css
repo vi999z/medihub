@@ -845,3 +845,25 @@ input, select, textarea { font-family: var(--font-body); }
   overflow-x: auto;
   max-width: 100%;
 }
+
+.markdown-message table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.markdown-message th,
+.markdown-message td {
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.markdown-message th {
+  background: var(--bg-subtle);
+  font-weight: 700;
+}

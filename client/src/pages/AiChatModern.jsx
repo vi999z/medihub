@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { IconSend, IconRobot, IconUser, IconRefresh, IconAlertTriangle, IconSparkles, IconPaperclip, IconX, IconDownload } from '@tabler/icons-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -799,19 +800,21 @@ export default function AiChatModern() {
                   padding: '12px 16px',
                   borderRadius: 12,
                   background: msg.role === 'user' 
-                    ? 'var(--primary)' 
+                    ? 'var(--gradient-primary)' 
                     : msg.isError 
-                    ? '#fee' 
-                    : 'var(--card-bg)',
-                  color: msg.role === 'user' ? 'white' : 'inherit',
-                  border: msg.isError ? '1px solid #fcc' : 'none',
+                    ? 'var(--bg-error)' 
+                    : 'var(--surface)',
+                  color: msg.role === 'user' ? '#fff' : msg.isError ? 'var(--red)' : 'var(--ink)',
+                  border: msg.isError ? '1px solid var(--red)' : msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
                   wordWrap: 'break-word',
                   fontSize: 14,
                   lineHeight: 1.5
                 }}
+                className="markdown-message"
               >
                 {msg.role === 'assistant' ? (
                   <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
                     components={{
                       h1: ({node, ...props}) => <h3 style={{fontSize: '16px', fontWeight: 700, margin: '12px 0 8px', color: 'var(--primary)'}} {...props} />,
                       h2: ({node, ...props}) => <h3 style={{fontSize: '15px', fontWeight: 700, margin: '10px 0 6px', color: 'var(--primary)'}} {...props} />,
