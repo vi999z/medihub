@@ -479,6 +479,7 @@ export default function AiChat() {
         width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column',
         background: 'var(--surface)', borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border)', padding: '14px 10px', gap: 8, overflow: 'hidden',
+        boxShadow: 'var(--shadow-sm)',
       }}>
         <button
           className="btn btn-primary"
@@ -539,9 +540,9 @@ export default function AiChat() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.25 }}
               style={{
-                display: 'flex', gap: 10,
+                display: 'flex', gap: 10, alignItems: 'flex-start',
                 flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-                maxWidth: '82%',
+                maxWidth: '85%',
                 alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
               }}
             >
@@ -549,8 +550,10 @@ export default function AiChat() {
               <div style={{
                 width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: msg.role === 'user' ? 'var(--gradient-primary)' : 'var(--bg-subtle)',
+                background: msg.role === 'user' ? 'var(--gradient-primary)' : 'var(--surface)',
                 color: msg.role === 'user' ? '#fff' : 'var(--ink)',
+                marginTop: 2,
+                border: msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
               }}>
                 {msg.role === 'user' ? <IconUser size={16} /> : <IconRobot size={16} />}
               </div>
@@ -558,12 +561,14 @@ export default function AiChat() {
               {/* Bubble */}
               <div style={{
                 padding: '10px 14px', borderRadius: 14,
-                background: msg.role === 'user' ? 'var(--gradient-primary)' : msg.isError ? 'var(--bg-error)' : 'var(--bg-subtle)',
+                background: msg.role === 'user' ? 'var(--gradient-primary)' : msg.isError ? 'var(--bg-error)' : 'var(--surface)',
                 color: msg.role === 'user' ? '#fff' : msg.isError ? 'var(--red)' : 'var(--ink)',
-                fontSize: 13, lineHeight: 1.55, wordBreak: 'break-word',
+                fontSize: 13, lineHeight: 1.55, wordBreak: 'break-word', overflowWrap: 'break-word',
                 borderBottomLeftRadius: msg.role === 'assistant' ? 3 : 14,
                 borderBottomRightRadius: msg.role === 'user' ? 3 : 14,
-                maxWidth: '100%',
+                maxWidth: 'calc(100% - 42px)',
+                minWidth: 0,
+                border: msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
               }} className="markdown-message">
                 {/* Attached image preview (user messages) */}
                 {msg.image && (
@@ -600,12 +605,12 @@ export default function AiChat() {
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              style={{ display: 'flex', gap: 10, maxWidth: '82%', alignSelf: 'flex-start' }}
+              style={{ display: 'flex', gap: 10, alignItems: 'flex-start', maxWidth: '85%', alignSelf: 'flex-start' }}
             >
-              <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-subtle)' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface)', marginTop: 2, border: '1px solid var(--border)' }}>
                 <IconRobot size={16} />
               </div>
-              <div style={{ padding: '10px 14px', borderRadius: 14, borderBottomLeftRadius: 3, background: 'var(--bg-subtle)', fontSize: 13, lineHeight: 1.55, wordBreak: 'break-word', maxWidth: '100%' }} className="markdown-message">
+              <div style={{ padding: '10px 14px', borderRadius: 14, borderBottomLeftRadius: 3, background: 'var(--surface)', fontSize: 13, lineHeight: 1.55, wordBreak: 'break-word', overflowWrap: 'break-word', maxWidth: 'calc(100% - 42px)', minWidth: 0, border: '1px solid var(--border)' }} className="markdown-message">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{streamingText}</ReactMarkdown>
                 <TypingCursor />
               </div>
@@ -616,10 +621,10 @@ export default function AiChat() {
           {loading && !streamingText && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-subtle)' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface)', marginTop: 2, border: '1px solid var(--border)' }}>
                 <IconRobot size={16} />
               </div>
-              <div style={{ padding: '10px 14px', borderRadius: 14, background: 'var(--bg-subtle)' }}>
+              <div style={{ padding: '10px 14px', borderRadius: 14, background: 'var(--surface)', marginTop: 2, border: '1px solid var(--border)' }}>
                 <Skeleton width={120} height={14} />
               </div>
             </motion.div>
