@@ -17,11 +17,11 @@ function getGreeting() {
   return 'Good evening';
 }
 
-const PASTEL_COLORS = ['#d1eadd', '#c3e6cb', '#f5d0d5', '#e0d5f0', '#d5e5f5', '#f5f0d0', '#f5e0d0', '#c6f6d5'];
+const PASTEL_COLORS = ['var(--kpi-green)', 'var(--kpi-mint)', 'var(--kpi-pink)', 'var(--kpi-lavender)', 'var(--kpi-blue)', 'var(--kpi-yellow)', 'var(--kpi-coral)', 'var(--teal-light)'];
 const SEVERITY_COLORS = {
-  critical: '#c53030',
-  warning: '#d69e2e', 
-  safe: '#2f855a'
+  critical: 'var(--color-error)',
+  warning: 'var(--color-warning)',
+  safe: 'var(--color-success)'
 };
 
 function WeatherAlertWidget({ prefersReducedMotion }) {
@@ -50,10 +50,8 @@ function WeatherAlertWidget({ prefersReducedMotion }) {
       style={{
         display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px',
         marginBottom: 20, borderRadius: 14, cursor: 'pointer',
-        background: critical_count > 0
-          ? 'linear-gradient(135deg, #f8ecec 0%, #f0e0e0 100%)'
-          : 'linear-gradient(135deg, #fef9ec 0%, #f8eecc 100%)',
-        border: `1px solid ${critical_count > 0 ? 'rgba(139,90,90,0.25)' : 'rgba(160,128,80,0.25)'}`,
+        background: critical_count > 0 ? 'var(--color-error-bg)' : 'var(--color-warning-bg)',
+        border: `1px solid ${critical_count > 0 ? 'var(--color-error-border)' : 'var(--color-warning-border)'}`,
         transition: 'box-shadow 0.15s',
       }}
       whileHover={{ boxShadow: 'var(--shadow-md)' }}

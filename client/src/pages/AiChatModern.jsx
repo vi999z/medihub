@@ -689,7 +689,7 @@ export default function AiChatModern() {
         {sidebarOpen && (
           <div style={{
             width: 220, flexShrink: 0,
-            background: 'var(--card-bg)',
+            background: 'var(--color-surface)',
             border: '1px solid var(--border)',
             borderRadius: 10,
             display: 'flex', flexDirection: 'column',
@@ -716,8 +716,8 @@ export default function AiChatModern() {
                       padding: '8px 10px',
                       borderRadius: 7,
                       cursor: 'pointer',
-                      background: activeConvId === conv.id ? 'var(--primary)' : 'transparent',
-                      color: activeConvId === conv.id ? 'white' : 'inherit',
+                      background: activeConvId === conv.id ? 'var(--color-primary)' : 'transparent',
+                      color: activeConvId === conv.id ? 'var(--color-primary-foreground)' : 'var(--color-text-primary)',
                       marginBottom: 4,
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -739,7 +739,7 @@ export default function AiChatModern() {
                       title="Delete"
                       style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        color: activeConvId === conv.id ? 'rgba(255,255,255,0.7)' : 'var(--steel)',
+                        color: activeConvId === conv.id ? 'color-mix(in srgb, var(--color-primary-foreground) 70%, transparent)' : 'var(--color-text-muted)',
                         flexShrink: 0, padding: '2px 4px', fontSize: 14, lineHeight: 1
                       }}
                     >×</button>
@@ -753,7 +753,7 @@ export default function AiChatModern() {
         {!sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
-            style={{ alignSelf: 'flex-start', marginTop: 4, padding: '8px 10px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: 'var(--steel)', flexShrink: 0 }}
+            style={{ alignSelf: 'flex-start', marginTop: 4, padding: '8px 10px', background: 'var(--color-surface-elevated)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: 'var(--color-text-muted)', flexShrink: 0 }}
             title="Show conversation history"
           >
             📋
@@ -784,13 +784,13 @@ export default function AiChatModern() {
                   width: 32,
                   height: 32,
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: 'var(--color-secondary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0
                 }}>
-                  <IconRobot size={18} color="white" />
+                  <IconRobot size={18} color="var(--color-secondary-foreground)" />
                 </div>
               )}
 
@@ -800,12 +800,12 @@ export default function AiChatModern() {
                   padding: '12px 16px',
                   borderRadius: 12,
                   background: msg.role === 'user' 
-                    ? 'var(--gradient-primary)' 
+                    ? 'var(--color-user-bubble)' 
                     : msg.isError 
                     ? 'var(--bg-error)' 
-                    : 'var(--surface)',
-                  color: msg.role === 'user' ? '#fff' : msg.isError ? 'var(--red)' : 'var(--ink)',
-                  border: msg.isError ? '1px solid var(--red)' : msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
+                    : 'var(--color-assistant-bubble)',
+                  color: msg.role === 'user' ? 'var(--color-primary-foreground)' : msg.isError ? 'var(--color-error)' : 'var(--color-text-primary)',
+                  border: msg.isError ? '1px solid var(--color-error-border)' : msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
                   wordWrap: 'break-word',
                   fontSize: 14,
                   lineHeight: 1.5
@@ -816,18 +816,18 @@ export default function AiChatModern() {
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
-                      h1: ({node, ...props}) => <h3 style={{fontSize: '16px', fontWeight: 700, margin: '12px 0 8px', color: 'var(--primary)'}} {...props} />,
-                      h2: ({node, ...props}) => <h3 style={{fontSize: '15px', fontWeight: 700, margin: '10px 0 6px', color: 'var(--primary)'}} {...props} />,
-                      h3: ({node, ...props}) => <h4 style={{fontSize: '14px', fontWeight: 700, margin: '8px 0 4px', color: 'var(--primary)'}} {...props} />,
+                      h1: ({node, ...props}) => <h3 style={{fontSize: '16px', fontWeight: 700, margin: '12px 0 8px', color: 'var(--color-primary)'}} {...props} />,
+                      h2: ({node, ...props}) => <h3 style={{fontSize: '15px', fontWeight: 700, margin: '10px 0 6px', color: 'var(--color-primary)'}} {...props} />,
+                      h3: ({node, ...props}) => <h4 style={{fontSize: '14px', fontWeight: 700, margin: '8px 0 4px', color: 'var(--color-primary)'}} {...props} />,
                       strong: ({node, ...props}) => <strong style={{fontWeight: 700}} {...props} />,
                       em: ({node, ...props}) => <em style={{fontStyle: 'italic', opacity: 0.9}} {...props} />,
                       ul: ({node, ...props}) => <ul style={{marginLeft: '20px', marginTop: '6px', marginBottom: '6px'}} {...props} />,
                       ol: ({node, ...props}) => <ol style={{marginLeft: '20px', marginTop: '6px', marginBottom: '6px'}} {...props} />,
                       li: ({node, ...props}) => <li style={{marginBottom: '4px'}} {...props} />,
-                      blockquote: ({node, ...props}) => <blockquote style={{marginLeft: '12px', paddingLeft: '12px', borderLeft: '3px solid var(--primary)', opacity: 0.95, fontStyle: 'italic'}} {...props} />,
+                      blockquote: ({node, ...props}) => <blockquote style={{marginLeft: '12px', paddingLeft: '12px', borderLeft: '3px solid var(--color-primary)', opacity: 0.95, fontStyle: 'italic'}} {...props} />,
                       code: ({node, inline, ...props}) => inline ? 
-                        <code style={{background: 'rgba(0,0,0,0.1)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px'}} {...props} /> :
-                        <code style={{display: 'block', background: 'rgba(0,0,0,0.1)', padding: '12px', borderRadius: '6px', overflow: 'auto', margin: '8px 0', fontFamily: 'monospace', fontSize: '12px'}} {...props} />
+                        <code style={{background: 'var(--color-code-surface)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px'}} {...props} /> :
+                        <code style={{display: 'block', background: 'var(--color-code-surface)', padding: '12px', borderRadius: '6px', overflow: 'auto', margin: '8px 0', fontFamily: 'monospace', fontSize: '12px'}} {...props} />
                     }}
                   >
                     {msg.content}
@@ -852,7 +852,7 @@ export default function AiChatModern() {
                   width: 32,
                   height: 32,
                   borderRadius: '50%',
-                  background: 'var(--steel-light)',
+                  background: 'var(--color-surface-muted)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -896,7 +896,7 @@ export default function AiChatModern() {
                   style={{
                     position: 'absolute', top: -6, right: -6,
                     width: 18, height: 18, borderRadius: '50%',
-                    background: '#b42318', color: 'white', border: 'none',
+                    background: 'var(--color-error)', color: 'var(--color-primary-foreground)', border: 'none',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     padding: 0, fontSize: 10
                   }}
@@ -927,8 +927,8 @@ export default function AiChatModern() {
               title="Attach image"
               style={{
                 padding: '10px',
-                background: pendingImage ? 'var(--primary)' : 'var(--card-bg)',
-                color: pendingImage ? 'white' : 'var(--steel)',
+                background: pendingImage ? 'var(--color-primary)' : 'var(--color-surface-elevated)',
+                color: pendingImage ? 'var(--color-primary-foreground)' : 'var(--color-text-muted)',
                 border: '1px solid var(--border)',
                 borderRadius: 8,
                 cursor: loading || streaming ? 'not-allowed' : 'pointer',
@@ -962,8 +962,8 @@ export default function AiChatModern() {
                 onClick={abortCurrentRequest}
                 style={{
                   padding: '10px 16px',
-                  background: '#b42318',
-                  color: 'white',
+                  background: 'var(--color-error)',
+                  color: 'var(--color-primary-foreground)',
                   border: 'none',
                   borderRadius: 8,
                   cursor: 'pointer',
@@ -981,8 +981,8 @@ export default function AiChatModern() {
                 disabled={!input.trim() && !pendingImage}
                 style={{
                   padding: '10px 16px',
-                  background: 'var(--primary)',
-                  color: 'white',
+                  background: 'var(--color-primary)',
+                  color: 'var(--color-primary-foreground)',
                   border: 'none',
                   borderRadius: 8,
                   cursor: (!input.trim() && !pendingImage) ? 'not-allowed' : 'pointer',
