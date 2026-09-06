@@ -36,10 +36,12 @@ function calculateExpiryRisk({ quantityRemaining, dailyVelocity, daysLeft, reord
   }
 
   // ─── Time pressure: the closer to expiry, the more urgent ───
-  if (daysLeft <= 7) {
+  if (daysLeft <= 3) {
+    risk += 0.3;
+  } else if (daysLeft <= 7) {
     risk += 0.2;
-  } else if (daysLeft <= 30) {
-    risk += 0.08;
+  } else if (daysLeft <= 14) {
+    risk += 0.1;
   }
 
   return clamp(risk, 0, 0.95);

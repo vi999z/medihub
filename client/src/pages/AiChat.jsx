@@ -479,7 +479,7 @@ export default function AiChat() {
         width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column',
         background: 'var(--surface)', borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border)', padding: '14px 10px', gap: 8, overflow: 'hidden',
-        boxShadow: 'var(--shadow-sm)',
+        boxShadow: 'var(--shadow-sm)', minWidth: 220,
       }}>
         <button
           className="btn btn-primary"
@@ -516,7 +516,7 @@ export default function AiChat() {
       </div>
 
       {/* ── Main Chat Panel ── */}
-      <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
+      <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, minWidth: 0 }}>
 
         {/* Header */}
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -532,7 +532,7 @@ export default function AiChat() {
         </div>
 
         {/* Messages */}
-        <div style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16, scrollBehavior: 'smooth' }}>
           {messages.map((msg, index) => (
             <motion.div
               key={index}
@@ -544,6 +544,7 @@ export default function AiChat() {
                 flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
                 maxWidth: '85%',
                 alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                width: 'fit-content',
               }}
             >
               {/* Avatar */}
@@ -605,7 +606,7 @@ export default function AiChat() {
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              style={{ display: 'flex', gap: 10, alignItems: 'flex-start', maxWidth: '85%', alignSelf: 'flex-start' }}
+              style={{ display: 'flex', gap: 10, alignItems: 'flex-start', maxWidth: '85%', alignSelf: 'flex-start', width: 'fit-content' }}
             >
               <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface)', marginTop: 2, border: '1px solid var(--border)' }}>
                 <IconRobot size={16} />
@@ -661,8 +662,8 @@ export default function AiChat() {
 
         {/* Image preview strip */}
         {attachedImage && (
-          <div style={{ padding: '0 16px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ position: 'relative', display: 'inline-flex' }}>
+          <div style={{ padding: '0 16px 8px', display: 'flex', alignItems: 'center', gap: 10, maxWidth: '100%' }}>
+            <div style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
               <img
                 src={attachedImage.previewUrl}
                 alt="attachment preview"
@@ -673,12 +674,12 @@ export default function AiChat() {
                 style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--red)', border: 'none', color: '#fff', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', lineHeight: 1 }}
               >×</button>
             </div>
-            <span style={{ fontSize: 11, color: 'var(--steel)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachedImage.name}</span>
+            <span style={{ fontSize: 11, color: 'var(--steel)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{attachedImage.name}</span>
           </div>
         )}
 
         {/* Input bar */}
-        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
+        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 }}>
           {/* Hidden file input */}
           <input
             ref={fileInputRef}

@@ -119,6 +119,13 @@ html.dark .status-pill.purple  { background: #2e1065; color: #c4b5fd; border-col
 html.dark .status-pill.orange  { background: #431407; color: #fdba74; border-color: #ea580c; }
 html.dark .status-pill.teal    { background: #042f2e; color: #5eead4; border-color: #0d9488; }
 html.dark .status-pill.blue    { background: #0c1a3d; color: #93c5fd; border-color: #1d4ed8; }
+html.dark .status-pill.expired { background: #450a0a; color: #fca5a5; border-color: #dc2626; }
+html.dark .status-pill.depleted { background: #1f2937; color: #9ca3af; border-color: #4b5563; }
+html.dark .status-pill.low    { background: #451a03; color: #fcd34d; border-color: #d97706; }
+html.dark .status-pill.available { background: #064e3b; color: #6ee7b7; border-color: #059669; }
+html.dark .status-pill.wasted { background: #450a0a; color: #fca5a5; border-color: #dc2626; }
+html.dark .status-pill.soon   { background: #451a03; color: #fdba74; border-color: #ea580c; }
+html.dark .status-pill.healthy { background: #064e3b; color: #6ee7b7; border-color: #059669; }
 
 /* Dark mode: fix hardcoded backgrounds in inputs, tables, filter controls */
 html.dark .field input,
@@ -456,6 +463,14 @@ input, select, textarea { font-family: var(--font-body); }
 .status-pill.orange  { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
 .status-pill.teal    { background: #ccfbf1; color: #134e4a; border: 1px solid #5eead4; }
 .status-pill.blue    { background: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd; }
+/* Additional distinct status colors */
+.status-pill.expired { background: #fecaca; color: #991b1b; border: 1px solid #f87171; }
+.status-pill.depleted { background: #e5e7eb; color: #374151; border: 1px solid #9ca3af; }
+.status-pill.low    { background: #fef9c3; color: #854d0e; border: 1px solid #facc15; }
+.status-pill.available { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+.status-pill.wasted { background: #fca5a5; color: #7f1d1d; border: 1px solid #ef4444; }
+.status-pill.soon   { background: #fed7aa; color: #9a3412; border: 1px solid #fb923c; }
+.status-pill.healthy { background: #86efac; color: #166534; border: 1px solid #22c55e; }
 
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--steel); font-weight: 800; padding: 16px 20px; border-bottom: 2px solid var(--border); background: transparent; white-space: nowrap; }
@@ -791,4 +806,42 @@ input, select, textarea { font-family: var(--font-body); }
     width: 80%;
     height: 30%;
   }
+}
+
+/* AI Chat message styling */
+.markdown-message {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.markdown-message p {
+  margin: 0 0 8px 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.markdown-message p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-message ul, .markdown-message ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.markdown-message li {
+  margin-bottom: 4px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.markdown-message code {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.markdown-message pre {
+  overflow-x: auto;
+  max-width: 100%;
 }

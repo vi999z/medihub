@@ -1,9 +1,9 @@
 const { pool } = require('../config/db');
 
-const ALERT_TIERS = (process.env.EXPIRY_ALERT_TIERS || '60,14,3')
+const ALERT_TIERS = (process.env.EXPIRY_ALERT_TIERS || '14,7,3')
   .split(',')
   .map(Number)
-  .sort((a, b) => b - a); // e.g. [60, 14, 3]
+  .sort((a, b) => b - a); // e.g. [14, 7, 3]
 
 async function notificationExists(type, referenceId, withinDays = 1) {
   const [rows] = await pool.query(
@@ -34,7 +34,7 @@ async function createNearExpiryAlert(batch) {
 
   if (await notificationExists('near_expiry', batch.id, 1)) return null;
 
-  const severity = tier <= 3 ? 'critical' : tier <= 14 ? 'warning' : 'info';
+  const severity = tier <= 3 ? 'critical' : tier <= 7 ? 'warning' : 'info';
   const message = `${batch.medicine_name} (batch ${batch.batch_number}) expires in ${daysLeft} day(s) — ${batch.quantity_remaining} units remaining.`;
   await createNotification('near_expiry', batch.id, message, severity);
   return 'near_expiry';

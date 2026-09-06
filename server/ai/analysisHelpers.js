@@ -222,10 +222,10 @@ function estimatePotentialLoss(expiry) {
   expiringBatches.forEach(batch => {
     const daysToExpiry = batch.days_until_expiry || 0;
     const quantity = batch.quantity || 0;
-    if (daysToExpiry <= 30) {
-      estimatedLoss += quantity * 0.8;
-    } else if (daysToExpiry <= 60) {
-      estimatedLoss += quantity * 0.5;
+    if (daysToExpiry <= 14) {
+      estimatedLoss += quantity * 0.8; // 80% potential loss within 2 weeks
+    } else if (daysToExpiry <= 28) {
+      estimatedLoss += quantity * 0.5; // 50% potential loss within 4 weeks
     }
   });
 

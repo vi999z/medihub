@@ -19,5 +19,11 @@ router.get('/export/wasted', ctrl.wastedMedicines);
 router.get('/export/transactions', ctrl.transactionsReport);
 // Export alerts/notifications: ?severity=critical|warning&unread=true&format=excel|pdf|docx
 router.get('/export/notifications', ctrl.notificationsReport);
+// Export expiring soon: ?days=14&format=excel|pdf|docx
+router.get('/export/expiring', ctrl.expiringSoonReport);
+// Export low stock: ?format=excel|pdf|docx
+router.get('/export/low-stock', ctrl.lowStockReport);
+// Export inventory value: ?format=excel|pdf|docx
+router.get('/export/inventory-value', ctrl.inventoryValueReport);
 
 module.exports = router;

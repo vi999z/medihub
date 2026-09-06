@@ -585,7 +585,7 @@ function generateExpiryRecommendations(atRisk) {
   const recommendations = [];
 
   if (atRisk > 10) {
-    recommendations.push('URGENT: Implement discount strategy for items expiring within 30 days');
+    recommendations.push('URGENT: Implement discount strategy for items expiring within 14 days');
     recommendations.push('Consider expediting sales through promotional campaigns');
     recommendations.push('Review ordering patterns to prevent future overstocking');
   } else if (atRisk > 5) {
@@ -606,10 +606,10 @@ function estimatePotentialLoss(expiry) {
   expiringBatches.forEach(batch => {
     const daysToExpiry = batch.days_until_expiry || 0;
     const quantity = batch.quantity || 0;
-    if (daysToExpiry <= 30) {
-      estimatedLoss += quantity * 0.8; // 80% potential loss
-    } else if (daysToExpiry <= 60) {
-      estimatedLoss += quantity * 0.5; // 50% potential loss
+    if (daysToExpiry <= 14) {
+      estimatedLoss += quantity * 0.8; // 80% potential loss within 2 weeks
+    } else if (daysToExpiry <= 28) {
+      estimatedLoss += quantity * 0.5; // 50% potential loss within 4 weeks
     }
   });
 

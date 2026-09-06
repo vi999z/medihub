@@ -57,7 +57,16 @@ async function batchesByStatus(req, res) {
     const { status = 'expired', format = 'excel' } = req.query;
     const rows = await reportModel.getBatchesByStatus(status);
     const title = `${status.charAt(0).toUpperCase() + status.slice(1)} Batches Report`;
-    await sendFormattedReport(res, { title, rows }, format, `${status}_batches`);
+    const totalValue = rows.reduce((sum, r) => sum + Number(r.quantity_remaining * (r.cost_price || 0)), 0);
+    await sendFormattedReport(res, {
+      title,
+      summary: {
+        total_batches: rows.length,
+        total_remaining_quantity: rows.reduce((sum, r) => sum + Number(r.quantity_remaining), 0),
+        estimated_value: `₱${totalValue.toFixed(2)}`
+      },
+      rows
+    }, format, `${status}_batches`);
   } catch (err) {
     console.error('Error fetching batches by status:', err);
     res.status(500).json({ error: 'Failed to export batches report' });
@@ -116,6 +125,79 @@ async function notificationsReport(req, res) {
   }
 }
 
+async function expiringSoonReport(req, res) {
+  try {
+    const { format = 'excel', days = 14 } = req.query;
+    const rows = await reportModel.getExpiringSoon(Number(days));
+    const totalQuantity = rows.reduce((sum, r) => sum + Number(r.quantity_remaining), 0);
+    await sendFormattedReport(res, {
+      title: `Expiring Within ${days} Days Report`,
+      summary: {
+        total_batches: rows.length,
+        total_quantity: totalQuantity,
+        critical_urgent: rows.filter(r => r.days_left <= 3).length,
+        urgent: rows.filter(r => r.days_left > 3 && r.days_left <= 7).length
+      },
+      rows
+    }, format, `expiring_${days}_days`);
+  } catch (err) {
+    console.error('Error fetching expiring soon report:', err);
+    res.status(500).json({ error: 'Failed to export expiring soon report' });
+  }
+}
+
+async function lowStockReport(req, res) {
+  try {
+    const { format = 'excel' } = req.query;
+    const rows = await reportModel.getLowStock();
+    const totalDeficit = rows.reduce((sum, r) => sum + (Number(r.reorder_level) - Number(r.total_remaining)), 0);
+    await sendFormattedReport(res, {
+      title: 'Low Stock Medicines Report',
+      summary: {
+        total_medicines: rows.length,
+        total_remaining: rows.reduce((sum, r) => sum + Number(r.total_remaining), 0),
+        total_deficit: totalDeficit,
+        critical: rows.filter(r => r.total_remaining === 0).length
+      },
+      rows
+    }, format, 'low_stock');
+  } catch (err) {
+    console.error('Error fetching low stock report:', err);
+    res.status(500).json({ error: 'Failed to export low stock report' });
+  }
+}
+
+async function inventoryValueReport(req, res) {
+  try {
+    const { format = 'excel' } = req.query;
+    const summary = await reportModel.getSummary();
+    const { pool } = require('../config/db');
+    const [rows] = await pool.query(
+      `SELECT m.id, m.name, m.category, m.unit, m.reorder_level,
+              COALESCE(SUM(b.quantity_remaining), 0) AS total_quantity,
+              COALESCE(SUM(b.quantity_remaining * COALESCE(b.cost_price, 0)), 0) AS total_value,
+              COALESCE(AVG(b.cost_price), 0) AS avg_cost
+       FROM medicines m
+       LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active' AND b.expiry_date >= CURDATE()
+       GROUP BY m.id, m.name, m.category, m.unit, m.reorder_level
+       HAVING total_quantity > 0
+       ORDER BY total_value DESC`
+    );
+    await sendFormattedReport(res, {
+      title: 'Inventory Value Report',
+      summary: {
+        total_medicines: rows.length,
+        total_inventory_value: `₱${summary.inventory_value.toFixed(2)}`,
+        total_quantity: rows.reduce((sum, r) => sum + Number(r.total_quantity), 0)
+      },
+      rows
+    }, format, 'inventory_value');
+  } catch (err) {
+    console.error('Error fetching inventory value report:', err);
+    res.status(500).json({ error: 'Failed to export inventory value report' });
+  }
+}
+
 // ── Helper: send a report in the requested format ────────────────────────────
 async function sendFormattedReport(res, reportData, format, basename) {
   const fmt = (format || 'excel').toLowerCase();
@@ -138,4 +220,4 @@ async function sendFormattedReport(res, reportData, format, basename) {
     .send(buf);
 }
 
-module.exports = { summary, expiringSoon, lowStock, salesTrend, byCategory, batchesByStatus, wastedMedicines, transactionsReport, notificationsReport };
+module.exports = { summary, expiringSoon, lowStock, salesTrend, byCategory, batchesByStatus, wastedMedicines, transactionsReport, notificationsReport, expiringSoonReport, lowStockReport, inventoryValueReport };
