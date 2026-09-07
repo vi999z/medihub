@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Plus, Search, X, Download, ChevronDown } from 'lucide-react';
+import { Plus, Search, X, Download, ChevronDown, ArrowDownLeft, ArrowUpRight, RefreshCw, Trash2 } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import StaggeredList from '../components/StaggeredList';
@@ -59,6 +59,13 @@ function TransactionExportDropdown({ onExport }) {
 
 const TYPES = ['sale', 'adjustment', 'disposal', 'return'];
 const TYPE_FILTERS = [{ value: 'all', label: 'All types' }, ...TYPES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))];
+
+function transactionConfig(type) {
+  if (type === 'sale') return { cls: 'critical', Icon: ArrowDownLeft, label: 'Sale' };
+  if (type === 'disposal') return { cls: 'critical', Icon: Trash2, label: 'Disposal' };
+  if (type === 'return') return { cls: 'safe', Icon: ArrowUpRight, label: 'Return' };
+  return { cls: 'warning', Icon: RefreshCw, label: 'Adjustment' };
+}
 
 export default function Transactions() {
   const { addToast } = useToast();
@@ -277,52 +284,53 @@ export default function Transactions() {
           >
             {visibleTransactions.map((t) => {
               const isIncrease = t.quantity > 0;
-              const borderColorMap = { 'sale': 'var(--red)', 'adjustment': 'var(--gold)', 'disposal': 'var(--red)', 'return': 'var(--green)' };
+              const config = transactionConfig(t.transaction_type);
+              const TypeIcon = config.Icon;
               return (
                 <motion.div
                   key={t.id}
-                  className="card"
+                  className="card transaction-card"
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    padding: '16px',
-                    borderTop: `4px solid ${borderColorMap[t.transaction_type] || 'var(--gold)'}`,
+                    borderTop: `5px solid var(--${config.cls === 'critical' ? 'color-error' : config.cls === 'safe' ? 'color-success' : 'color-secondary'})`,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease'
                   }}
                   whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
                 >
                   {/* Top Row: ID & Type Badge */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <span className="stamp" style={{ fontSize: '11px' }}>ID: {t.id}</span>
-                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: `${borderColorMap[t.transaction_type] || 'var(--gold)'}15`, color: borderColorMap[t.transaction_type] || 'var(--gold)', textTransform: 'capitalize' }}>
-                      {t.transaction_type}
+                  <div className="transaction-card__top-row">
+                    <span className="stamp transaction-card__id">ID: {t.id}</span>
+                    <span className={`status-pill transaction-card__type ${config.cls}`}>
+                      <TypeIcon aria-hidden="true" size={18} strokeWidth={2.5} />
+                      <span>{config.label}</span>
                     </span>
                   </div>
 
                   {/* Middle Content */}
-                  <div style={{ flex: 1, marginBottom: '12px' }}>
-                    <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)', marginBottom: '4px', lineHeight: 1.3 }}>
+                  <div className="transaction-card__content">
+                    <div className="transaction-card__name">
                       {t.medicine_name}
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--steel)', marginBottom: '8px', lineHeight: 1.4 }}>
-                      Batch: <span className="stamp" style={{ fontSize: '11px' }}>{t.batch_number}</span>
+                    <div className="transaction-card__details">
+                      Batch: <span className="stamp transaction-card__batch">{t.batch_number}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                    <div className="transaction-card__stats">
                       <div>
-                        <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Quantity</div>
-                        <div style={{ fontWeight: 700, fontSize: '14px', color: isIncrease ? 'var(--green)' : 'var(--red)' }}>
+                        <div className="transaction-card__label">Quantity</div>
+                        <div className={`transaction-card__quantity ${isIncrease ? 'increase' : 'decrease'}`}>
                           {isIncrease ? '+' : ''}{t.quantity}
                         </div>
                       </div>
                       <div>
-                        <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Date</div>
-                        <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{new Date(t.created_at).toLocaleDateString()}</div>
+                        <div className="transaction-card__label">Date</div>
+                        <div className="transaction-card__value">{new Date(t.created_at).toLocaleDateString()}</div>
                       </div>
                     </div>
                     {t.reason && (
-                      <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)', fontSize: '11px', color: 'var(--steel)' }}>
-                        Reason: <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{t.reason}</span>
+                      <div className="transaction-card__reason">
+                        Reason: <span>{t.reason}</span>
                       </div>
                     )}
                   </div>
@@ -330,12 +338,12 @@ export default function Transactions() {
                   {/* Bottom Row: Avatar + User + Time */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
+                      <div className="transaction-card__avatar">
                         {t.user_name.charAt(0).toUpperCase()}
                       </div>
-                      <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.user_name.substring(0, 12)}</div>
+                      <div className="transaction-card__user">{t.user_name.substring(0, 12)}</div>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--steel)', whiteSpace: 'nowrap', marginLeft: '8px' }}>
+                    <div className="transaction-card__time">
                       {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>

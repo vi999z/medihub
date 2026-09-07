@@ -677,6 +677,59 @@ input, select, textarea { font-family: var(--font-body); }
   .medicine-card__expiry { align-items: flex-start; flex-direction: column; gap: 6px; }
 }
 
+.transaction-card,
+.alert-card {
+  gap: 18px;
+  min-height: 350px;
+  padding: 22px;
+  border: 1.5px solid var(--color-border-strong);
+  border-top-width: 5px;
+}
+.transaction-card:hover,
+.alert-card:hover { border-color: var(--color-primary); }
+.transaction-card__top-row,
+.alert-card__top-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.transaction-card__id { font-size: 15px; color: var(--color-text-primary); }
+.transaction-card__type,
+.alert-card__severity { min-height: 36px; padding: 6px 10px; font-size: 15px; }
+.transaction-card__type svg,
+.alert-card__severity svg { flex: 0 0 auto; }
+.transaction-card__content,
+.alert-card__content { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+.transaction-card__name { color: var(--color-text-primary); font-size: 20px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.transaction-card__details { color: var(--color-text-primary); font-size: 16px; line-height: 1.45; }
+.transaction-card__batch { color: var(--color-text-primary); font-size: 15px; }
+.transaction-card__stats { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.transaction-card__label { color: var(--color-text-primary); font-size: 15px; font-weight: 700; line-height: 1.35; }
+.transaction-card__value { color: var(--color-text-primary); font-size: 16px; font-weight: 600; line-height: 1.45; }
+.transaction-card__quantity { font-size: 20px; font-weight: 700; line-height: 1.35; }
+.transaction-card__quantity.increase { color: var(--color-success); }
+.transaction-card__quantity.decrease { color: var(--color-error); }
+.transaction-card__reason { padding-top: 14px; border-top: 1.5px solid var(--color-border-strong); color: var(--color-text-primary); font-size: 15px; line-height: 1.45; }
+.transaction-card__reason span { font-weight: 600; }
+.transaction-card__avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--color-primary); color: var(--color-primary-foreground); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0; }
+.transaction-card__user { color: var(--color-text-primary); font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.transaction-card__time { color: var(--color-text-primary); font-size: 15px; white-space: nowrap; margin-left: 8px; }
+.alert-card__type { color: var(--color-text-primary); font-size: 15px; font-weight: 600; text-align: right; }
+.alert-card__message { margin: 0; color: var(--color-text-primary); font-size: 17px; line-height: 1.55; word-break: break-word; }
+.alert-card__bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.alert-card__date-group { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.alert-card__icon { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.alert-card__icon.critical { background: var(--color-error); color: var(--color-primary-foreground); }
+.alert-card__icon.warning { background: var(--color-secondary); color: var(--color-secondary-foreground); }
+.alert-card__icon.safe { background: var(--color-success); color: var(--color-primary-foreground); }
+.alert-card__date { color: var(--color-text-primary); font-size: 15px; }
+.alert-card__read { color: var(--color-text-primary); font-size: 15px; font-style: italic; }
+
+@media (max-width: 600px) {
+  .transaction-card,
+  .alert-card { padding: 20px; }
+  .transaction-card__stats { grid-template-columns: 1fr; gap: 12px; }
+  .alert-card__top-row,
+  .alert-card__bottom-row { align-items: flex-start; flex-direction: column; }
+  .alert-card__type { text-align: left; }
+}
+
 .notification-table { width: 100%; table-layout: fixed; }
 .notification-table th:nth-child(2) { width: 40%; }
 .notification-table th:nth-child(3) { width: 12%; }

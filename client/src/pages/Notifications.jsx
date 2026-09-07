@@ -264,50 +264,46 @@ export default function Notifications() {
               return (
                 <motion.div
                   key={n.id}
-                  className="card"
+                  className="card alert-card"
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    padding: '16px',
                     borderTop: `4px solid ${cfg.borderColor}`,
-                    opacity: n.is_read ? 0.65 : 1,
+                    opacity: 1,
                     transition: 'all 0.2s ease',
                   }}
                   whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
                 >
                   {/* Top row: severity pill + type */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <span className={`status-pill ${cfg.cls}`} style={{ fontSize: '10px', padding: '3px 8px' }}>
-                      {n.severity}
+                  <div className="alert-card__top-row">
+                    <span className={`status-pill alert-card__severity ${cfg.cls}`}>
+                      <SevIcon aria-hidden="true" size={18} strokeWidth={2.5} />
+                      <span>{n.severity === 'critical' ? 'Critical alert' : n.severity === 'warning' ? 'Warning' : 'Information'}</span>
                     </span>
-                    <span style={{ fontSize: '11px', color: 'var(--steel)', fontWeight: 600 }}>{typeLabel(n.type)}</span>
+                    <span className="alert-card__type">{typeLabel(n.type)}</span>
                   </div>
 
                   {/* Message */}
-                  <div style={{ flex: 1, marginBottom: '12px' }}>
-                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--ink)', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                  <div className="alert-card__content">
+                    <p className="alert-card__message">
                       {n.message}
                     </p>
                   </div>
 
                   {/* Bottom row: date + icon + action */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        width: '32px', height: '32px', borderRadius: '50%',
-                        background: cfg.borderColor, display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', flexShrink: 0,
-                      }}>
-                        <SevIcon size={14} color="#fff" />
+                  <div className="alert-card__bottom-row">
+                    <div className="alert-card__date-group">
+                      <div className={`alert-card__icon ${cfg.cls}`}>
+                        <SevIcon aria-hidden="true" size={18} strokeWidth={2.5} />
                       </div>
-                      <span style={{ fontSize: '11px', color: 'var(--steel)' }}>
+                      <span className="alert-card__date">
                         {new Date(n.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
                     </div>
                     {!n.is_read && (
                       <button
                         className="btn btn-secondary"
-                        style={{ padding: '4px 12px', fontSize: '12px', gap: 4 }}
+                        style={{ padding: '7px 14px', fontSize: '15px', gap: 5 }}
                         onClick={() => markRead(n.id)}
                         title="Mark as read"
                       >
@@ -315,7 +311,7 @@ export default function Notifications() {
                       </button>
                     )}
                     {n.is_read && (
-                      <span style={{ fontSize: '11px', color: 'var(--steel)', fontStyle: 'italic' }}>Read</span>
+                      <span className="alert-card__read">Read</span>
                     )}
                   </div>
                 </motion.div>
