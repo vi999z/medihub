@@ -221,9 +221,37 @@ RESPONSE RULES:
   }
 }
 
+async function generateSmartExecutiveSummary(report, apiKey) {
+  if (!apiKey || !report) return null;
+  try {
+    const selectedModel = await selectAvailableModel(apiKey);
+    const prompt = `You are a pharmacy operations analyst. Rewrite the verified inventory facts below as a plain-language executive summary in 2-4 sentences. Do not add numbers or claims that are not present. Mention the most urgent issue, an important trend or comparison, and the next action when available. Plain text only, no markdown.
+
+Verified report facts:
+${JSON.stringify({ summary: report.summary, comparisons: report.comparisons, categories: report.category_analysis?.slice(0, 3), priority_actions: report.priority_actions?.slice(0, 5) })}`;
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 220, temperature: 0.2 } })
+      }
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (!text || text.length > 900) return null;
+    return text.replace(/[*#`]/g, '').replace(/\s+/g, ' ').trim();
+  } catch (err) {
+    console.warn('Smart executive summary unavailable:', err.message);
+    return null;
+  }
+}
+
 module.exports = {
   explainAnomaly,
   explainExpiryRisk,
   explainReorderRecommendation,
-  generatePharmacyHealthReport
+  generatePharmacyHealthReport,
+  generateSmartExecutiveSummary
 };

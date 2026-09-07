@@ -1,5 +1,5 @@
 const PDFDocument = require('pdfkit');
-const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } = require('docx');
+const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle, ImageRun } = require('docx');
 const ExcelJS = require('exceljs');
 
 const SUPPORTED_EXPORT_TYPES = ['csv', 'excel', 'xlsx', 'pdf', 'docx', 'word', 'txt', 'json', 'chart'];
@@ -35,6 +35,12 @@ function normalizeReportData(reportData) {
           Array.isArray(value) ? value.map((item) => ({ section, ...item })) : []
         ),
       recommendations: reportData.recommendations || analysis.recommendations || [],
+      executive_summary: reportData.executive_summary || '',
+      comparisons: reportData.comparisons || {},
+      category_analysis: Array.isArray(reportData.category_analysis) ? reportData.category_analysis : [],
+      sections: reportData.sections || {},
+      charts: reportData.charts || {},
+      data_quality: Array.isArray(reportData.data_quality) ? reportData.data_quality : [],
       key_insights: reportData.key_insights || analysis.key_insights || [],
       prioritized_actions: reportData.prioritized_actions || analysis.prioritized_actions || [],
       opportunities: reportData.opportunities || analysis.opportunities || [],
@@ -50,6 +56,53 @@ function normalizeReportData(reportData) {
   }
 
   return { title: 'MediHub Report', summary: {} };
+}
+
+function chartSvg(title, points = [], valueKey = 'value') {
+  const width = 720;
+  const height = 240;
+  const chartHeight = 150;
+  const max = Math.max(1, ...points.map(point => Number(point[valueKey]) || 0));
+  const barWidth = points.length ? Math.max(18, Math.floor(660 / points.length) - 8) : 24;
+  const bars = points.slice(0, 12).map((point, index) => {
+    const value = Number(point[valueKey]) || 0;
+    const barHeight = Math.max(2, (value / max) * chartHeight);
+    const x = 40 + index * (barWidth + 8);
+    const y = 180 - barHeight;
+    const label = String(point.label || '').slice(0, 12);
+    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="#0f766e"/><text x="${x + barWidth / 2}" y="198" text-anchor="middle" font-size="10" fill="#334155">${label}</text>`;
+  }).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#ffffff"/><text x="20" y="24" font-family="Arial" font-size="16" font-weight="700" fill="#172033">${title}</text><line x1="40" y1="180" x2="700" y2="180" stroke="#94a3b8"/>${bars}</svg>`;
+}
+
+function addPdfBarChart(doc, title, points = [], valueKey = 'value') {
+  if (!points.length) return;
+  const left = 50;
+  const top = doc.y + 8;
+  const width = doc.page.width - 100;
+  const height = 150;
+  const max = Math.max(1, ...points.map(point => Number(point[valueKey]) || 0));
+  const barWidth = Math.max(12, Math.min(42, (width - 20) / Math.min(points.length, 12) - 8));
+  doc.fontSize(13).fillColor('#1e40af').text(title, left, top);
+  points.slice(0, 12).forEach((point, index) => {
+    const value = Number(point[valueKey]) || 0;
+    const barHeight = Math.max(2, (value / max) * height);
+    const x = left + 10 + index * (barWidth + 8);
+    const y = top + 25 + height - barHeight;
+    doc.rect(x, y, barWidth, barHeight).fill('#0f766e');
+    doc.fontSize(7).fillColor('#334155').text(String(point.label || '').slice(0, 10), x - 4, top + height + 32, { width: barWidth + 8, align: 'center' });
+  });
+  doc.moveDown(9);
+}
+
+function sectionRows(reportData) {
+  const sections = reportData.sections || {};
+  return [
+    ['Critical - needs immediate action', sections.critical || []],
+    ['Expiring soon', sections.expiring_soon || []],
+    ['Low stock - monitor', sections.low_stock_monitor || []],
+    ['Healthy stock', sections.healthy_stock || []],
+  ].filter(([, rows]) => rows.length > 0);
 }
 
 function escapeCsvValue(value) {
@@ -150,11 +203,18 @@ function buildPdfBuffer(reportData) {
     doc.moveDown();
     doc.moveDown();
 
+    if (reportData.executive_summary) {
+      doc.fontSize(16).fillColor('#1e40af').text('Executive Summary', { underline: true });
+      doc.moveDown(0.4);
+      doc.fontSize(11).fillColor('#172033').text(reportData.executive_summary, { lineGap: 3 });
+      doc.moveDown();
+    }
+
     // Executive Summary section with better formatting
     const summary = reportData?.summary || {};
     const entries = Object.entries(summary);
     if (entries.length > 0) {
-      doc.fontSize(16).fillColor('#1e40af').text('Executive Summary', { underline: true });
+      doc.fontSize(16).fillColor('#1e40af').text('Current Snapshot', { underline: true });
       doc.moveDown();
       doc.fontSize(11);
       entries.forEach(([key, value]) => {
@@ -165,6 +225,17 @@ function buildPdfBuffer(reportData) {
       doc.moveDown();
     }
 
+    if (reportData.comparisons && Object.keys(reportData.comparisons).length > 0) {
+      doc.fontSize(14).fillColor('#1e40af').text('Trend and Comparison Context', { underline: true });
+      doc.moveDown(0.3);
+      doc.fontSize(10).fillColor('#172033');
+      Object.entries(reportData.comparisons).forEach(([key, value]) => doc.text(`${key.replace(/_/g, ' ')}: ${value}`));
+      doc.moveDown();
+    }
+
+    addPdfBarChart(doc, 'Stock by Category', reportData.charts?.category_stock);
+    addPdfBarChart(doc, 'Recent Demand by Category', reportData.charts?.category_demand);
+
     // Key Insights section
     if (reportData?.key_insights && reportData.key_insights.length > 0) {
       doc.fontSize(16).fillColor('#1e40af').text('Key Insights', { underline: true });
@@ -174,6 +245,22 @@ function buildPdfBuffer(reportData) {
         doc.text(`${index + 1}. ${insight}`, { indent: 10 });
       });
       doc.moveDown();
+    }
+
+    const groupedSections = sectionRows(reportData);
+    if (groupedSections.length > 0) {
+      doc.fontSize(16).fillColor('#1e40af').text('Inventory Sections', { underline: true });
+      doc.moveDown(0.3);
+      groupedSections.forEach(([sectionTitle, rows]) => {
+        doc.fontSize(13).fillColor('#172033').text(sectionTitle);
+        doc.fontSize(10).fillColor('#334155');
+        rows.slice(0, 12).forEach(row => {
+          const urgency = row.priority ? `[${String(row.priority).toUpperCase()}] ` : '';
+          const stockout = row.days_to_stockout?.value === null ? 'no recent demand' : `${row.days_to_stockout?.value ?? 'n/a'} days to stockout`;
+          doc.text(`${urgency}${row.name || row.medicine_name || 'Item'} - ${row.current_stock ?? row.quantity_remaining ?? 0} units, ${stockout}`);
+        });
+        doc.moveDown(0.5);
+      });
     }
 
     // Data tables section with enhanced styling
@@ -272,6 +359,11 @@ function buildPdfBuffer(reportData) {
 
 async function buildWordDocument(reportData) {
   reportData = normalizeReportData(reportData);
+  const chartFallback = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  const chartImage = (title, points, valueKey = 'value') => points?.length
+    ? new Paragraph({ children: [new ImageRun({ type: 'svg', data: `data:image/svg+xml;base64,${Buffer.from(chartSvg(title, points, valueKey)).toString('base64')}`, transformation: { width: 620, height: 207 }, fallback: { type: 'png', data: chartFallback } })], spacing: { before: 100, after: 200 } })
+    : null;
+  const groupedSections = sectionRows(reportData);
   const doc = new Document({
     sections: [{
       properties: {},
@@ -286,9 +378,14 @@ async function buildWordDocument(reportData) {
           spacing: { after: 400 }
         }),
 
-        // Executive Summary
+        ...(reportData.executive_summary ? [
+          new Paragraph({ text: 'Executive Summary', heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 150 } }),
+          new Paragraph({ text: reportData.executive_summary, spacing: { after: 250 } })
+        ] : []),
+
+        // Current snapshot
         new Paragraph({
-          text: 'Executive Summary',
+          text: 'Current Snapshot',
           heading: HeadingLevel.HEADING_2,
           spacing: { before: 200, after: 200 }
         }),
@@ -305,6 +402,22 @@ async function buildWordDocument(reportData) {
             spacing: { after: 100 }
           })
         ),
+
+        ...(reportData.comparisons && Object.keys(reportData.comparisons).length > 0 ? [
+          new Paragraph({ text: 'Trend and Comparison Context', heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 150 } }),
+          ...Object.entries(reportData.comparisons).map(([key, value]) => new Paragraph({ text: `${key.replace(/_/g, ' ')}: ${value}`, spacing: { after: 80 } }))
+        ] : []),
+
+        ...(chartImage('Stock by Category', reportData.charts?.category_stock) ? [chartImage('Stock by Category', reportData.charts?.category_stock)] : []),
+        ...(chartImage('Recent Demand by Category', reportData.charts?.category_demand) ? [chartImage('Recent Demand by Category', reportData.charts?.category_demand)] : []),
+
+        ...(groupedSections.length > 0 ? [
+          new Paragraph({ text: 'Inventory Sections', heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 150 } }),
+          ...groupedSections.flatMap(([sectionTitle, rows]) => [
+            new Paragraph({ text: sectionTitle, heading: HeadingLevel.HEADING_3, spacing: { before: 150, after: 80 } }),
+            ...rows.slice(0, 12).map(row => new Paragraph({ text: `${row.priority ? `[${String(row.priority).toUpperCase()}] ` : ''}${row.name || row.medicine_name || 'Item'} - ${row.current_stock ?? row.quantity_remaining ?? 0} units`, bullet: { level: 0 }, spacing: { after: 70 } }))
+          ])
+        ] : []),
 
         // Detailed Data Table
         ...(toRowsArray(reportData).length > 0 ? [

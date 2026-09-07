@@ -15,6 +15,25 @@ const SAMPLE_REPORT = {
   recommendations: ['Review stock levels'],
 };
 
+const SMART_REPORT = {
+  title: 'Smart Pharmacy Health Report',
+  executive_summary: 'Two medicines require immediate action. Cardiovascular demand is rising compared with the previous period.',
+  summary: { total_medicines: 4, out_of_stock: 1, low_stock: 2 },
+  comparisons: { recent_days: 30, previous_days: 30, demand_direction: 'increasing' },
+  charts: {
+    category_stock: [{ label: 'Cardiovascular', value: 120 }, { label: 'Antihistamine', value: 40 }],
+    category_demand: [{ label: 'Cardiovascular', value: 80 }, { label: 'Antihistamine', value: 20 }],
+  },
+  sections: {
+    critical: [{ name: 'Amlodipine', current_stock: 0, priority: 'critical', days_to_stockout: { value: 0 } }],
+    expiring_soon: [],
+    low_stock_monitor: [{ name: 'Cetirizine', current_stock: 4, priority: 'low', days_to_stockout: { value: 12 } }],
+    healthy_stock: [{ name: 'Vitamin C', current_stock: 50 }],
+  },
+  priority_actions: [{ priority: 'critical', action: 'Urgently replenish Amlodipine.' }],
+  recommendations: ['Urgently replenish Amlodipine.'],
+};
+
 test('buildReportExport generates CSV inventory exports', () => {
   const exportPayload = {
     title: 'Inventory Report',
@@ -90,4 +109,14 @@ test('buildWordDocument returns a readable DOCX package', async () => {
   assert.equal(buffer.subarray(0, 2).toString('ascii'), 'PK');
   assert.match(contents, /\[Content_Types\]\.xml/);
   assert.match(contents, /word\/document\.xml/);
+});
+
+test('smart report renders summary, charts, and grouped sections in PDF and Word', async () => {
+  const pdf = await buildPdfBuffer(SMART_REPORT);
+  const docx = await buildWordDocument(SMART_REPORT);
+
+  assert.match(pdf.subarray(0, 5).toString('ascii'), /^%PDF-/);
+  assert.ok(pdf.length > 1500);
+  assert.equal(docx.subarray(0, 2).toString('ascii'), 'PK');
+  assert.match(docx.toString('binary'), /word\/document\.xml/);
 });

@@ -575,16 +575,15 @@ export default function AiChatModern() {
   async function downloadAiReport(format = 'pdf') {
     setLoading(true);
     try {
-      const [summaryRes, expiringRes, lowStockRes, salesRes] = await Promise.all([
-        api.get('/reports/summary'),
-        api.get('/reports/expiring-soon?days=14'),
-        api.get('/reports/low-stock'),
-        api.get('/reports/sales-trend?days=30')
-      ]);
-      const summary = summaryRes.data || {};
-      const expiring = Array.isArray(expiringRes.data) ? expiringRes.data : [];
-      const lowStock = Array.isArray(lowStockRes.data) ? lowStockRes.data : [];
-      const salesTrend = Array.isArray(salesRes.data) ? salesRes.data : [];
+      const healthRes = await api.get('/ai/health-report');
+      const report = healthRes.data?.report || {
+        title: 'MediHub AI Chat Report',
+        summary: healthRes.data?.summary_data || {},
+        executive_summary: healthRes.data?.health_report || '',
+        recommendations: [],
+        sections: {},
+        charts: {},
+      };
 
       // Include recent AI conversation insights as notes
       const aiMessages = messages
@@ -593,38 +592,7 @@ export default function AiChatModern() {
         .map(m => m.content.slice(0, 300))
         .join('\n\n---\n\n');
 
-      const report = {
-        title: 'MediHub AI Chat Report',
-        summary: {
-          total_medicines: summary.total_medicines || 0,
-          inventory_value: `₱${(summary.inventory_value || 0).toLocaleString()}`,
-          expiring_soon_14d: expiring.length,
-          low_stock_items: lowStock.length,
-          expired: summary.expired || 0,
-        },
-        rows: [
-          ...expiring.slice(0, 20).map(item => ({
-            section: 'Expiring Soon',
-            medicine: item.medicine_name,
-            batch: item.batch_number,
-            expiry_date: item.expiry_date ? String(item.expiry_date).slice(0, 10) : '',
-            days_left: item.days_left,
-            qty_remaining: item.quantity_remaining,
-          })),
-          ...lowStock.slice(0, 20).map(item => ({
-            section: 'Low Stock',
-            medicine: item.name,
-            reorder_level: item.reorder_level,
-            total_remaining: item.total_remaining,
-          })),
-        ],
-        recommendations: [
-          expiring.length ? `⚠ ${expiring.length} item(s) expiring within 14 days — review immediately.` : '✓ No imminent expiry items.',
-          lowStock.length ? `⚠ ${lowStock.length} medicine(s) at or below reorder level — place orders.` : '✓ All stock levels healthy.',
-          summary.expired ? `✗ ${summary.expired} expired batch(es) must be removed from shelves.` : '✓ No expired batches on record.',
-        ],
-        notes: aiMessages ? `Recent AI Conversation Insights:\n\n${aiMessages}` : undefined,
-      };
+      report.notes = aiMessages ? `Recent AI Conversation Insights:\n\n${aiMessages}` : report.notes;
 
       const response = await api.post('/ai/report/export', { type: format, report }, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' });

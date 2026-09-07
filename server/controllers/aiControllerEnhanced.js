@@ -5,13 +5,14 @@
  */
 
 const { modernChat, ConversationContext, detectIntention, buildSystemPrompt, callFunction, AVAILABLE_FUNCTIONS, generateReport, createStrategy, forecastDemand, analyzeEfficiency, chatWithFileGeneration, getModelConfig, detectFileRequest } = require('../ai/medicalLLM');
-const { explainAnomaly, explainExpiryRisk, explainReorderRecommendation, generatePharmacyHealthReport } = require('../ai/modelExplainer');
+const { explainAnomaly, explainExpiryRisk, explainReorderRecommendation, generatePharmacyHealthReport, generateSmartExecutiveSummary } = require('../ai/modelExplainer');
 const { streamGeminiResponse } = require('../ai/streamingHandler');
 const { trainAndPersist, scoreActiveBatches } = require('../ai/expiryRiskModel');
 const { pool } = require('../config/db');
 const { getReorderSuggestions } = require('../ai/demandForecastModel');
 const { detectAnomalies } = require('../ai/anomalyDetection');
 const { logAudit } = require('../utils/auditLogger');
+const { buildSmartReport } = require('../ai/smartReportBuilder');
 
 // Store conversation contexts per user (in production, use Redis or database)
 const conversationContexts = new Map();
@@ -105,33 +106,17 @@ async function getAnomaliesEnhanced(req, res) {
 // ─── Pharmacy Health Report ───
 async function getPharmacyHealthReport(req, res) {
   try {
-    // Gather all analytics
-    const [summary] = await pool.query('SELECT * FROM summary_view').then(r => [r[0] || {}]).catch(() => [{}]);
-    const expiringResult = await detectAnomalies(30).catch(() => ({ anomalies: [] }));
-    const lowStockResult = await getReorderSuggestions().catch(() => []);
-    const expiryRisk = await scoreActiveBatches().catch(() => []);
-
-    // Build summary for LLM
-    const summaryData = {
-      total_value: summary.total_value || 0,
-      total_items: summary.total_items || 0,
-      expiring_count: Array.isArray(expiryRisk) ? expiryRisk.filter(r => r.risk_score > 70).length : 0,
-      low_stock_count: Array.isArray(lowStockResult) ? lowStockResult.length : 0,
-      critical_anomalies: expiringResult.anomalies ? expiringResult.anomalies.filter(a => a.severity === 'critical').length : 0,
-      top_category: 'Various' // Could enhance this
-    };
-
-    // Generate health report with LLM
-    let healthReport = 'Pharmacy status report generated.';
-    if (process.env.GOOGLE_AI_API_KEY) {
-      healthReport = await generatePharmacyHealthReport(summaryData, process.env.GOOGLE_AI_API_KEY) || healthReport;
-    }
+    const smartReport = await buildSmartReport({ title: 'Pharmacy Health Report' });
+    const aiSummary = await generateSmartExecutiveSummary(smartReport, process.env.GOOGLE_AI_API_KEY);
+    if (aiSummary) smartReport.executive_summary = aiSummary;
 
     res.json({
-      summary_data: summaryData,
-      health_report: healthReport,
+      summary_data: smartReport.summary,
+      health_report: smartReport.executive_summary,
+      report: smartReport,
       timestamp: new Date().toISOString(),
-      ai_generated: true
+      ai_generated: Boolean(aiSummary),
+      summary_source: aiSummary ? 'gemini_verified_facts' : 'computed_inventory_facts'
     });
   } catch (err) {
     console.error('Health report generation failed:', err);
@@ -467,8 +452,11 @@ async function generateReportWithDownload(req, res) {
   try {
     const { report_type = 'comprehensive', format = 'pdf' } = req.body;
 
-    // Generate the report using AI
-    const reportResult = await callFunction('generate_report', { report_type });
+    // Build verified inventory facts first; the renderer and optional AI layer
+    // consume this shared contract instead of an unstructured data dump.
+    const reportResult = await buildSmartReport({ title: `${report_type.charAt(0).toUpperCase() + report_type.slice(1)} Pharmacy Report` });
+    const aiSummary = await generateSmartExecutiveSummary(reportResult, process.env.GOOGLE_AI_API_KEY);
+    if (aiSummary) reportResult.executive_summary = aiSummary;
 
     if (reportResult.error) {
       return res.status(500).json({ error: reportResult.error });
