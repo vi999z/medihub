@@ -89,7 +89,7 @@ export default function Dashboard() {
     let mounted = true;
     Promise.all([
       api.cachedGet('/reports/summary'),
-      api.cachedGet('/reports/expiring-soon'),
+      api.cachedGet('/reports/expiring-soon?days=14'),
       api.cachedGet('/reports/low-stock'),
       api.cachedGet('/reports/sales-trend?days=30'),
       api.cachedGet('/reports/by-category')
@@ -306,7 +306,7 @@ export default function Dashboard() {
           <div>
             <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--steel)' }}>EXPIRING SOON</h4>
             {loading && [1, 2, 3].map((i) => <Skeleton key={i} height={40} style={{ marginBottom: 8 }} />)}
-            {!loading && filteredExpiring.length === 0 && <p style={{ color: 'var(--steel)', fontSize: 13 }}>Nothing expiring in the next 30 days.</p>}
+            {!loading && filteredExpiring.length === 0 && <p style={{ color: 'var(--steel)', fontSize: 13 }}>Nothing expiring in the next 14 days.</p>}
             {filteredExpiring.map((b) => (
               <motion.div 
                 key={b.id} 
