@@ -21,6 +21,25 @@ async function ensureAiModelsTable() {
       trained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `);
+
+  // CREATE TABLE IF NOT EXISTS does not update an existing table created by
+  // an older deployment. Add the training metadata columns idempotently so
+  // retraining works against both new and previously provisioned databases.
+  const [columns] = await pool.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ai_models'`
+  );
+  const existingColumns = new Set(columns.map(({ COLUMN_NAME }) => COLUMN_NAME));
+  const missingColumns = [
+    ['training_samples', 'INT DEFAULT 0'],
+    ['training_loss', 'FLOAT NULL'],
+    ['training_accuracy', 'FLOAT NULL'],
+    ['trained_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'],
+  ].filter(([name]) => !existingColumns.has(name));
+
+  for (const [name, definition] of missingColumns) {
+    await pool.query(`ALTER TABLE ai_models ADD COLUMN ${name} ${definition}`);
+  }
 }
 
 async function getVelocity(medicineId, days = 60) {

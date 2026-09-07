@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
-  Plus, Pencil, Trash2, RefreshCw, Download, Search, X,
+  Plus, Pencil, Trash2, RefreshCw, Download, Search, X, Check,
+  AlertTriangle, CircleAlert,
   FileWarning, Upload, QrCode, ChevronDown
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
@@ -109,9 +110,9 @@ function categoryOf(medicine) {
 function stockStateOf(medicine) {
   const stock = Number(medicine.total_stock) || 0;
   const reorder = Number(medicine.reorder_level) || 0;
-  if (stock <= 0) return { key: 'out', cls: 'critical', label: 'Out of stock' };
-  if (stock <= reorder) return { key: 'low', cls: 'warning', label: 'Low stock' };
-  return { key: 'healthy', cls: 'safe', label: 'In stock' };
+  if (stock <= 0) return { key: 'out', cls: 'critical', label: 'Out of stock', Icon: CircleAlert };
+  if (stock <= reorder) return { key: 'low', cls: 'warning', label: 'Running low', Icon: AlertTriangle };
+  return { key: 'healthy', cls: 'safe', label: 'In stock', Icon: Check };
 }
 
 function expiryLabel(medicine) {
@@ -741,11 +742,10 @@ export default function Medicines() {
             return (
               <motion.div
                 key={m.id}
-                className="card"
+                className="card medicine-card"
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  padding: '16px',
                   borderTop: `4px solid ${borderColorMap[state.cls]}`,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease'
@@ -754,34 +754,47 @@ export default function Medicines() {
                 onClick={() => openDetail(m)}
               >
                 {/* Top Row: ID & Status */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <span className="stamp" style={{ fontSize: '11px' }}>ID: {m.id}</span>
-                  <span className={`status-pill ${state.cls}`} style={{ fontSize: '10px', padding: '3px 8px' }}>{state.label}</span>
+                <div className="medicine-card__top-row">
+                  <span className="stamp medicine-card__id">ID: {m.id}</span>
+                  <span className={`status-pill medicine-card__status ${state.cls}`}>
+                    <state.Icon aria-hidden="true" size={18} strokeWidth={2.5} />
+                    <span>{state.label}</span>
+                  </span>
                 </div>
 
                 {/* Middle Content */}
-                <div style={{ flex: 1, marginBottom: '12px' }}>
-                  <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)', marginBottom: '4px', lineHeight: 1.3 }}>
+                <div className="medicine-card__content">
+                  <div className="medicine-card__name">
                     {m.name}
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--steel)', marginBottom: '8px', lineHeight: 1.4 }}>
+                  <div className="medicine-card__details">
                     {[m.generic_name, m.dosage_form].filter(Boolean).join(' · ') || '—'}
                     {m.requires_prescription ? ' · Rx' : ''}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
-                    <div>
-                      <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Stock</div>
-                      <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{m.total_stock ?? 0} {m.unit}</div>
+                  <div className="medicine-card__stats">
+                    <div className="medicine-card__stat">
+                      <div className="medicine-card__label">Stock</div>
+                      <div className="medicine-card__value">{m.total_stock ?? 0} {m.unit}</div>
+                      <div
+                        className={`medicine-card__progress ${state.cls}`}
+                        role="progressbar"
+                        aria-label={`${m.name} stock level`}
+                        aria-valuenow={Math.max(0, Number(m.total_stock) || 0)}
+                        aria-valuemin="0"
+                        aria-valuemax={Math.max(1, Number(m.reorder_level) || 1)}
+                      >
+                        <span style={{ width: `${Math.min(100, Math.max(0, ((Number(m.total_stock) || 0) / Math.max(1, Number(m.reorder_level) || 1)) * 100))}%` }} />
+                      </div>
                     </div>
-                    <div>
-                      <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Category</div>
-                      <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{categoryOf(m)}</div>
+                    <div className="medicine-card__stat">
+                      <div className="medicine-card__label">Category</div>
+                      <div className="medicine-card__value">{categoryOf(m)}</div>
                     </div>
                   </div>
                   {expiry && (
-                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
-                      <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Expiry</div>
-                      <span className={`status-pill ${expiry.cls}`} style={{ fontSize: '11px', marginTop: '4px' }}>{expiry.label}</span>
+                    <div className="medicine-card__expiry">
+                      <div className="medicine-card__label">Expiry</div>
+                      <span className={`status-pill medicine-card__expiry-value ${expiry.cls}`}>{expiry.label}</span>
                     </div>
                   )}
                 </div>
@@ -792,7 +805,7 @@ export default function Medicines() {
                     <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>
                       {m.name.charAt(0).toUpperCase()}
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontWeight: 600 }}>{m.name.substring(0, 12)}</div>
+                    <div className="medicine-card__footer-label">{m.name.substring(0, 12)}</div>
                   </div>
                   <button
                     type="button"
