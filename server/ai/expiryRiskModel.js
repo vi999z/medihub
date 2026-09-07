@@ -78,7 +78,7 @@ function buildModel() {
 }
 
 // ─── Training ───
-// Handles: insufficient data, single-class labels, class imbalance, table creation, tensor cleanup
+// Handles: insufficient data, single-class labels, table creation, tensor cleanup
 async function trainAndPersist() {
   await ensureAiModelsTable();
 
@@ -136,16 +136,8 @@ async function trainAndPersist() {
   const stats = computeStats(featureRows);
   const normalized = normalize(featureRows, stats);
 
-  // ─── Class weighting: counteract imbalance so the minority class isn't ignored ───
-  // Weight = total / (2 * class_count) — standard balanced formula
-  const total = labels.length;
-  const weightExpired = total / (2 * expiredCount);
-  const weightDepleted = total / (2 * depletedCount);
-  const sampleWeights = labels.map((l) => (l === 1 ? weightExpired : weightDepleted));
-
   const xs = tf.tensor2d(normalized);
   const ys = tf.tensor2d(labels, [labels.length, 1]);
-  const sw = tf.tensor1d(sampleWeights);
 
   const model = buildModel();
 
@@ -157,7 +149,6 @@ async function trainAndPersist() {
       batchSize: Math.min(8, labels.length),
       shuffle: true,
       verbose: 0,
-      sampleWeight: sw,
       validationSplit: 0.2,
     });
 
@@ -196,7 +187,6 @@ async function trainAndPersist() {
   } finally {
     xs.dispose();
     ys.dispose();
-    sw.dispose();
     model.dispose();
   }
 }
