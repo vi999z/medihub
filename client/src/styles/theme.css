@@ -649,9 +649,15 @@ input, select, textarea { font-family: var(--font-body); }
   min-height: 360px;
   padding: 22px;
   border: 1.5px solid var(--color-border-strong);
-  border-top-width: 5px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
-.medicine-card:hover { border-color: var(--color-primary); }
+/* Status is applied to the entire medicine card instead of only a top strip. */
+.medicine-card.safe { background: var(--color-success-bg); border-color: var(--color-success-border); }
+.medicine-card.warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); }
+.medicine-card.critical { background: var(--color-error-bg); border-color: var(--color-error-border); }
+.medicine-card.safe:hover { border-color: var(--color-success); }
+.medicine-card.warning:hover { border-color: var(--color-warning); }
+.medicine-card.critical:hover { border-color: var(--color-error); }
 .medicine-card__top-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .medicine-card__id { font-size: 15px; color: var(--color-text-primary); }
 .medicine-card__status { min-height: 36px; padding: 6px 10px; font-size: 15px; }
@@ -683,10 +689,21 @@ input, select, textarea { font-family: var(--font-body); }
   min-height: 350px;
   padding: 22px;
   border: 1.5px solid var(--color-border-strong);
-  border-top-width: 5px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
-.transaction-card:hover,
-.alert-card:hover { border-color: var(--color-primary); }
+/* Transaction/alert status colors fill the complete card. */
+.transaction-card.safe,
+.alert-card.safe { background: var(--color-success-bg); border-color: var(--color-success-border); }
+.transaction-card.warning,
+.alert-card.warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); }
+.transaction-card.critical,
+.alert-card.critical { background: var(--color-error-bg); border-color: var(--color-error-border); }
+.transaction-card.safe:hover,
+.alert-card.safe:hover { border-color: var(--color-success); }
+.transaction-card.warning:hover,
+.alert-card.warning:hover { border-color: var(--color-warning); }
+.transaction-card.critical:hover,
+.alert-card.critical:hover { border-color: var(--color-error); }
 .transaction-card__top-row,
 .alert-card__top-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .transaction-card__id { font-size: 15px; color: var(--color-text-primary); }

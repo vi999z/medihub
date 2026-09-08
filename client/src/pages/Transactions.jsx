@@ -289,11 +289,10 @@ export default function Transactions() {
               return (
                 <motion.div
                   key={t.id}
-                  className="card transaction-card"
+                  className={`card transaction-card ${config.cls}`}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    borderTop: `5px solid var(--${config.cls === 'critical' ? 'color-error' : config.cls === 'safe' ? 'color-success' : 'color-secondary'})`,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease'
                   }}

@@ -738,15 +738,13 @@ export default function Medicines() {
           {visibleMedicines.map((m) => {
             const state = stockStateOf(m);
             const expiry = expiryLabel(m);
-            const borderColorMap = { 'safe': 'var(--green)', 'warning': 'var(--gold)', 'critical': 'var(--red)' };
             return (
               <motion.div
                 key={m.id}
-                className="card medicine-card"
+                className={`card medicine-card ${state.cls}`}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  borderTop: `4px solid ${borderColorMap[state.cls]}`,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease'
                 }}
@@ -918,8 +916,7 @@ export default function Medicines() {
                 <StaggeredList staggerDelay={0.03}>
                   {detailBatches.map((b) => {
                     const pill = batchStatusPill(b);
-                    const borderColorMap = { 'safe': 'var(--green)', 'warning': 'var(--gold)', 'critical': 'var(--red)' };
-                    return (
+                            return (
                       <motion.div
                         key={b.id}
                         className="card"

@@ -264,11 +264,10 @@ export default function Notifications() {
               return (
                 <motion.div
                   key={n.id}
-                  className="card alert-card"
+                  className={`card alert-card ${cfg.cls}`}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    borderTop: `4px solid ${cfg.borderColor}`,
                     opacity: 1,
                     transition: 'all 0.2s ease',
                   }}

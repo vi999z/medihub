@@ -1,0 +1,12 @@
+MediHub UI Color Update
+
+Updated the status card styling so the semantic color fills the entire card instead of appearing only as a colored top border/strip.
+
+Updated:
+- Medicines: safe/in stock = green, warning/low stock = yellow, critical/out of stock = red.
+- Transactions: safe/return = green, warning/adjustment = yellow, critical/sale/disposal = red.
+- Alerts/Notifications: safe/information = green, warning = yellow, critical = red.
+- Removed the status-colored top border from these cards.
+- Preserved existing content, controls, hover animation, and responsive layout.
+
+Build note: dependencies were not fully installable in the sandbox, so a production Vite build could not be completed here.
