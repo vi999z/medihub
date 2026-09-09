@@ -17,7 +17,7 @@ function getGreeting() {
   return 'Good evening';
 }
 
-const PASTEL_COLORS = ['var(--kpi-green)', 'var(--kpi-mint)', 'var(--kpi-pink)', 'var(--kpi-lavender)', 'var(--kpi-blue)', 'var(--kpi-yellow)', 'var(--kpi-coral)', 'var(--teal-light)'];
+const PASTEL_COLORS = ['var(--chart-cat-1)', 'var(--chart-cat-2)', 'var(--chart-cat-3)', 'var(--chart-cat-4)', 'var(--chart-cat-5)', 'var(--chart-cat-6)', 'var(--chart-cat-7)', 'var(--chart-cat-8)'];
 const SEVERITY_COLORS = {
   critical: 'var(--color-error)',
   warning: 'var(--color-warning)',

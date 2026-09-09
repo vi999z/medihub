@@ -209,7 +209,7 @@ export default function Suppliers() {
           <StaggeredList staggerDelay={0.03}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
               {visibleSuppliers.map((s) => (
-                <motion.div key={s.id} className="card" style={{ padding: 16, borderTop: '4px solid var(--green)', display: 'flex', flexDirection: 'column', minHeight: 220 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
+                <motion.div key={s.id} className="card supplier-card supplier-card--active" style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 220 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <span className="stamp">ID: {s.id}</span>
                     <span className="status-pill safe" style={{ fontSize: 10, padding: '3px 8px' }}>Active supplier</span>

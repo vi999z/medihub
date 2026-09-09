@@ -84,6 +84,16 @@
   --kpi-blue: #d0d8e8;
   --kpi-yellow: #e8e0c8;
   --kpi-coral: #e8d0c0;
+
+  /* Vivid category chart colors (pie/donut charts) */
+  --chart-cat-1: #16a34a;
+  --chart-cat-2: #e11d48;
+  --chart-cat-3: #0d9488;
+  --chart-cat-4: #2563eb;
+  --chart-cat-5: #d97706;
+  --chart-cat-6: #ea580c;
+  --chart-cat-7: #7c3aed;
+  --chart-cat-8: #0891b2;
   
   /* Accent gradients */
   --gradient-primary: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
@@ -169,6 +179,16 @@ html.dark {
   --kpi-blue: #1a202e;
   --kpi-yellow: #2e281a;
   --kpi-coral: #2e201a;
+
+  /* Vivid category chart colors (pie/donut charts) */
+  --chart-cat-1: #4ade80;
+  --chart-cat-2: #fb7185;
+  --chart-cat-3: #2dd4bf;
+  --chart-cat-4: #60a5fa;
+  --chart-cat-5: #fbbf24;
+  --chart-cat-6: #fb923c;
+  --chart-cat-7: #a78bfa;
+  --chart-cat-8: #22d3ee;
   --gradient-primary: linear-gradient(135deg, var(--color-primary) 0%, #0f766e 100%);
   --gradient-amber: linear-gradient(135deg, var(--color-secondary) 0%, #d97706 100%);
   --gradient-success: linear-gradient(135deg, #16a34a 0%, #166534 100%);
@@ -486,6 +506,27 @@ input, select, textarea { font-family: var(--font-body); }
 .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; }
 .section-title h3 { font-size: 0.95rem; }
 
+
+/* Full-card status colors for administration cards.
+   Status colors fill the card instead of appearing only as a top accent strip. */
+.audit-card.audit-card--safe { background: var(--color-success-bg); border-color: var(--color-success-border); }
+.audit-card.audit-card--warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); }
+.audit-card.audit-card--critical { background: var(--color-error-bg); border-color: var(--color-error-border); }
+.audit-card.audit-card--info { background: var(--color-info-bg); border-color: var(--color-info-border); }
+.audit-card.audit-card--neutral { background: var(--color-surface-muted); border-color: var(--color-border-strong); }
+.audit-card.audit-card--safe:hover { border-color: var(--color-success); }
+.audit-card.audit-card--warning:hover { border-color: var(--color-warning); }
+.audit-card.audit-card--critical:hover { border-color: var(--color-error); }
+.audit-card.audit-card--info:hover { border-color: var(--color-info); }
+.audit-card.audit-card--neutral:hover { border-color: var(--color-border-strong); }
+
+.user-card.user-card--active,
+.supplier-card.supplier-card--active { background: var(--color-success-bg); border-color: var(--color-success-border); }
+.user-card.user-card--inactive { background: var(--color-error-bg); border-color: var(--color-error-border); }
+.user-card.user-card--active:hover,
+.supplier-card.supplier-card--active:hover { border-color: var(--color-success); }
+.user-card.user-card--inactive:hover { border-color: var(--color-error); }
+
 .card {
   background: var(--color-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
   transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.22s ease;
@@ -518,7 +559,7 @@ input, select, textarea { font-family: var(--font-body); }
 
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .stat-card { padding: 20px 24px; min-height: 100px; display: flex; flex-direction: column; justify-content: center; }
-.stat-card .value { font-family: var(--font-display); font-size: 1.4rem; font-weight: 800; line-height: 1.2; }
+.stat-card .value { font-family: var(--font-display); font-size: 1.4rem; font-weight: 800; line-height: 1.2; color: var(--color-text-primary); }
 .stat-card .label { font-size: 13px; color: var(--steel); margin-top: 4px; line-height: 1.4; }
 .stat-card.accent-amber { border-left: 4px solid var(--amber); }
 .stat-card.accent-gold { border-left: 4px solid var(--gold); }

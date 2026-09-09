@@ -103,17 +103,18 @@ export default function AuditLog() {
             style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
           >
             {visibleLogs.map((l) => {
-              const actionColorMap = { 'create': 'var(--green)', 'update': 'var(--amber)', 'delete': 'var(--red)', 'login': 'var(--green)', 'logout': 'var(--steel)', 'export': 'var(--gold)' };
+              const actionColorMap = { 'create': 'var(--green)', 'update': 'var(--amber)', 'delete': 'var(--red)', 'login': 'var(--green)', 'logout': 'var(--steel)', 'export': 'var(--gold)', 'ai': 'var(--info)' };
               const actionKey = l.action.split('_')[0].toLowerCase();
+              const actionToneMap = { create: 'safe', update: 'warning', delete: 'critical', login: 'safe', logout: 'neutral', export: 'warning', ai: 'info' };
+              const actionTone = actionToneMap[actionKey] || 'neutral';
               return (
                 <motion.div
                   key={l.id}
-                  className="card"
+                  className={`card audit-card audit-card--${actionTone}`}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
                     padding: '16px',
-                    borderTop: `4px solid ${actionColorMap[actionKey] || 'var(--steel)'}`,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease'
                   }}

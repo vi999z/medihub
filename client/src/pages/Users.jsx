@@ -187,7 +187,7 @@ export default function Users() {
           <StaggeredList staggerDelay={0.03}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
               {visibleUsers.map((u) => (
-                <motion.div key={u.id} className="card" style={{ padding: 16, borderTop: `4px solid ${u.is_active ? 'var(--green)' : 'var(--red)'}`, display: 'flex', flexDirection: 'column', minHeight: 205 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
+                <motion.div key={u.id} className={`card user-card ${u.is_active ? 'user-card--active' : 'user-card--inactive'}`} style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 205 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <span className="stamp">ID: {u.id}</span>
                     <span className={`status-pill ${u.is_active ? 'safe' : 'critical'}`} style={{ fontSize: 10, padding: '3px 8px' }}>{u.is_active ? 'Active' : 'Inactive'}</span>
