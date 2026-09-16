@@ -104,10 +104,11 @@ async function removeDepleted(req, res) {
     return res.json({ message: 'No depleted batches to remove.' });
   }
 
-  await pool.query('DELETE FROM batches WHERE quantity_remaining <= 0');
-  await logAudit(req.user.id, 'removed_depleted_batches', `Removed ${rows.length} depleted batch(es)`, req);
+  const ids = rows.map((r) => r.id);
+  const [result] = await pool.query('DELETE FROM batches WHERE id IN (?)', [ids]);
+  await logAudit(req.user.id, 'removed_depleted_batches', `Removed ${result.affectedRows} depleted batch(es)`, req);
 
-  res.json({ message: `Removed ${rows.length} depleted batch(es).` });
+  res.json({ message: `Removed ${result.affectedRows} depleted batch(es).` });
 }
 
 module.exports = { getAll, getOne, getByMedicine, create, update, remove, removeDepleted };

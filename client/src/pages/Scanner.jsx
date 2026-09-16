@@ -131,14 +131,14 @@ export default function Scanner() {
             <p style={{ color: 'var(--steel)', marginBottom: 20 }}>
               Scan a product code to add it to stock
             </p>
-            <button className="btn btn-primary" onClick={startScanning} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+            <motion.button className="btn btn-primary" onClick={startScanning} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
               <Camera size={18} />
               Start Scanning
-            </button>
-            <button className="btn btn-secondary" onClick={() => photoInputRef.current?.click()} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+            </motion.button>
+            <motion.button className="btn btn-secondary" onClick={() => photoInputRef.current?.click()} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
               <ImagePlus size={18} />
               Upload Photo
-            </button>
+            </motion.button>
             <input
               ref={photoInputRef}
               type="file"
@@ -177,7 +177,7 @@ export default function Scanner() {
                 boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)'
               }} />
             </div>
-            <button
+            <motion.button
               className="btn btn-secondary"
               style={{ position: 'absolute', top: 12, right: 12, borderRadius: '50%', padding: 8 }}
               onClick={() => setIsScanning(false)}
@@ -185,7 +185,7 @@ export default function Scanner() {
               whileTap={{ scale: 0.9 }}
             >
               <X size={20} />
-            </button>
+            </motion.button>
             <div style={{
               position: 'absolute',
               bottom: 12,
@@ -216,9 +216,9 @@ export default function Scanner() {
           <div className="empty-state">
             <AlertCircle size={16} style={{ marginBottom: 6 }} />
             <div>{error}</div>
-            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={resetScanner} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+            <motion.button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={resetScanner} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
               Try Again
-            </button>
+            </motion.button>
           </div>
         )}
 
@@ -246,11 +246,11 @@ export default function Scanner() {
             ) : null}
             
             <div style={{ display: 'flex', gap: 12 }}>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={resetScanner} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+              <motion.button className="btn btn-secondary" style={{ flex: 1 }} onClick={resetScanner} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
                 Scan Another
-              </button>
-              <button 
-                className="btn btn-primary" 
+              </motion.button>
+              <motion.button
+                className="btn btn-primary"
                 style={{ flex: 1 }}
                 whileHover={{ y: -2 }}
                 whileTap={{ scale: 0.98 }}
@@ -260,7 +260,7 @@ export default function Scanner() {
                 }}
               >
                 Add to Stock
-              </button>
+              </motion.button>
             </div>
           </motion.div>
         )}

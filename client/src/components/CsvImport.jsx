@@ -33,6 +33,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
   const [step, setStep] = useState('upload'); // upload, preview, complete
   const [file, setFile] = useState(null);
   const [validationResult, setValidationResult] = useState(null);
+  const [commitResult, setCommitResult] = useState(null);
   const [importing, setImporting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef(null);
@@ -96,6 +97,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
       const res = await api.post(`/${entityType}/csv/commit`, {
         results: validationResult.results
       });
+      setCommitResult(res.data);
       setStep('complete');
       if (onImportComplete) {
         onImportComplete(res.data);
@@ -143,19 +145,19 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✓</div>
           <p style={{ fontSize: 16, marginBottom: 8 }}>
-            <strong>{validationResult?.validRows || 0}</strong> {config.label}(s) imported successfully
+            <strong>{commitResult?.created || 0}</strong> {config.label}(s) imported successfully
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
             <div className="stat-card accent-green" style={{ padding: '12px 16px', minWidth: 100, minHeight: 0 }}>
-              <div className="value">{validationResult?.validRows || 0}</div>
+              <div className="value">{commitResult?.created || 0}</div>
               <div className="label">Medicines</div>
             </div>
             <div className="stat-card accent-amber" style={{ padding: '12px 16px', minWidth: 100, minHeight: 0 }}>
-              <div className="value">{validationResult?.batchesCreated || 0}</div>
+              <div className="value">{commitResult?.batchesCreated || 0}</div>
               <div className="label">Batches</div>
             </div>
             <div className="stat-card accent-red" style={{ padding: '12px 16px', minWidth: 100, minHeight: 0 }}>
-              <div className="value">{validationResult?.alertsCreated || 0}</div>
+              <div className="value">{commitResult?.alertsCreated || 0}</div>
               <div className="label">Alerts</div>
             </div>
           </div>

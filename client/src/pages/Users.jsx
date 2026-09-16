@@ -184,26 +184,24 @@ export default function Users() {
         )}
 
         {!loading && !error && visibleUsers.length > 0 && (
-          <StaggeredList staggerDelay={0.03}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-              {visibleUsers.map((u) => (
-                <motion.div key={u.id} className={`card user-card ${u.is_active ? 'user-card--active' : 'user-card--inactive'}`} style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 205 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <span className="stamp">ID: {u.id}</span>
-                    <span className={`status-pill ${u.is_active ? 'safe' : 'critical'}`} style={{ fontSize: 10, padding: '3px 8px' }}>{u.is_active ? 'Active' : 'Inactive'}</span>
-                  </div>
-                  <div style={{ flex: 1, marginBottom: 14 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{u.full_name}</div>
-                    <div style={{ color: 'var(--steel)', fontSize: 12, marginBottom: 12, overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
-                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}><div style={{ color: 'var(--steel)', fontSize: 11 }}>Role</div><div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{u.role}</div></div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--gradient-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{u.full_name.charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Account</span></div>
-                    <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(u)} title="Edit account"><Pencil size={14} /></button>{u.id !== me.id && <><button className="btn-icon" onClick={() => resetPassword(u)} title="Generate temporary password"><KeyRound size={14} /></button><button className="btn-icon" onClick={() => toggleActive(u)} title={u.is_active ? 'Deactivate' : 'Reactivate'}>{u.is_active ? <X size={14} /> : <Plus size={14} />}</button></>}</div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+          <StaggeredList staggerDelay={0.03} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+            {visibleUsers.map((u) => (
+              <motion.div key={u.id} className={`card user-card ${u.is_active ? 'user-card--active' : 'user-card--inactive'}`} style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 205 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span className="stamp">ID: {u.id}</span>
+                  <span className={`status-pill ${u.is_active ? 'safe' : 'critical'}`} style={{ fontSize: 10, padding: '3px 8px' }}>{u.is_active ? 'Active' : 'Inactive'}</span>
+                </div>
+                <div style={{ flex: 1, marginBottom: 14 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{u.full_name}</div>
+                  <div style={{ color: 'var(--steel)', fontSize: 12, marginBottom: 12, overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}><div style={{ color: 'var(--steel)', fontSize: 11 }}>Role</div><div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{u.role}</div></div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--gradient-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{(u.full_name || '?').charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Account</span></div>
+                  <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(u)} title="Edit account"><Pencil size={14} /></button>{u.id !== me.id && <><button className="btn-icon" onClick={() => resetPassword(u)} title="Generate temporary password"><KeyRound size={14} /></button><button className="btn-icon" onClick={() => toggleActive(u)} title={u.is_active ? 'Deactivate' : 'Reactivate'}>{u.is_active ? <X size={14} /> : <Plus size={14} />}</button></>}</div>
+                </div>
+              </motion.div>
+            ))}
           </StaggeredList>
         )}
       </motion.div>

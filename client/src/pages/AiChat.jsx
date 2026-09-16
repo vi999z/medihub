@@ -125,9 +125,7 @@ function DownloadButton({ fileRequest, messageContent }) {
 
       // Binary formats (xlsx, docx, pdf) or no inline content — call the server
       // The server streams a binary buffer so use fetch directly (axios would need responseType)
-      const token = document.cookie.match(/token=([^;]+)/)?.[1]
-        || localStorage.getItem('token')
-        || sessionStorage.getItem('token');
+      const token = localStorage.getItem('medihub_token');
 
       const res = await fetch('/api/ai/generate-file', {
         method: 'POST',

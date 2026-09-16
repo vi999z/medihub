@@ -21,7 +21,6 @@ async function streamGeminiResponse(question, systemPrompt, history, context, re
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', '*');
 
     // Start the stream
     res.write('data: {"status":"started","message":"Connecting to AI service..."}\n\n');

@@ -46,17 +46,29 @@ async function remove(req, res) {
   const existing = await medicineModel.getById(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Medicine not found' });
 
-  // Clean up all notifications referencing this medicine or its batches before CASCADE deletes them
-  // low_stock & ai_reorder_suggestion reference medicine_id; near_expiry, expired & ai_risk_flag reference batch_id
-  const [batchIds] = await pool.query('SELECT id FROM batches WHERE medicine_id = ?', [req.params.id]);
-  const batchIdList = batchIds.map((b) => b.id);
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
 
-  await pool.query('DELETE FROM notifications WHERE type IN (?, ?) AND reference_id = ?', ['low_stock', 'ai_reorder_suggestion', req.params.id]);
-  if (batchIdList.length) {
-    await pool.query('DELETE FROM notifications WHERE type IN (?, ?, ?) AND reference_id IN (?)', ['near_expiry', 'expired', 'ai_risk_flag', batchIdList]);
+    // Clean up all notifications referencing this medicine or its batches before CASCADE deletes them
+    // low_stock & ai_reorder_suggestion reference medicine_id; near_expiry, expired & ai_risk_flag reference batch_id
+    const [batchIds] = await conn.query('SELECT id FROM batches WHERE medicine_id = ?', [req.params.id]);
+    const batchIdList = batchIds.map((b) => b.id);
+
+    await conn.query('DELETE FROM notifications WHERE type IN (?, ?) AND reference_id = ?', ['low_stock', 'ai_reorder_suggestion', req.params.id]);
+    if (batchIdList.length) {
+      await conn.query('DELETE FROM notifications WHERE type IN (?, ?, ?) AND reference_id IN (?)', ['near_expiry', 'expired', 'ai_risk_flag', batchIdList]);
+    }
+
+    await conn.query('DELETE FROM medicines WHERE id = ?', [req.params.id]);
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
   }
 
-  await medicineModel.remove(req.params.id);
   await logAudit(req.user.id, 'deleted_medicine', `Deleted medicine: ${existing.name}`, req);
   res.status(204).send();
 }

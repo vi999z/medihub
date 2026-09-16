@@ -128,6 +128,7 @@ function batchStatusPill(batch) {
   if (batch.status === 'expired') return { cls: 'critical', label: 'Expired' };
   if (batch.status === 'depleted') return { cls: 'orange', label: 'Depleted' };
   if (batch.status === 'recalled') return { cls: 'purple', label: 'Recalled' };
+  if (!batch.expiry_date) return { cls: 'safe', label: 'Active' };
   const days = daysUntil(batch.expiry_date);
   if (days <= 3) return { cls: 'critical', label: `${days}d left` };
   if (days <= 14) return { cls: 'warning', label: `${days}d left` };
@@ -801,7 +802,7 @@ export default function Medicines() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>
-                      {m.name.charAt(0).toUpperCase()}
+                      {(m.name || '?').charAt(0).toUpperCase()}
                     </div>
                     <div className="medicine-card__footer-label">{m.name.substring(0, 12)}</div>
                   </div>
@@ -916,6 +917,7 @@ export default function Medicines() {
                 <StaggeredList staggerDelay={0.03}>
                   {detailBatches.map((b) => {
                     const pill = batchStatusPill(b);
+                    const borderColorMap = { 'safe': 'var(--green)', 'warning': 'var(--gold)', 'critical': 'var(--red)' };
                             return (
                       <motion.div
                         key={b.id}

@@ -3,16 +3,9 @@ import { useReducedMotion } from 'framer-motion';
 import AnimatedNumber from './AnimatedNumber';
 import Skeleton from './Skeleton';
 
-const KPI_COLORS = {
-  green: 'green',
-  mint: 'mint', 
-  pink: 'pink',
-  lavender: 'lavender',
-  blue: 'blue',
-  yellow: 'yellow'
-};
+const VALID_KPI_COLORS = new Set(['green', 'mint', 'pink', 'lavender', 'blue', 'yellow']);
 
-export default function KPICard({ 
+export default function KPICard({
   icon: Icon, 
   label, 
   value, 
@@ -23,7 +16,7 @@ export default function KPICard({
   sparklineData = []
 }) {
   const prefersReducedMotion = useReducedMotion();
-  const colorClass = KPI_COLORS[color] || 'blue';
+  const colorClass = VALID_KPI_COLORS.has(color) ? color : 'blue';
 
   return (
     <motion.div 
@@ -48,7 +41,7 @@ export default function KPICard({
         )}
       </div>
       
-      {!loading && trend !== undefined && (
+      {!loading && trend !== undefined && trend !== null && (
         <div className="kpi-trend">
           {trend > 0 ? (
             <span className="up">↑ {trend.toFixed(0)}%</span>

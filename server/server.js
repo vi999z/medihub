@@ -94,6 +94,14 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
+// Global error handler — catches errors from middleware/routes that didn't
+// handle them (e.g. multer file validation) so the client always gets JSON.
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  if (res.headersSent) return next(err);
+  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);

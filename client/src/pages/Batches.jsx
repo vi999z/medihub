@@ -90,6 +90,7 @@ function statusPillFor(batch) {
   if (batch.status === 'expired') return { cls: 'critical', label: 'Expired' };
   if (batch.status === 'depleted') return { cls: 'orange', label: 'Depleted' };
   if (batch.status === 'recalled') return { cls: 'purple', label: 'Recalled' };
+  if (!batch.expiry_date) return { cls: 'safe', label: 'Active' };
   const days = daysUntil(batch.expiry_date);
   if (days <= 3) return { cls: 'critical', label: `${days}d left` };
   if (days <= 14) return { cls: 'warning', label: `${days}d left` };
@@ -437,7 +438,7 @@ export default function Batches() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                       <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
-                        {b.medicine_name.charAt(0).toUpperCase()}
+                        {(b.medicine_name || '?').charAt(0).toUpperCase()}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.medicine_name.substring(0, 12)}</div>
                     </div>

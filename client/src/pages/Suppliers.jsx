@@ -206,30 +206,28 @@ export default function Suppliers() {
         )}
 
         {!loading && !error && visibleSuppliers.length > 0 && (
-          <StaggeredList staggerDelay={0.03}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-              {visibleSuppliers.map((s) => (
-                <motion.div key={s.id} className="card supplier-card supplier-card--active" style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 220 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <span className="stamp">ID: {s.id}</span>
-                    <span className="status-pill safe" style={{ fontSize: 10, padding: '3px 8px' }}>Active supplier</span>
+          <StaggeredList staggerDelay={0.03} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+            {visibleSuppliers.map((s) => (
+              <motion.div key={s.id} className="card supplier-card supplier-card--active" style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 220 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span className="stamp">ID: {s.id}</span>
+                  <span className="status-pill safe" style={{ fontSize: 10, padding: '3px 8px' }}>Active supplier</span>
+                </div>
+                <div style={{ flex: 1, marginBottom: 14 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{s.name}</div>
+                  <div style={{ color: 'var(--steel)', fontSize: 12, marginBottom: 12 }}>{s.contact_person || 'No contact person listed'}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
+                    <div><div style={{ color: 'var(--steel)', fontSize: 11 }}>Phone</div><div style={{ fontWeight: 600 }}>{s.phone || '—'}</div></div>
+                    <div><div style={{ color: 'var(--steel)', fontSize: 11 }}>Email</div><div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.email || '—'}</div></div>
                   </div>
-                  <div style={{ flex: 1, marginBottom: 14 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{s.name}</div>
-                    <div style={{ color: 'var(--steel)', fontSize: 12, marginBottom: 12 }}>{s.contact_person || 'No contact person listed'}</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
-                      <div><div style={{ color: 'var(--steel)', fontSize: 11 }}>Phone</div><div style={{ fontWeight: 600 }}>{s.phone || '—'}</div></div>
-                      <div><div style={{ color: 'var(--steel)', fontSize: 11 }}>Email</div><div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.email || '—'}</div></div>
-                    </div>
-                    <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10, color: 'var(--steel)', fontSize: 11 }}>{s.address || 'No address listed'}</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--gradient-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{s.name.charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Supplier</span></div>
-                    {user.role === 'admin' && <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(s)} title="Edit supplier"><Pencil size={14} /></button><button className="btn-icon" onClick={() => handleDelete(s.id)} title="Remove supplier"><Trash2 size={14} /></button></div>}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                  <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10, color: 'var(--steel)', fontSize: 11 }}>{s.address || 'No address listed'}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--gradient-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{(s.name || '?').charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Supplier</span></div>
+                  {user.role === 'admin' && <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(s)} title="Edit supplier"><Pencil size={14} /></button><button className="btn-icon" onClick={() => handleDelete(s.id)} title="Remove supplier"><Trash2 size={14} /></button></div>}
+                </div>
+              </motion.div>
+            ))}
           </StaggeredList>
         )}
       </motion.div>

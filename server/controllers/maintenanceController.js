@@ -1,11 +1,19 @@
 const { pool } = require('../config/db');
 
+// audit_logs itself gets wiped by these operations, so the only durable
+// record of who ran a destructive maintenance action is the server log.
+function logDestructiveAction(req, action) {
+  console.warn(`[MAINTENANCE] ${action} triggered by user ${req.user?.id ?? 'unknown'} (${req.user?.email ?? 'unknown'}) at ${new Date().toISOString()}`);
+}
+
 async function clearTransactions(req, res) {
+  logDestructiveAction(req, 'clearTransactions');
   await pool.query('DELETE FROM stock_transactions');
   res.json({ message: 'Transaction history cleared.' });
 }
 
 async function clearLogs(req, res) {
+  logDestructiveAction(req, 'clearLogs');
   await pool.query('DELETE FROM audit_logs');
   await pool.query('DELETE FROM notifications');
   res.json({ message: 'Logs and notifications cleared.' });
@@ -24,6 +32,7 @@ async function removeExpiredBatches(req, res) {
 }
 
 async function resetSystem(req, res) {
+  logDestructiveAction(req, 'resetSystem');
   await pool.query('DELETE FROM stock_transactions');
   await pool.query('DELETE FROM audit_logs');
   await pool.query('DELETE FROM notifications');
@@ -32,6 +41,7 @@ async function resetSystem(req, res) {
 }
 
 async function wipeAllData(req, res) {
+  logDestructiveAction(req, 'wipeAllData');
   // Delete in dependency order — notifications first, then child tables, then parents.
   await pool.query('DELETE FROM notifications');
   await pool.query('DELETE FROM stock_transactions');

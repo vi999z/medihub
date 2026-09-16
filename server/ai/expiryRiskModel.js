@@ -177,21 +177,24 @@ async function trainAndPersist() {
     const weights = await Promise.all(model.getWeights().map((w) => w.array()));
 
     // Use transaction to prevent partial updates on failure
-    await pool.query('START TRANSACTION');
+    const conn = await pool.getConnection();
     try {
-      await pool.query(
+      await conn.beginTransaction();
+      await conn.query(
         `DELETE FROM ai_models WHERE model_name = ?`,
         [MODEL_NAME]
       );
-      await pool.query(
+      await conn.query(
         `INSERT INTO ai_models (model_name, weights_json, feature_stats_json, training_samples, training_loss, training_accuracy)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [MODEL_NAME, JSON.stringify(weights), JSON.stringify(stats), featureRows.length, finalLoss, finalAccuracy]
       );
-      await pool.query('COMMIT');
+      await conn.commit();
     } catch (dbErr) {
-      await pool.query('ROLLBACK');
+      await conn.rollback();
       throw dbErr;
+    } finally {
+      conn.release();
     }
 
     return {

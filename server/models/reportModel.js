@@ -154,7 +154,7 @@ async function getTransactionsReport(days = 30, type = null) {
     `SELECT st.id, st.transaction_type, st.quantity, st.reason, st.created_at,
             m.name AS medicine_name, m.category,
             b.batch_number, b.expiry_date,
-            u.name AS user_name
+            u.full_name AS user_name
      FROM stock_transactions st
      JOIN batches b ON st.batch_id = b.id
      JOIN medicines m ON b.medicine_id = m.id

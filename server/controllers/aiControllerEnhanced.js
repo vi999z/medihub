@@ -740,7 +740,9 @@ async function getConversationInfo(req, res) {
 // ─── Keep existing functions for backward compatibility ───
 async function getExpiryRisk(req, res) {
   const enhancedMode = req.query.enhanced !== 'false';
-  return enhancedMode ? getExpiryRiskEnhanced(req, res) : getExpiryRisk(req, res);
+  return enhancedMode
+    ? getExpiryRiskEnhanced(req, res)
+    : scoreActiveBatches().then(r => res.json(r)).catch(err => res.status(500).json({ error: err.message }));
 }
 
 async function getAnomalies(req, res) {

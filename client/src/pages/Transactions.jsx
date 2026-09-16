@@ -338,7 +338,7 @@ export default function Transactions() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                       <div className="transaction-card__avatar">
-                        {t.user_name.charAt(0).toUpperCase()}
+                        {(t.user_name || '?').charAt(0).toUpperCase()}
                       </div>
                       <div className="transaction-card__user">{t.user_name.substring(0, 12)}</div>
                     </div>

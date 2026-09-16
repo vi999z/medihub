@@ -3,7 +3,14 @@ const router = express.Router();
 const ctrl = require('../controllers/medicineController');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const multer = require('multer');
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({
+  dest: 'uploads/',
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const isCsv = file.mimetype === 'text/csv' || file.originalname.toLowerCase().endsWith('.csv');
+    cb(isCsv ? null : new Error('Only CSV files are allowed'), isCsv);
+  }
+});
 
 router.use(verifyToken); // all medicine routes require login
 

@@ -139,13 +139,15 @@ async function getSupplierPerformance(supplierId = null) {
     LEFT JOIN purchase_orders po ON s.id = po.supplier_id
   `;
 
+  const params = [];
   if (supplierId) {
-    query += ` WHERE s.id = ${supplierId}`;
+    query += ` WHERE s.id = ?`;
+    params.push(supplierId);
   }
 
   query += ` GROUP BY s.id`;
 
-  const [suppliers] = await pool.query(query);
+  const [suppliers] = await pool.query(query, params);
   return { suppliers: suppliers || [] };
 }
 
