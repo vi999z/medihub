@@ -41,6 +41,39 @@ async function salesTrend(req, res) {
   }
 }
 
+async function todaySales(req, res) {
+  try {
+    const data = await reportModel.getTodaySales();
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching today sales report:', err);
+    res.status(500).json({ error: 'Failed to fetch today sales report' });
+  }
+}
+
+async function needsAttention(req, res) {
+  try {
+    const days = parseInt(req.query.days, 10) || 14;
+    const data = await reportModel.getNeedsAttention(days);
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching needs-attention report:', err);
+    res.status(500).json({ error: 'Failed to fetch needs-attention report' });
+  }
+}
+
+async function topSellers(req, res) {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 5;
+    const days = parseInt(req.query.days, 10) || 30;
+    const data = await reportModel.getTopSellers(limit, days);
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching top sellers report:', err);
+    res.status(500).json({ error: 'Failed to fetch top sellers report' });
+  }
+}
+
 async function byCategory(req, res) {
   try {
     const data = await reportModel.getByCategory();
@@ -220,4 +253,4 @@ async function sendFormattedReport(res, reportData, format, basename) {
     .send(buf);
 }
 
-module.exports = { summary, expiringSoon, lowStock, salesTrend, byCategory, batchesByStatus, wastedMedicines, transactionsReport, notificationsReport, expiringSoonReport, lowStockReport, inventoryValueReport };
+module.exports = { summary, todaySales, needsAttention, topSellers, expiringSoon, lowStock, salesTrend, byCategory, batchesByStatus, wastedMedicines, transactionsReport, notificationsReport, expiringSoonReport, lowStockReport, inventoryValueReport };

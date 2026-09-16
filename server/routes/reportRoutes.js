@@ -5,6 +5,9 @@ const { verifyToken } = require('../middleware/auth');
 
 router.use(verifyToken);
 router.get('/summary', ctrl.summary);
+router.get('/today-sales', ctrl.todaySales);
+router.get('/needs-attention', ctrl.needsAttention);
+router.get('/top-sellers', ctrl.topSellers);
 router.get('/expiring-soon', ctrl.expiringSoon);
 router.get('/low-stock', ctrl.lowStock);
 router.get('/sales-trend', ctrl.salesTrend);

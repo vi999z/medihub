@@ -1028,3 +1028,147 @@ input, select, textarea { font-family: var(--font-body); }
   background: var(--bg-subtle);
   font-weight: 700;
 }
+
+/* ============================================================
+   Flat Dashboard — scoped under .flat-dashboard only.
+   Deliberately flat: no gradients, no box-shadow, no blur, no
+   hover-lift/scale transforms, no Framer Motion. Uses its own
+   page-local tokens instead of the app's --primary/--amber so
+   the shared shell and every other page are unaffected.
+   ============================================================ */
+.flat-dashboard {
+  --flat-accent: #D85A30;
+  --flat-bg: #F5F5F5;
+  --flat-border: #E0E0E0;
+  --flat-red: #C0392B;
+  --flat-amber: #B8860B;
+  --flat-orange: #D2691E;
+  --flat-green: #2E7D32;
+  --flat-text: #1A1A1A;
+  --flat-text-muted: #6B6B6B;
+  background: var(--flat-bg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 15px;
+  color: var(--flat-text);
+  border-radius: 8px;
+}
+
+.flat-card {
+  background: #fff;
+  border: 1px solid var(--flat-border);
+  border-radius: 8px;
+}
+
+/* Filter row */
+.flat-filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: relative; z-index: 5; }
+.flat-filter-wrapper { position: relative; }
+.flat-filter-btn {
+  height: 40px; padding: 0 14px; background: #fff; border: 1px solid var(--flat-border);
+  border-radius: 8px; font-size: 15px; color: var(--flat-text);
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+}
+.flat-filter-spacer { flex: 1; }
+.flat-export-btn {
+  height: 40px; padding: 0 16px; background: #fff; border: 1px solid var(--flat-border);
+  border-radius: 8px; font-size: 15px; color: var(--flat-text); cursor: pointer;
+}
+.flat-filter-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; min-width: 170px;
+  background: #fff; border: 1px solid var(--flat-border); border-radius: 8px; z-index: 20; padding: 4px;
+}
+.flat-filter-menu button {
+  display: block; width: 100%; text-align: left; padding: 8px 10px; background: none;
+  border: none; font-size: 14px; color: var(--flat-text); border-radius: 6px; cursor: pointer;
+}
+.flat-filter-menu button:hover, .flat-filter-menu button.active { background: var(--flat-bg); }
+
+/* Summary strip: 4 equal columns, no dividers */
+.flat-summary-strip { display: grid; grid-template-columns: repeat(4, 1fr); }
+.flat-summary-col { padding: 16px 20px; }
+.flat-summary-label { font-size: 13px; color: var(--flat-text-muted); margin-bottom: 6px; }
+.flat-summary-value { font-size: 28px; font-weight: 500; line-height: 1.2; }
+.flat-summary-sub { font-size: 13px; color: var(--flat-text-muted); margin-top: 4px; }
+.flat-summary-sub.positive { color: var(--flat-green); }
+.flat-summary-sub.negative { color: var(--flat-red); }
+
+/* Stock status strip: 4 columns, vertical dividers */
+.flat-stock-strip { display: grid; grid-template-columns: repeat(4, 1fr); }
+.flat-stock-col {
+  padding: 16px 20px; border-left: 1px solid var(--flat-border);
+  display: flex; align-items: center; gap: 10px; background: none;
+  cursor: pointer; text-align: left; font-family: inherit; width: 100%;
+}
+.flat-stock-col:first-child { border-left: none; }
+.flat-stock-col.active { background: var(--flat-bg); }
+.flat-stock-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.flat-stock-dot.red { background: var(--flat-red); }
+.flat-stock-dot.amber { background: var(--flat-amber); }
+.flat-stock-dot.orange { background: var(--flat-orange); }
+.flat-stock-dot.green { background: var(--flat-green); }
+.flat-stock-text { display: flex; flex-direction: column; }
+.flat-stock-number { font-size: 20px; font-weight: 600; }
+.flat-stock-label { font-size: 13px; color: var(--flat-text-muted); }
+
+/* Needs-attention table */
+.flat-table-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px; border-bottom: 1px solid var(--flat-border);
+}
+.flat-table-title { font-size: 15px; font-weight: 600; }
+.flat-table-link { font-size: 14px; color: var(--flat-accent); background: none; border: none; cursor: pointer; padding: 0; }
+.flat-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.flat-table th {
+  text-align: left; font-size: 13px; color: var(--flat-text-muted); font-weight: 500;
+  padding: 10px 20px; border-bottom: 1px solid var(--flat-border);
+}
+.flat-table th.flat-col-right { text-align: right; }
+.flat-table td { padding: 10px 20px; height: 56px; border-bottom: 1px solid var(--flat-border); vertical-align: middle; }
+.flat-table tr:last-child td { border-bottom: none; }
+.flat-table td.flat-col-right { text-align: right; }
+.flat-med-name { font-size: 15px; }
+.flat-med-meta { font-size: 13px; color: var(--flat-text-muted); margin-top: 2px; }
+
+.flat-status-label { font-size: 13px; font-weight: 600; }
+.flat-status-label.red { color: var(--flat-red); }
+.flat-status-label.amber { color: var(--flat-amber); }
+.flat-status-label.orange { color: var(--flat-orange); }
+.flat-status-label.green { color: var(--flat-green); }
+
+.flat-action-btn {
+  height: 40px; padding: 0 14px; border: 1px solid var(--flat-border);
+  background: #fff; border-radius: 8px; font-size: 14px; cursor: pointer; color: var(--flat-text);
+}
+
+/* Bottom row: 7-day sales chart + top sellers */
+.flat-bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.flat-card-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 16px 20px; border-bottom: 1px solid var(--flat-border);
+}
+.flat-card-header h3 { font-size: 15px; font-weight: 600; margin: 0; }
+.flat-card-header .flat-card-total { font-size: 13px; color: var(--flat-text-muted); }
+
+.flat-bar-chart { display: flex; align-items: flex-end; gap: 12px; height: 140px; padding: 16px 20px 8px; }
+.flat-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+.flat-bar { width: 100%; max-width: 32px; background: #D0D0D0; border-radius: 3px 3px 0 0; min-height: 2px; }
+.flat-bar.today { background: var(--flat-accent); }
+.flat-bar-day { font-size: 12px; color: var(--flat-text-muted); }
+
+.flat-top-sellers { padding: 8px 20px 16px; }
+.flat-seller-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--flat-border); }
+.flat-seller-row:last-child { border-bottom: none; }
+.flat-seller-rank { font-size: 13px; color: var(--flat-text-muted); width: 16px; }
+.flat-seller-name { flex: 1; font-size: 14px; }
+.flat-seller-amount { font-size: 14px; font-weight: 500; }
+.flat-seller-qty { font-size: 13px; color: var(--flat-text-muted); width: 70px; text-align: right; }
+
+.flat-empty { padding: 20px; font-size: 14px; color: var(--flat-text-muted); text-align: center; }
+
+@media (max-width: 900px) {
+  .flat-summary-strip, .flat-stock-strip { grid-template-columns: repeat(2, 1fr); }
+  .flat-stock-col:nth-child(3) { border-left: none; }
+  .flat-bottom-row { grid-template-columns: 1fr; }
+}

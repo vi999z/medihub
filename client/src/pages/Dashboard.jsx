@@ -1,370 +1,311 @@
-import { useEffect, useState } from 'react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { motion, useReducedMotion } from 'framer-motion';
-import { IconPill, IconWallet, IconAlertTriangle, IconPackageOff, IconSearch, IconFilter, IconCloudRain } from '@tabler/icons-react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../api/axios';
-import { useAuth } from '../context/AuthContext';
-import AnimatedNumber from '../components/AnimatedNumber';
-import Skeleton from '../components/Skeleton';
-import KPICard from '../components/KPICard';
-import ChartCard from '../components/ChartCard';
+import { downloadCsv } from '../utils/csv';
 
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
+function peso(n) {
+  const value = Number(n) || 0;
+  return `₱${value.toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
 }
 
-const PASTEL_COLORS = ['var(--chart-cat-1)', 'var(--chart-cat-2)', 'var(--chart-cat-3)', 'var(--chart-cat-4)', 'var(--chart-cat-5)', 'var(--chart-cat-6)', 'var(--chart-cat-7)', 'var(--chart-cat-8)'];
-const SEVERITY_COLORS = {
-  critical: 'var(--color-error)',
-  warning: 'var(--color-warning)',
-  safe: 'var(--color-success)'
+const DATE_FILTERS = [
+  { value: 'today', label: 'Today', days: 1 },
+  { value: '7d', label: 'Last 7 days', days: 7 },
+  { value: '30d', label: 'Last 30 days', days: 30 },
+];
+
+const STATUS_META = {
+  out_of_stock: { label: 'Out of stock', cls: 'red', action: 'Reorder' },
+  low_stock: { label: 'Running low', cls: 'amber', action: 'Reorder' },
+  expiring: { label: 'Expiring soon', cls: 'orange', action: 'Review' },
 };
 
-function WeatherAlertWidget({ prefersReducedMotion }) {
-  const navigate = useNavigate();
-  const [weatherData, setWeatherData] = useState(null);
-  const [loading, setLoading] = useState(true);
+function FlatDropdown({ label, options, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
 
   useEffect(() => {
-    api.get('/ai/weather-recommendations?city=Manila,PH')
-      .then(res => { setWeatherData(res.data); })
-      .catch(() => { /* silent fail */ })
-      .finally(() => setLoading(false));
+    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  if (loading) return <Skeleton height={72} radius={14} style={{ marginBottom: 20 }} />;
-  if (!weatherData || weatherData.total_items_flagged === 0) return null;
-
-  const { critical_count, high_count, total_items_flagged, weather } = weatherData;
+  const current = options.find((o) => o.value === value);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.35 }}
-      onClick={() => navigate('/weather-recommendations')}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px',
-        marginBottom: 20, borderRadius: 14, cursor: 'pointer',
-        background: critical_count > 0 ? 'var(--color-error-bg)' : 'var(--color-warning-bg)',
-        border: `1px solid ${critical_count > 0 ? 'var(--color-error-border)' : 'var(--color-warning-border)'}`,
-        transition: 'box-shadow 0.15s',
-      }}
-      whileHover={{ boxShadow: 'var(--shadow-md)' }}
-    >
-      <IconCloudRain size={28} style={{ color: critical_count > 0 ? 'var(--red)' : 'var(--amber)', flexShrink: 0 }} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: critical_count > 0 ? 'var(--red)' : 'var(--amber)' }}>
-          ⚠️ Weather alert: {total_items_flagged} medicine{total_items_flagged > 1 ? 's' : ''} need restocking
-          {critical_count > 0 && ` (${critical_count} critical)`}
+    <div className="flat-filter-wrapper" ref={ref}>
+      <button type="button" className="flat-filter-btn" onClick={() => setOpen((o) => !o)}>
+        {current ? current.label : label}
+      </button>
+      {open && (
+        <div className="flat-filter-menu">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={opt.value === value ? 'active' : ''}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--steel)', marginTop: 2 }}>
-          {weather?.season === 'wet' ? '☔ Wet season' : '☀️ Dry season'}
-          {weather?.condition && ` · ${weather.condition}`}
-          {' · '}Demand surge expected for cold/flu, cough, and related medicines
-        </div>
-      </div>
-      <span style={{ fontSize: 12, color: 'var(--steel)', flexShrink: 0 }}>View details →</span>
-    </motion.div>
+      )}
+    </div>
   );
 }
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const [todaySales, setTodaySales] = useState(null);
   const [summary, setSummary] = useState(null);
-  const [expiring, setExpiring] = useState([]);
-  const [lowStock, setLowStock] = useState([]);
-  const [trend, setTrend] = useState([]);
-  const [categoryData, setCategoryData] = useState([]);
-  const [tableSearch, setTableSearch] = useState('');
+  const [needsAttention, setNeedsAttention] = useState(null);
+  const [salesTrend, setSalesTrend] = useState([]);
+  const [topSellers, setTopSellers] = useState([]);
   const [error, setError] = useState('');
+
+  const [branchFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('30d');
+  const [statusFilter, setStatusFilter] = useState('all');
+
   const loading = summary === null;
-  const prefersReducedMotion = useReducedMotion();
+  const horizonDays = DATE_FILTERS.find((f) => f.value === dateFilter)?.days ?? 30;
 
   useEffect(() => {
     let mounted = true;
     Promise.all([
+      api.cachedGet('/reports/today-sales'),
       api.cachedGet('/reports/summary'),
-      api.cachedGet('/reports/expiring-soon?days=14'),
-      api.cachedGet('/reports/low-stock'),
-      api.cachedGet('/reports/sales-trend?days=30'),
-      api.cachedGet('/reports/by-category')
+      api.cachedGet(`/reports/needs-attention?days=${horizonDays}`),
+      api.cachedGet('/reports/sales-trend?days=7'),
+      api.cachedGet('/reports/top-sellers?limit=5'),
     ])
-      .then(([summaryRes, expiringRes, lowStockRes, trendRes, categoryRes]) => {
+      .then(([todayRes, summaryRes, attentionRes, trendRes, sellersRes]) => {
         if (!mounted) return;
+        setTodaySales(todayRes.data);
         setSummary(summaryRes.data);
-        setExpiring(expiringRes.data);
-        setLowStock(lowStockRes.data);
-        setTrend(trendRes.data);
-        setCategoryData(categoryRes.data || []);
+        setNeedsAttention(attentionRes.data);
+        setSalesTrend(trendRes.data);
+        setTopSellers(sellersRes.data);
         setError('');
       })
       .catch((err) => {
         if (mounted) setError(err.response?.data?.error || 'Failed to load dashboard data');
       });
     return () => { mounted = false; };
-  }, []);
+  }, [horizonDays]);
 
-  let salesTrendPct = null;
-  if (trend.length >= 14) {
-    const last7 = trend.slice(-7).reduce((a, d) => a + d.units_sold, 0);
-    const prior7 = trend.slice(-14, -7).reduce((a, d) => a + d.units_sold, 0);
-    if (prior7 > 0) salesTrendPct = ((last7 - prior7) / prior7) * 100;
+  const categoryOptions = useMemo(() => {
+    const names = new Set((needsAttention?.items || []).map((i) => i.category || 'Uncategorized'));
+    return [{ value: 'all', label: 'All categories' }, ...[...names].sort().map((c) => ({ value: c, label: c }))];
+  }, [needsAttention]);
+
+  const filteredItems = useMemo(() => {
+    const items = needsAttention?.items || [];
+    return items.filter((i) =>
+      (categoryFilter === 'all' || (i.category || 'Uncategorized') === categoryFilter) &&
+      (statusFilter === 'all' || i.status === statusFilter)
+    );
+  }, [needsAttention, categoryFilter, statusFilter]);
+
+  function toggleStockFilter(status) {
+    setStatusFilter((current) => (current === status ? 'all' : status));
   }
 
-  const topCategories = [...categoryData]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 3)
-    .map((c) => ({ label: c.name, value: c.count }));
+  function handleExport() {
+    downloadCsv(
+      'needs-attention.csv',
+      filteredItems.map((i) => ({
+        name: i.name,
+        category: i.category || '',
+        dosage_form: i.dosage_form || '',
+        in_stock: i.total_remaining,
+        unit: i.unit || '',
+        expires: i.nearest_expiry ? i.nearest_expiry.slice(0, 10) : '',
+        status: STATUS_META[i.status]?.label || i.status,
+      })),
+      ['name', 'category', 'dosage_form', 'in_stock', 'unit', 'expires', 'status']
+    );
+  }
 
-  const expiryBreakdown = [
-    { label: 'Critical (≤3d)', value: expiring.filter((b) => b.days_left <= 3).length },
-    { label: 'Warning (≤14d)', value: expiring.filter((b) => b.days_left > 3 && b.days_left <= 14).length },
-  ];
-
-  const lowestStock = [...lowStock]
-    .sort((a, b) => a.total_remaining - b.total_remaining)
-    .slice(0, 3)
-    .map((m) => ({ label: m.name, value: m.total_remaining }));
-
-  const filteredExpiring = expiring.filter(b =>
-    b.medicine_name?.toLowerCase().includes(tableSearch.toLowerCase()) ||
-    b.batch_number?.toLowerCase().includes(tableSearch.toLowerCase())
-  );
-
-  const filteredLowStock = lowStock.filter(m => 
-    m.name?.toLowerCase().includes(tableSearch.toLowerCase())
-  );
+  const maxRevenue = Math.max(1, ...salesTrend.map((d) => d.revenue || 0));
+  const trendTotal = salesTrend.reduce((sum, d) => sum + (d.revenue || 0), 0);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const vsYesterday = todaySales?.vs_yesterday_pct;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
-      <WeatherAlertWidget prefersReducedMotion={prefersReducedMotion} />
-
+    <div className="flat-dashboard">
       <div className="page-header">
         <div>
           <h1>Dashboard</h1>
-          <p>{loading ? 'Loading overview…' : `Good ${getGreeting().split(' ')[1].toLowerCase()}, ${user?.full_name?.split(' ')[0] || 'there'}`}</p>
         </div>
       </div>
 
       {error && (
-        <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-          <div className="empty-state">
-            <strong>Unable to load dashboard</strong>
-            <p style={{ margin: '6px 0 0' }}>{error}</p>
-            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={() => window.location.reload()}>Retry</button>
-          </div>
+        <div className="flat-card" style={{ padding: 20 }}>
+          <strong>Unable to load dashboard</strong>
+          <p style={{ margin: '6px 0 0', color: 'var(--flat-text-muted)' }}>{error}</p>
+          <button type="button" className="flat-action-btn" style={{ marginTop: 10 }} onClick={() => window.location.reload()}>Retry</button>
         </div>
       )}
 
       {!error && (
         <>
-          <div className="kpi-grid">
-            <KPICard
-              icon={IconPill}
-              label="Medicines tracked"
-              value={summary?.total_medicines ?? 0}
-              color="green"
-              loading={loading}
-              trend={salesTrendPct}
-              breakdown={topCategories}
-            />
-            <KPICard
-              icon={IconWallet}
-              label="Inventory value"
-              value={summary ? Number(summary.inventory_value) : 0}
-              prefix="₱"
-              color="mint"
-              loading={loading}
-            />
-            <KPICard
-              icon={IconAlertTriangle}
-              label="Expiring in 30 days"
-              value={summary?.expiring_soon ?? 0}
-              color="pink"
-              loading={loading}
-              breakdown={expiryBreakdown}
-            />
-            <KPICard
-              icon={IconPackageOff}
-              label="Low stock items"
-              value={summary?.low_stock ?? 0}
-              color="lavender"
-              loading={loading}
-              breakdown={lowestStock}
-            />
+          {/* a. Filter row */}
+          <div className="flat-filter-row">
+            <FlatDropdown label="All branches" options={[{ value: 'all', label: 'All branches' }]} value={branchFilter} onChange={() => {}} />
+            <FlatDropdown label="All categories" options={categoryOptions} value={categoryFilter} onChange={setCategoryFilter} />
+            <FlatDropdown label="Today" options={DATE_FILTERS} value={dateFilter} onChange={setDateFilter} />
+            <div className="flat-filter-spacer" />
+            <button type="button" className="flat-export-btn" onClick={handleExport}>Export</button>
           </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 20, marginBottom: 20 }}>
-        <ChartCard title="Stock by Category">
-          {loading ? (
-            <Skeleton height={280} radius={16} />
-          ) : categoryData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={2}
-                  dataKey="count"
-                  labelLine={false}
-                  animationBegin={prefersReducedMotion ? 0 : 200}
-                  animationDuration={prefersReducedMotion ? 0 : 1000}
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={PASTEL_COLORS[index % PASTEL_COLORS.length]} />
-                  ))}
-                </Pie>
-                <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 24, fontWeight: 800, fill: 'var(--ink)' }}>
-                  {categoryData.reduce((a, b) => a + b.count, 0)}
-                </text>
-                <text x="50%" y="58%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 11, fontWeight: 600, fill: 'var(--steel)' }}>
-                  Total Medicines
-                </text>
-                <Tooltip 
-                  contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
-                  formatter={(value, name) => [value, name]}
-                  itemStyle={{ color: 'var(--ink)' }}
-                  labelStyle={{ color: 'var(--steel)' }}
-                  cursor="pointer"
-                />
-                <Legend 
-                  verticalAlign="bottom" 
-                  height={24}
-                  iconType="circle"
-                  formatter={(value, entry) => (
-                    <span style={{ fontSize: 12, color: 'var(--ink)', fontWeight: 500 }}>{value} ({entry.payload.count})</span>
-                  )}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--steel)' }}>
-              No category data available
+          {/* b. Summary strip */}
+          <div className="flat-card flat-summary-strip">
+            <div className="flat-summary-col">
+              <div className="flat-summary-label">Sales today</div>
+              <div className="flat-summary-value">{loading ? '—' : peso(todaySales?.total)}</div>
+              <div className={`flat-summary-sub ${vsYesterday > 0 ? 'positive' : vsYesterday < 0 ? 'negative' : ''}`}>
+                {loading ? '' : vsYesterday === null || vsYesterday === undefined
+                  ? 'no sales yesterday'
+                  : `${vsYesterday >= 0 ? '↑' : '↓'} ${Math.abs(vsYesterday).toFixed(0)}% vs yesterday`}
+              </div>
             </div>
-          )}
-        </ChartCard>
+            <div className="flat-summary-col">
+              <div className="flat-summary-label">Inventory value</div>
+              <div className="flat-summary-value">{loading ? '—' : peso(summary?.inventory_value)}</div>
+              <div className="flat-summary-sub">at cost</div>
+            </div>
+            <div className="flat-summary-col">
+              <div className="flat-summary-label">Retail value</div>
+              <div className="flat-summary-value">{loading ? '—' : peso(summary?.retail_value)}</div>
+              <div className="flat-summary-sub">if all sold</div>
+            </div>
+            <div className="flat-summary-col">
+              <div className="flat-summary-label">Margin</div>
+              <div className="flat-summary-value">{loading ? '—' : `${Number(summary?.margin_pct || 0).toFixed(1)}%`}</div>
+              <div className="flat-summary-sub">{loading ? '' : `${peso(summary?.margin_value)} profit`}</div>
+            </div>
+          </div>
 
-        <ChartCard title="Sales Trend (30 Days)" actions={salesTrendPct !== null && (
-          <span className={`kpi-trend ${salesTrendPct > 0 ? 'up' : salesTrendPct < 0 ? 'down' : 'flat'}`}>
-            {salesTrendPct > 0 ? '↑' : salesTrendPct < 0 ? '↓' : '→'} {Math.abs(salesTrendPct).toFixed(0)}%
-          </span>
-        )}>
-          {loading ? (
-            <Skeleton height={280} radius={16} />
-          ) : trend.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fontSize: 11, fill: 'var(--steel)' }} 
-                  tickFormatter={(d) => d.slice(5)} 
-                  axisLine={false} 
-                  tickLine={false} 
-                  minTickGap={30} 
-                />
-                <YAxis 
-                  tick={{ fontSize: 11, fill: 'var(--steel)' }} 
-                  axisLine={false} 
-                  tickLine={false} 
-                  width={30} 
-                />
-                <Tooltip 
-                  contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
-                  cursor={{ fill: 'var(--bg-subtle)' }}
-                />
-                <Bar
-                  dataKey="units_sold"
-                  fill="var(--primary)"
-                  radius={[4, 4, 0, 0]}
-                  animationBegin={prefersReducedMotion ? 0 : 200}
-                  animationDuration={prefersReducedMotion ? 0 : 1000}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--steel)' }}>
-              No sales data available
-            </div>
-          )}
-        </ChartCard>
-      </div>
-
-      <ChartCard 
-        title="Expiring Soon & Low Stock" 
-        actions={
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div className="filter-search" style={{ flex: '0 0 200px' }}>
-              <IconSearch size={14} className="filter-search-icon" />
-              <input 
-                placeholder="Search..." 
-                value={tableSearch}
-                onChange={(e) => setTableSearch(e.target.value)}
-              />
-            </div>
-            <button className="btn btn-secondary btn-icon" onClick={() => setTableSearch('')} title="Clear search">
-              <IconFilter size={14} />
+          {/* c. Stock status strip */}
+          <div className="flat-card flat-stock-strip">
+            <button type="button" className={`flat-stock-col${statusFilter === 'out_of_stock' ? ' active' : ''}`} onClick={() => toggleStockFilter('out_of_stock')}>
+              <span className="flat-stock-dot red" />
+              <span className="flat-stock-text">
+                <span className="flat-stock-number">{loading ? '—' : needsAttention?.counts.out_of_stock ?? 0}</span>
+                <span className="flat-stock-label">Out of stock</span>
+              </span>
             </button>
-          </div>
-        }
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 20 }}>
-          <div>
-            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--steel)' }}>EXPIRING SOON</h4>
-            {loading && [1, 2, 3].map((i) => <Skeleton key={i} height={40} style={{ marginBottom: 8 }} />)}
-            {!loading && filteredExpiring.length === 0 && <p style={{ color: 'var(--steel)', fontSize: 13 }}>Nothing expiring in the next 14 days.</p>}
-            {filteredExpiring.map((b) => (
-              <motion.div 
-                key={b.id} 
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{b.medicine_name}</div>
-                  <span className="stamp" style={{ marginTop: 4 }}>{b.batch_number}</span>
-                </div>
-                <span className={`status-pill ${b.days_left <= 7 ? 'critical' : 'warning'}`} style={{ fontSize: 11 }}>
-                  {b.days_left}d left
-                </span>
-              </motion.div>
-            ))}
+            <button type="button" className={`flat-stock-col${statusFilter === 'low_stock' ? ' active' : ''}`} onClick={() => toggleStockFilter('low_stock')}>
+              <span className="flat-stock-dot amber" />
+              <span className="flat-stock-text">
+                <span className="flat-stock-number">{loading ? '—' : needsAttention?.counts.low_stock ?? 0}</span>
+                <span className="flat-stock-label">Running low</span>
+              </span>
+            </button>
+            <button type="button" className={`flat-stock-col${statusFilter === 'expiring' ? ' active' : ''}`} onClick={() => toggleStockFilter('expiring')}>
+              <span className="flat-stock-dot orange" />
+              <span className="flat-stock-text">
+                <span className="flat-stock-number">{loading ? '—' : needsAttention?.counts.expiring ?? 0}</span>
+                <span className="flat-stock-label">Expiring in {horizonDays}d</span>
+              </span>
+            </button>
+            <div className="flat-stock-col" style={{ cursor: 'default' }}>
+              <span className="flat-stock-dot green" />
+              <span className="flat-stock-text">
+                <span className="flat-stock-number">{loading ? '—' : needsAttention?.counts.healthy ?? 0}</span>
+                <span className="flat-stock-label">Healthy</span>
+              </span>
+            </div>
           </div>
 
-          <div>
-            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--steel)' }}>LOW STOCK</h4>
-            {loading && [1, 2, 3].map((i) => <Skeleton key={i} height={40} style={{ marginBottom: 8 }} />)}
-            {!loading && filteredLowStock.length === 0 && <p style={{ color: 'var(--steel)', fontSize: 13 }}>All medicines are above their reorder level.</p>}
-            {filteredLowStock.map((m) => (
-              <motion.div 
-                key={m.id} 
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }}
-              >
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{m.name}</div>
-                <span className="stamp">{m.total_remaining} / {m.reorder_level}</span>
-              </motion.div>
-            ))}
+          {/* d. Needs attention table */}
+          <div className="flat-card">
+            <div className="flat-table-header">
+              <span className="flat-table-title">Needs attention</span>
+              <button type="button" className="flat-table-link" onClick={() => setStatusFilter('all')}>View all</button>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="flat-table">
+                <thead>
+                  <tr>
+                    <th>Medicine</th>
+                    <th className="flat-col-right">In stock</th>
+                    <th>Expires</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading && (
+                    <tr><td colSpan={5} className="flat-empty">Loading…</td></tr>
+                  )}
+                  {!loading && filteredItems.length === 0 && (
+                    <tr><td colSpan={5} className="flat-empty">Nothing needs attention.</td></tr>
+                  )}
+                  {!loading && filteredItems.map((item) => {
+                    const meta = STATUS_META[item.status];
+                    return (
+                      <tr key={item.id}>
+                        <td>
+                          <div className="flat-med-name">{item.name}</div>
+                          <div className="flat-med-meta">{[item.category, item.dosage_form].filter(Boolean).join(' · ')}</div>
+                        </td>
+                        <td className="flat-col-right">{item.total_remaining} {item.unit}</td>
+                        <td>{item.nearest_expiry ? item.nearest_expiry.slice(0, 10) : '—'}</td>
+                        <td><span className={`flat-status-label ${meta?.cls}`}>{meta?.label}</span></td>
+                        <td><button type="button" className="flat-action-btn">{meta?.action}</button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      </ChartCard>
+
+          {/* e. Bottom row */}
+          <div className="flat-bottom-row">
+            <div className="flat-card">
+              <div className="flat-card-header">
+                <h3>Sales, last 7 days</h3>
+                <span className="flat-card-total">{peso(trendTotal)} total</span>
+              </div>
+              <div className="flat-bar-chart">
+                {loading && <div className="flat-empty">Loading…</div>}
+                {!loading && salesTrend.map((d) => {
+                  const isToday = d.date === todayKey;
+                  const heightPct = maxRevenue > 0 ? Math.max(2, (d.revenue / maxRevenue) * 100) : 2;
+                  const dayLabel = new Date(`${d.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short' });
+                  return (
+                    <div key={d.date} className="flat-bar-col" title={peso(d.revenue)}>
+                      <div className={`flat-bar${isToday ? ' today' : ''}`} style={{ height: `${heightPct}%` }} />
+                      <span className="flat-bar-day">{dayLabel}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flat-card">
+              <div className="flat-card-header">
+                <h3>Top-selling medicines</h3>
+              </div>
+              <div className="flat-top-sellers">
+                {loading && <div className="flat-empty">Loading…</div>}
+                {!loading && topSellers.length === 0 && <div className="flat-empty">No sales recorded yet.</div>}
+                {!loading && topSellers.map((s, idx) => (
+                  <div key={s.id} className="flat-seller-row">
+                    <span className="flat-seller-rank">{idx + 1}</span>
+                    <span className="flat-seller-name">{s.name}</span>
+                    <span className="flat-seller-amount">{peso(s.revenue)}</span>
+                    <span className="flat-seller-qty">{s.quantity_sold} sold</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </>
       )}
-    </motion.div>
+    </div>
   );
 }

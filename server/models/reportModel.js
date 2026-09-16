@@ -4,7 +4,8 @@ async function getSummary() {
   const [[medicineCount]] = await pool.query('SELECT COUNT(*) AS total FROM medicines');
 
   const [[inventoryValue]] = await pool.query(
-    `SELECT COALESCE(SUM(quantity_remaining * COALESCE(cost_price, 0)), 0) AS total
+    `SELECT COALESCE(SUM(quantity_remaining * COALESCE(cost_price, 0)), 0) AS cost_total,
+            COALESCE(SUM(quantity_remaining * COALESCE(selling_price, 0)), 0) AS retail_total
      FROM batches WHERE status = 'active' AND expiry_date >= CURDATE()`
   );
 
@@ -27,13 +28,104 @@ async function getSummary() {
      ) AS low`
   );
 
+  const [[outOfStockCount]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM (
+       SELECT m.id, COALESCE(SUM(b.quantity_remaining), 0) AS remaining
+       FROM medicines m
+       LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active'
+       GROUP BY m.id
+       HAVING remaining <= 0
+     ) AS oos`
+  );
+
+  const costTotal = parseFloat(inventoryValue.cost_total);
+  const retailTotal = parseFloat(inventoryValue.retail_total);
+  const marginPct = retailTotal > 0 ? ((retailTotal - costTotal) / retailTotal) * 100 : 0;
+
   return {
     total_medicines: medicineCount.total,
-    inventory_value: parseFloat(inventoryValue.total),
+    inventory_value: costTotal,
+    retail_value: retailTotal,
+    margin_pct: marginPct,
+    margin_value: retailTotal - costTotal,
     expiring_soon: expiringSoon.total,
     expired: expiredCount.total,
     low_stock: lowStockCount.total,
+    out_of_stock: outOfStockCount.total,
   };
+}
+
+async function getTodaySales() {
+  const [[today]] = await pool.query(
+    `SELECT COALESCE(SUM(-st.quantity * COALESCE(b.selling_price, 0)), 0) AS total
+     FROM stock_transactions st
+     JOIN batches b ON st.batch_id = b.id
+     WHERE st.transaction_type = 'sale' AND DATE(st.created_at) = CURDATE()`
+  );
+  const [[yesterday]] = await pool.query(
+    `SELECT COALESCE(SUM(-st.quantity * COALESCE(b.selling_price, 0)), 0) AS total
+     FROM stock_transactions st
+     JOIN batches b ON st.batch_id = b.id
+     WHERE st.transaction_type = 'sale' AND DATE(st.created_at) = CURDATE() - INTERVAL 1 DAY`
+  );
+  const todayTotal = parseFloat(today.total);
+  const yesterdayTotal = parseFloat(yesterday.total);
+  const vsYesterdayPct = yesterdayTotal > 0 ? ((todayTotal - yesterdayTotal) / yesterdayTotal) * 100 : null;
+
+  return { total: todayTotal, vs_yesterday_pct: vsYesterdayPct };
+}
+
+async function getNeedsAttention(days = 14) {
+  const [rows] = await pool.query(
+    `SELECT m.id, m.name, m.category, m.dosage_form, m.unit, m.reorder_level,
+            COALESCE(SUM(b.quantity_remaining), 0) AS total_remaining,
+            MIN(CASE WHEN b.status = 'active' AND b.expiry_date BETWEEN CURDATE() AND (CURDATE() + INTERVAL ? DAY)
+                THEN b.expiry_date END) AS nearest_expiry
+     FROM medicines m
+     LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active'
+     GROUP BY m.id, m.name, m.category, m.dosage_form, m.unit, m.reorder_level`,
+    [days]
+  );
+
+  const counts = { out_of_stock: 0, low_stock: 0, expiring: 0, healthy: 0 };
+  const classified = rows.map((r) => {
+    const remaining = Number(r.total_remaining);
+    let status;
+    if (remaining <= 0) status = 'out_of_stock';
+    else if (r.nearest_expiry) status = 'expiring';
+    else if (remaining <= r.reorder_level) status = 'low_stock';
+    else status = 'healthy';
+    counts[status]++;
+    return { ...r, total_remaining: remaining, status };
+  });
+
+  const priority = { out_of_stock: 0, expiring: 1, low_stock: 2 };
+  const items = classified
+    .filter((r) => r.status !== 'healthy')
+    .sort((a, b) => {
+      if (priority[a.status] !== priority[b.status]) return priority[a.status] - priority[b.status];
+      if (a.status === 'expiring') return new Date(a.nearest_expiry) - new Date(b.nearest_expiry);
+      return a.total_remaining - b.total_remaining;
+    });
+
+  return { counts, items };
+}
+
+async function getTopSellers(limit = 5, days = 30) {
+  const [rows] = await pool.query(
+    `SELECT m.id, m.name,
+            COALESCE(SUM(-st.quantity), 0) AS quantity_sold,
+            COALESCE(SUM(-st.quantity * COALESCE(b.selling_price, 0)), 0) AS revenue
+     FROM stock_transactions st
+     JOIN batches b ON st.batch_id = b.id
+     JOIN medicines m ON b.medicine_id = m.id
+     WHERE st.transaction_type = 'sale' AND st.created_at >= (CURDATE() - INTERVAL ? DAY)
+     GROUP BY m.id, m.name
+     ORDER BY revenue DESC
+     LIMIT ?`,
+    [days, limit]
+  );
+  return rows.map((r) => ({ ...r, quantity_sold: Number(r.quantity_sold), revenue: parseFloat(r.revenue) }));
 }
 
 async function getExpiringSoon(days = 14) {
@@ -62,13 +154,18 @@ async function getLowStock() {
 
 async function getSalesTrend(days = 30) {
   const [rows] = await pool.query(
-    `SELECT DATE(st.created_at) AS day, SUM(-st.quantity) AS units_sold
+    `SELECT DATE(st.created_at) AS day,
+            SUM(-st.quantity) AS units_sold,
+            SUM(-st.quantity * COALESCE(b.selling_price, 0)) AS revenue
      FROM stock_transactions st
+     JOIN batches b ON st.batch_id = b.id
      WHERE st.transaction_type = 'sale' AND st.created_at >= (CURDATE() - INTERVAL ? DAY)
      GROUP BY DATE(st.created_at) ORDER BY day ASC`,
     [days]
   );
-  const map = Object.fromEntries(rows.map((r) => [r.day.toISOString().slice(0, 10), Number(r.units_sold)]));
+  const map = Object.fromEntries(
+    rows.map((r) => [r.day.toISOString().slice(0, 10), { units_sold: Number(r.units_sold), revenue: parseFloat(r.revenue) }])
+  );
   const series = [];
   const start = new Date();
   start.setDate(start.getDate() - (days - 1));
@@ -76,7 +173,8 @@ async function getSalesTrend(days = 30) {
     const d = new Date(start);
     d.setDate(d.getDate() + i);
     const key = d.toISOString().slice(0, 10);
-    series.push({ date: key, units_sold: map[key] || 0 });
+    const entry = map[key] || { units_sold: 0, revenue: 0 };
+    series.push({ date: key, units_sold: entry.units_sold, revenue: entry.revenue });
   }
   return series;
 }
@@ -167,4 +265,4 @@ async function getTransactionsReport(days = 30, type = null) {
   return rows;
 }
 
-module.exports = { getSummary, getExpiringSoon, getLowStock, getSalesTrend, getByCategory, getBatchesByStatus, getWastedMedicines, getTransactionsReport, getNotificationsReport };
+module.exports = { getSummary, getTodaySales, getNeedsAttention, getTopSellers, getExpiringSoon, getLowStock, getSalesTrend, getByCategory, getBatchesByStatus, getWastedMedicines, getTransactionsReport, getNotificationsReport };
