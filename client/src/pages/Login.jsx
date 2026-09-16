@@ -52,7 +52,7 @@ export default function Login() {
           {loading ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '8px 0' }}>
               <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-                <LoaderCircle size={28} color="var(--amber)" />
+                <LoaderCircle size={28} color="var(--primary)" />
               </motion.div>
               <div style={{ textAlign: 'center' }}>
                 <h2 style={{ margin: 0, fontSize: 18 }}>Signing you in…</h2>
@@ -62,10 +62,10 @@ export default function Login() {
           ) : (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                <div className="icon-badge" style={{ width: 42, height: 42, borderRadius: 12 }}><Pill size={20} color="var(--amber)" /></div>
+                <div className="icon-badge" style={{ width: 42, height: 42, borderRadius: 12 }}><Pill size={20} color="var(--primary)" /></div>
                 <div>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18 }}>
-                    MEDI<span style={{ color: 'var(--amber)' }}>HUB</span>
+                    MEDI<span style={{ color: 'var(--primary)' }}>HUB</span>
                   </div>
                   <div style={{ color: 'var(--steel)', fontSize: 12, marginTop: 2 }}>Pharmacy operations platform</div>
                 </div>

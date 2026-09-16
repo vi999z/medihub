@@ -116,7 +116,22 @@ export default function Dashboard() {
     if (prior7 > 0) salesTrendPct = ((last7 - prior7) / prior7) * 100;
   }
 
-  const filteredExpiring = expiring.filter(b => 
+  const topCategories = [...categoryData]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3)
+    .map((c) => ({ label: c.name, value: c.count }));
+
+  const expiryBreakdown = [
+    { label: 'Critical (≤3d)', value: expiring.filter((b) => b.days_left <= 3).length },
+    { label: 'Warning (≤14d)', value: expiring.filter((b) => b.days_left > 3 && b.days_left <= 14).length },
+  ];
+
+  const lowestStock = [...lowStock]
+    .sort((a, b) => a.total_remaining - b.total_remaining)
+    .slice(0, 3)
+    .map((m) => ({ label: m.name, value: m.total_remaining }));
+
+  const filteredExpiring = expiring.filter(b =>
     b.medicine_name?.toLowerCase().includes(tableSearch.toLowerCase()) ||
     b.batch_number?.toLowerCase().includes(tableSearch.toLowerCase())
   );
@@ -153,35 +168,38 @@ export default function Dashboard() {
       {!error && (
         <>
           <div className="kpi-grid">
-            <KPICard 
-              icon={IconPill} 
-              label="Medicines tracked" 
-              value={summary?.total_medicines ?? 0} 
+            <KPICard
+              icon={IconPill}
+              label="Medicines tracked"
+              value={summary?.total_medicines ?? 0}
               color="green"
               loading={loading}
               trend={salesTrendPct}
+              breakdown={topCategories}
             />
-            <KPICard 
-              icon={IconWallet} 
-              label="Inventory value" 
-              value={summary ? Number(summary.inventory_value) : 0} 
+            <KPICard
+              icon={IconWallet}
+              label="Inventory value"
+              value={summary ? Number(summary.inventory_value) : 0}
               prefix="₱"
               color="mint"
               loading={loading}
             />
-            <KPICard 
-              icon={IconAlertTriangle} 
-              label="Expiring in 30 days" 
-              value={summary?.expiring_soon ?? 0} 
+            <KPICard
+              icon={IconAlertTriangle}
+              label="Expiring in 30 days"
+              value={summary?.expiring_soon ?? 0}
               color="pink"
               loading={loading}
+              breakdown={expiryBreakdown}
             />
-            <KPICard 
-              icon={IconPackageOff} 
-              label="Low stock items" 
-              value={summary?.low_stock ?? 0} 
+            <KPICard
+              icon={IconPackageOff}
+              label="Low stock items"
+              value={summary?.low_stock ?? 0}
               color="lavender"
               loading={loading}
+              breakdown={lowestStock}
             />
           </div>
 
@@ -267,9 +285,9 @@ export default function Dashboard() {
                   contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
                   cursor={{ fill: 'var(--bg-subtle)' }}
                 />
-                <Bar 
-                  dataKey="units_sold" 
-                  fill="var(--amber)" 
+                <Bar
+                  dataKey="units_sold"
+                  fill="var(--primary)"
                   radius={[4, 4, 0, 0]}
                   animationBegin={prefersReducedMotion ? 0 : 200}
                   animationDuration={prefersReducedMotion ? 0 : 1000}

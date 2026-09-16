@@ -458,7 +458,7 @@ export default function Batches() {
                           cursor: 'pointer',
                           transition: 'all 0.2s ease'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--amber-tint)'; e.currentTarget.style.borderColor = 'var(--amber)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-subtle)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
                         title="Edit batch"
                       >
@@ -479,7 +479,7 @@ export default function Batches() {
                           cursor: 'pointer',
                           transition: 'all 0.2s ease'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--amber-tint)'; e.currentTarget.style.borderColor = 'var(--amber)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-subtle)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
                         title="Show QR code"
                       >

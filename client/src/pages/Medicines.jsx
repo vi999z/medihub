@@ -821,7 +821,7 @@ export default function Medicines() {
                       cursor: 'pointer',
                       transition: 'all 0.2s ease'
                     }}
-                    onMouseEnter={(e) => { e.target.style.background = 'var(--amber-tint)'; e.target.style.borderColor = 'var(--amber)'; }}
+                    onMouseEnter={(e) => { e.target.style.background = 'var(--bg-hover)'; e.target.style.borderColor = 'var(--primary)'; }}
                     onMouseLeave={(e) => { e.target.style.background = 'var(--bg-subtle)'; e.target.style.borderColor = 'var(--border)'; }}
                     title="Edit medicine"
                   >

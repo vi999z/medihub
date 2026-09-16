@@ -18,16 +18,15 @@ function StarterPromptButton({ prompt, onClick }) {
       onMouseLeave={() => setHovered(false)}
       style={{
         padding: '10px 12px',
-        border: `1px solid ${hovered ? 'var(--amber)' : 'var(--border)'}`,
+        border: `1px solid ${hovered ? 'var(--primary)' : 'var(--border)'}`,
         borderRadius: 10,
-        background: hovered ? 'var(--amber-tint)' : 'var(--surface)',
+        background: hovered ? 'var(--bg-hover)' : 'var(--surface)',
         cursor: 'pointer',
         fontSize: 12,
-        color: hovered ? 'var(--amber)' : 'var(--ink-soft)',
+        color: hovered ? 'var(--primary)' : 'var(--ink-soft)',
         fontWeight: hovered ? 600 : 500,
         textAlign: 'left',
         transition: 'all 0.18s ease',
-        transform: hovered ? 'translateY(-1px)' : 'none',
         lineHeight: 1.4
       }}
     >
@@ -661,7 +660,7 @@ export default function AiChatModern() {
             border: '1px solid var(--border)',
             borderRadius: 10,
             display: 'flex', flexDirection: 'column',
-            height: 'calc(100vh - 200px)', minHeight: 500,
+            height: 'calc(100vh - 168px)', minHeight: 500,
             overflow: 'hidden'
           }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -731,7 +730,7 @@ export default function AiChatModern() {
         {/* ── Chat Panel ── */}
         <div style={{ flex: 1, minWidth: 0 }}>
 
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', minHeight: 500 }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 168px)', minHeight: 500 }}>
         {/* Messages Area */}
         <div style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {messages.map((msg, index) => (

@@ -92,7 +92,7 @@ function TrainBanner({ trainMsg, trainStatus }) {
   const config = {
     success: { icon: CheckCircle2, color: 'var(--green)', bg: 'var(--green-tint)' },
     error: { icon: AlertCircle, color: 'var(--red)', bg: 'var(--red-tint)' },
-    info: { icon: Info, color: 'var(--amber)', bg: 'var(--amber-tint)' },
+    info: { icon: Info, color: 'var(--info)', bg: 'var(--color-info-bg)' },
   };
   const { icon: Icon, color, bg } = config[trainStatus] || config.info;
 
@@ -255,8 +255,8 @@ export default function AiInsights() {
 
       <TrainBanner trainMsg={trainMsg} trainStatus={trainStatus} />
 
-      <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(135deg, #fefcf8 0%, #f8ebdc 100%)' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--amber)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>How these insights work</div>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>How these insights work</div>
         <p style={{ margin: '6px 0 0', color: 'var(--ink-soft)', fontSize: 13 }}>
           These recommendations are based on real stock movement, expiry dates, and recent transaction patterns. They are meant to highlight what needs attention now, why it matters, and what action to take next.
         </p>
@@ -270,7 +270,7 @@ export default function AiInsights() {
             className="btn"
             style={{
               background: 'none', borderRadius: 0, padding: '10px 4px', marginRight: 20,
-              borderBottom: tab === t.key ? '2px solid var(--amber)' : '2px solid transparent',
+              borderBottom: tab === t.key ? '2px solid var(--primary)' : '2px solid transparent',
               color: tab === t.key ? 'var(--ink)' : 'var(--steel)', fontWeight: 600
             }}
           >

@@ -172,7 +172,7 @@ export default function Scanner() {
                 transform: 'translate(-50%, -50%)',
                 width: '70%',
                 height: '40%',
-                border: '2px solid var(--amber)',
+                border: '2px solid var(--primary)',
                 borderRadius: 8,
                 boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)'
               }} />

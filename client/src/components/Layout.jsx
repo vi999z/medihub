@@ -3,36 +3,37 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useMemo } from 'react';
 import {
-  IconLayoutDashboard, IconPill, IconReceipt, IconBellRinging,
+  IconLayoutDashboard, IconPill, IconReceipt, IconBellRinging, IconBox,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
-  IconTools, IconQrcode, IconMessage, IconCloudRain, IconSun, IconMoon
+  IconTools, IconQrcode, IconMessage, IconCloudRain, IconSun, IconMoon, IconHelpCircle
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import api from '../api/axios';
+import AnimatedModal from './AnimatedModal';
 
-const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: IconLayoutDashboard, section: 'MAIN MENU' },
-  { to: '/medicines', label: 'Medicines', icon: IconPill, section: 'MAIN MENU' },
-  { to: '/transactions', label: 'Transactions', icon: IconReceipt, section: 'MAIN MENU' },
-  { to: '/notifications', label: 'Alerts', icon: IconBellRinging, section: 'MAIN MENU' },
-  { to: '/scanner', label: 'Scanner', icon: IconQrcode, section: 'MAIN MENU' },
-  { to: '/ai-chat', label: 'AI Chat', icon: IconMessage, section: 'MAIN MENU' },
-  { to: '/ai-insights', label: 'AI Insights', icon: IconBrain, section: 'OPERATIONS' },
-  { to: '/weather-recommendations', label: 'Weather Stock', icon: IconCloudRain, section: 'OPERATIONS' },
-  { to: '/suppliers', label: 'Suppliers', icon: IconTruck, section: 'OPERATIONS' },
+const NAV_GROUP_PRIMARY = [
+  { to: '/dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
+  { to: '/medicines', label: 'Medicines', icon: IconPill },
+  { to: '/batches', label: 'Batches', icon: IconBox },
+  { to: '/suppliers', label: 'Suppliers', icon: IconTruck },
+  { to: '/transactions', label: 'Transactions', icon: IconReceipt },
+  { to: '/scanner', label: 'Scanner', icon: IconQrcode },
 ];
-const ADMIN_ITEMS = [
-  { to: '/users', label: 'Users', icon: IconUsers, section: 'ADMIN' },
-  { to: '/audit-log', label: 'Audit Log', icon: IconFileText, section: 'ADMIN' },
-  { to: '/maintenance', label: 'Maintenance', icon: IconTools, section: 'ADMIN' },
+const NAV_GROUP_SECONDARY = [
+  { to: '/ai-chat', label: 'AI Chat', icon: IconMessage },
+  { to: '/ai-insights', label: 'AI Insights', icon: IconBrain },
+  { to: '/weather-recommendations', label: 'Weather', icon: IconCloudRain },
+  { to: '/notifications', label: 'Alerts', icon: IconBellRinging },
+  { to: '/audit-log', label: 'Audit Log', icon: IconFileText, adminOnly: true },
+  { to: '/users', label: 'Users', icon: IconUsers, adminOnly: true },
+  { to: '/maintenance', label: 'Maintenance', icon: IconTools, adminOnly: true },
 ];
-const ALL_ITEMS = [...NAV_ITEMS, ...ADMIN_ITEMS];
+const ALL_ITEMS = [...NAV_GROUP_PRIMARY, ...NAV_GROUP_SECONDARY];
 
 function NavItem({ to, label, icon: Icon, isActive, showLabel }) {
   return (
     <NavLink to={to} className={`nav-link-wrapper${isActive ? ' active' : ''}`}>
-      {isActive && <motion.div layoutId="nav-pill" className="nav-pill-bg" transition={{ type: 'spring', stiffness: 400, damping: 30 }} />}
       <span className="nav-link-content">
         <span className="nav-icon-pill"><Icon size={14} stroke={1.8} /></span>
         {showLabel && label}
@@ -54,8 +55,10 @@ function TopBar({ pageTitle }) {
   const [unread, setUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const menuRef = useRef(null);
   const searchRef = useRef(null);
+  const today = useMemo(() => new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }), []);
 
   useEffect(() => {
     let mounted = true;
@@ -114,19 +117,10 @@ function TopBar({ pageTitle }) {
 
   return (
     <header className="topbar">
-      {/* Animated breadcrumb — slides in when page title changes */}
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={pageTitle}
-          className="breadcrumb"
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -4 }}
-          transition={{ duration: 0.18, ease: 'easeOut' }}
-        >
-          {pageTitle}
-        </motion.div>
-      </AnimatePresence>
+      <div className="breadcrumb-group">
+        <div className="breadcrumb">{pageTitle}</div>
+        <div className="topbar-date">{today}</div>
+      </div>
 
       <div className="topbar-actions" style={{ flex: 1, justifyContent: 'flex-end' }}>
         <form className="search-bar" ref={searchRef} onSubmit={handleSearchSubmit} role="search">
@@ -154,6 +148,10 @@ function TopBar({ pageTitle }) {
         <button className="icon-btn" onClick={() => navigate('/notifications')} aria-label="Notifications">
           <IconBellRinging size={18} stroke={1.8} />
           {unread > 0 && <span className="dot-badge" />}
+        </button>
+
+        <button className="icon-btn" onClick={() => setHelpOpen(true)} aria-label="Help">
+          <IconHelpCircle size={18} stroke={1.8} />
         </button>
 
         <button className="icon-btn" onClick={toggle} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
@@ -197,6 +195,16 @@ function TopBar({ pageTitle }) {
           </AnimatePresence>
         </div>
       </div>
+
+      <AnimatedModal isOpen={helpOpen} onClose={() => setHelpOpen(false)}>
+        <h3 style={{ margin: '0 0 12px' }}>Help &amp; support</h3>
+        <p style={{ color: 'var(--steel)', fontSize: 13.5, lineHeight: 1.6, margin: '0 0 16px' }}>
+          MediHub helps you track medicine inventory, batches, suppliers, and expiry risk.
+          Use the sidebar to jump between sections, or the search bar above to find a
+          specific medicine. For anything else, reach out to your system administrator.
+        </p>
+        <button className="btn btn-primary" onClick={() => setHelpOpen(false)}>Got it</button>
+      </AnimatedModal>
     </header>
   );
 }
@@ -206,7 +214,7 @@ export default function Layout({ children }) {
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
   const pageTitle = useMemo(() => ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub', [location.pathname]);
-  const visibleItems = user?.role === 'admin' ? ALL_ITEMS : NAV_ITEMS;
+  const secondaryItems = NAV_GROUP_SECONDARY.filter((item) => !item.adminOnly || user?.role === 'admin');
 
   useEffect(() => {
     const title = pageTitle === 'MediHub' ? 'MediHub' : `${pageTitle} · MediHub`;
@@ -218,24 +226,22 @@ export default function Layout({ children }) {
       <aside className="sidebar">
         <div className="sidebar-logo"><span className="dot" />MEDI<span>HUB</span></div>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {Object.entries(
-            visibleItems.reduce((acc, item) => {
-              if (!acc[item.section]) acc[item.section] = [];
-              acc[item.section].push(item);
-              return acc;
-            }, {})
-          ).map(([section, items]) => (
-            <div key={section}>
-              <div className="nav-section-label">{section}</div>
-              {items.map((item) => (
-                <NavItem 
-                  key={item.to} 
-                  {...item} 
-                  isActive={location.pathname === item.to}
-                  showLabel={true}
-                />
-              ))}
-            </div>
+          {NAV_GROUP_PRIMARY.map((item) => (
+            <NavItem
+              key={item.to}
+              {...item}
+              isActive={location.pathname === item.to}
+              showLabel={true}
+            />
+          ))}
+          <div className="nav-divider" />
+          {secondaryItems.map((item) => (
+            <NavItem
+              key={item.to}
+              {...item}
+              isActive={location.pathname === item.to}
+              showLabel={true}
+            />
           ))}
         </nav>
       </aside>
