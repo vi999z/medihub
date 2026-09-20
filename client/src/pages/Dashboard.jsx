@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { downloadCsv } from '../utils/csv';
 
@@ -14,9 +15,20 @@ const DATE_FILTERS = [
 ];
 
 const STATUS_META = {
-  out_of_stock: { label: 'Out of stock', cls: 'red', action: 'Reorder' },
-  low_stock: { label: 'Running low', cls: 'amber', action: 'Reorder' },
-  expiring: { label: 'Expiring soon', cls: 'orange', action: 'Review' },
+  out_of_stock: { label: 'Out of stock', cls: 'red' },
+  low_stock: { label: 'Running low', cls: 'amber' },
+  expiring: { label: 'Expiring soon', cls: 'orange' },
+  healthy: { label: 'Healthy', cls: 'green' },
+};
+
+// Table title mirrors whichever stock bucket is currently selected, so the
+// heading never disagrees with the button the user just clicked.
+const TABLE_TITLE_BY_FILTER = {
+  all: 'Needs attention',
+  out_of_stock: 'Out of stock',
+  low_stock: 'Running low',
+  expiring: 'Expiring soon',
+  healthy: 'Healthy stock',
 };
 
 function FlatDropdown({ label, options, value, onChange }) {
@@ -55,6 +67,7 @@ function FlatDropdown({ label, options, value, onChange }) {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [todaySales, setTodaySales] = useState(null);
   const [summary, setSummary] = useState(null);
   const [needsAttention, setNeedsAttention] = useState(null);
@@ -102,9 +115,8 @@ export default function Dashboard() {
   const filteredItems = useMemo(() => {
     const items = needsAttention?.items || [];
     return items.filter((i) =>
-      i.status !== 'healthy' &&
-      (categoryFilter === 'all' || (i.category || 'Uncategorized') === categoryFilter) &&
-      (statusFilter === 'all' || i.status === statusFilter)
+      (statusFilter === 'all' ? i.status !== 'healthy' : i.status === statusFilter) &&
+      (categoryFilter === 'all' || (i.category || 'Uncategorized') === categoryFilter)
     );
   }, [needsAttention, categoryFilter, statusFilter]);
 
@@ -113,8 +125,9 @@ export default function Dashboard() {
   }
 
   function handleExport() {
+    const filename = statusFilter === 'all' ? 'needs-attention.csv' : `${statusFilter}.csv`;
     downloadCsv(
-      'needs-attention.csv',
+      filename,
       filteredItems.map((i) => ({
         name: i.name,
         category: i.category || '',
@@ -211,20 +224,19 @@ export default function Dashboard() {
                 <span className="flat-stock-label">Expiring in {horizonDays}d</span>
               </span>
             </button>
-            <div className="flat-stock-col" style={{ cursor: 'default' }}>
+            <button type="button" className={`flat-stock-col${statusFilter === 'healthy' ? ' active' : ''}`} onClick={() => toggleStockFilter('healthy')}>
               <span className="flat-stock-dot green" />
               <span className="flat-stock-text">
                 <span className="flat-stock-number">{loading ? '—' : needsAttention?.counts.healthy ?? 0}</span>
                 <span className="flat-stock-label">Healthy</span>
               </span>
-            </div>
+            </button>
           </div>
 
           {/* d. Needs attention table */}
           <div className="flat-card">
             <div className="flat-table-header">
-              <span className="flat-table-title">Needs attention</span>
-              <button type="button" className="flat-table-link" onClick={() => setStatusFilter('all')}>View all</button>
+              <span className="flat-table-title">{TABLE_TITLE_BY_FILTER[statusFilter] || 'Needs attention'}</span>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table className="flat-table">
@@ -234,15 +246,14 @@ export default function Dashboard() {
                     <th className="flat-col-right">In stock</th>
                     <th>Expires</th>
                     <th>Status</th>
-                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && (
-                    <tr><td colSpan={5} className="flat-empty">Loading…</td></tr>
+                    <tr><td colSpan={4} className="flat-empty">Loading…</td></tr>
                   )}
                   {!loading && filteredItems.length === 0 && (
-                    <tr><td colSpan={5} className="flat-empty">Nothing needs attention.</td></tr>
+                    <tr><td colSpan={4} className="flat-empty">Nothing needs attention.</td></tr>
                   )}
                   {!loading && filteredItems.map((item) => {
                     const meta = STATUS_META[item.status];
@@ -255,7 +266,6 @@ export default function Dashboard() {
                         <td className="flat-col-right">{item.total_remaining} {item.unit}</td>
                         <td>{item.nearest_expiry ? item.nearest_expiry.slice(0, 10) : '—'}</td>
                         <td><span className={`flat-status-label ${meta?.cls}`}>{meta?.label}</span></td>
-                        <td><button type="button" className="flat-action-btn">{meta?.action}</button></td>
                       </tr>
                     );
                   })}
@@ -278,10 +288,16 @@ export default function Dashboard() {
                   const heightPct = maxRevenue > 0 ? Math.max(2, (d.revenue / maxRevenue) * 100) : 2;
                   const dayLabel = new Date(`${d.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short' });
                   return (
-                    <div key={d.date} className="flat-bar-col" title={peso(d.revenue)}>
+                    <button
+                      type="button"
+                      key={d.date}
+                      className="flat-bar-col"
+                      title={`${peso(d.revenue)} — view transactions`}
+                      onClick={() => navigate(`/transactions?date=${d.date}`)}
+                    >
                       <div className={`flat-bar${isToday ? ' today' : ''}`} style={{ height: `${heightPct}%` }} />
                       <span className="flat-bar-day">{dayLabel}</span>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -295,12 +311,17 @@ export default function Dashboard() {
                 {loading && <div className="flat-empty">Loading…</div>}
                 {!loading && topSellers.length === 0 && <div className="flat-empty">No sales recorded yet.</div>}
                 {!loading && topSellers.map((s, idx) => (
-                  <div key={s.id} className="flat-seller-row">
+                  <button
+                    type="button"
+                    key={s.id}
+                    className="flat-seller-row"
+                    onClick={() => navigate(`/medicines?q=${encodeURIComponent(s.name)}`)}
+                  >
                     <span className="flat-seller-rank">{idx + 1}</span>
                     <span className="flat-seller-name">{s.name}</span>
                     <span className="flat-seller-amount">{peso(s.revenue)}</span>
                     <span className="flat-seller-qty">{s.quantity_sold} sold</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

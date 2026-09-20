@@ -1076,12 +1076,15 @@ input, select, textarea { font-family: var(--font-body); }
 /* Stock status strip: 4 columns, vertical dividers */
 .flat-stock-strip { display: grid; grid-template-columns: repeat(4, 1fr); }
 .flat-stock-col {
-  padding: 16px 20px; border-left: 1px solid var(--flat-border);
+  border: none; border-left: 1px solid var(--flat-border);
+  padding: 16px 20px;
   display: flex; align-items: center; gap: 10px; background: none;
-  cursor: pointer; text-align: left; font-family: inherit; width: 100%;
+  cursor: pointer; text-align: left; font-family: inherit; font-size: inherit; width: 100%;
+  outline: none;
 }
 .flat-stock-col:first-child { border-left: none; }
 .flat-stock-col.active { background: var(--flat-bg); }
+.flat-stock-col:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: -2px; }
 .flat-stock-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .flat-stock-dot.red { background: var(--flat-red); }
 .flat-stock-dot.amber { background: var(--flat-amber); }
@@ -1157,6 +1160,30 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-table tbody tr[data-clickable] { cursor: pointer; }
 .flat-table tbody tr[data-clickable]:hover td { background: var(--flat-bg); }
 
+/* Medicine catalog card grid — same flat tokens as the table it replaced */
+.flat-medicine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.flat-medicine-card {
+  padding: 18px; display: flex; flex-direction: column; gap: 8px; cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.flat-medicine-card:hover { border-color: var(--flat-accent); }
+.flat-medicine-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.flat-medicine-icon {
+  width: 48px; height: 48px; border-radius: 10px; background: var(--flat-bg); border: 1px solid var(--flat-border);
+  display: flex; align-items: center; justify-content: center; color: var(--flat-accent); flex-shrink: 0;
+}
+.flat-tag {
+  display: inline-flex; align-self: flex-start; font-size: 12px; color: var(--flat-text-muted);
+  background: var(--flat-bg); border: 1px solid var(--flat-border); border-radius: 999px; padding: 3px 10px; margin: 2px 0 4px;
+}
+.flat-medicine-row {
+  display: flex; align-items: center; justify-content: space-between; font-size: 14px;
+  padding: 6px 0; border-top: 1px solid var(--flat-border);
+}
+.flat-medicine-row span { color: var(--flat-text-muted); }
+.flat-medicine-row strong { font-weight: 600; }
+.flat-medicine-card__edit { margin-top: 8px; width: 100%; justify-content: center; }
+
 /* Bottom row: 7-day sales chart + top sellers */
 .flat-bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .flat-card-header {
@@ -1167,16 +1194,28 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-card-header .flat-card-total { font-size: 13px; color: var(--flat-text-muted); }
 
 .flat-bar-chart { display: flex; align-items: flex-end; gap: 12px; height: 140px; padding: 16px 20px 8px; }
-.flat-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
-.flat-bar { width: 100%; max-width: 32px; background: #D0D0D0; border-radius: 3px 3px 0 0; min-height: 2px; }
+.flat-bar-col {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end;
+  border: none; background: none; padding: 0; cursor: pointer; font-family: inherit; outline: none;
+}
+.flat-bar-col:hover .flat-bar { background: var(--flat-accent); opacity: 0.6; }
+.flat-bar-col:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: 2px; }
+.flat-bar { width: 100%; max-width: 32px; background: #D0D0D0; border-radius: 3px 3px 0 0; min-height: 2px; transition: background 0.12s ease, opacity 0.12s ease; }
 .flat-bar.today { background: var(--flat-accent); }
+.flat-bar-col:hover .flat-bar.today { opacity: 1; }
 .flat-bar-day { font-size: 12px; color: var(--flat-text-muted); }
 
 .flat-top-sellers { padding: 8px 20px 16px; }
-.flat-seller-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--flat-border); }
+.flat-seller-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  border: none; border-bottom: 1px solid var(--flat-border); padding: 8px 0;
+  background: none; cursor: pointer; text-align: left; font-family: inherit; font-size: inherit; outline: none;
+}
 .flat-seller-row:last-child { border-bottom: none; }
+.flat-seller-row:hover { background: var(--flat-bg); }
+.flat-seller-row:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: -2px; }
 .flat-seller-rank { font-size: 13px; color: var(--flat-text-muted); width: 16px; }
-.flat-seller-name { flex: 1; font-size: 14px; }
+.flat-seller-name { flex: 1; font-size: 14px; text-align: left; }
 .flat-seller-amount { font-size: 14px; font-weight: 500; }
 .flat-seller-qty { font-size: 13px; color: var(--flat-text-muted); width: 70px; text-align: right; }
 

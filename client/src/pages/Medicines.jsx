@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus, Pencil, Trash2, RefreshCw, Download, Search, X,
-  Upload, QrCode, ChevronDown
+  Upload, QrCode, ChevronDown, Pill, PillBottle, Droplet, Syringe
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
@@ -121,6 +121,16 @@ function stockStateOf(medicine) {
 // Maps each stock bucket to the flat design system's status colors
 // (server/models/reportModel.js:getNeedsAttention buckets, same as Dashboard).
 const STOCK_FLAT_CLS = { out: 'red', low: 'amber', expiring: 'orange', healthy: 'green' };
+
+// No photo field exists on medicines — a generic icon by dosage form gives
+// each card a quick visual cue instead of a repeated placeholder.
+function iconForDosageForm(dosageForm) {
+  const form = String(dosageForm || '').toLowerCase();
+  if (form.includes('syrup') || form.includes('liquid') || form.includes('suspension')) return Droplet;
+  if (form.includes('injection')) return Syringe;
+  if (form.includes('tablet') || form.includes('capsule')) return Pill;
+  return PillBottle;
+}
 
 function expiryLabel(medicine) {
   if (!medicine.nearest_expiry) return null;
@@ -708,61 +718,64 @@ export default function Medicines() {
             <button type="button" className="flat-table-link" onClick={clearFilters}>Clear filters</button>
           )}
         </div>
-        {error ? (
-          <div className="flat-empty">
-            Unable to load medicines — {error}
-            <div style={{ marginTop: 10 }}>
-              <button type="button" className="flat-action-btn" onClick={fetchMedicines}>Retry</button>
+        <div style={{ padding: 16 }}>
+          {error && (
+            <div className="flat-empty">
+              Unable to load medicines — {error}
+              <div style={{ marginTop: 10 }}>
+                <button type="button" className="flat-action-btn" onClick={fetchMedicines}>Retry</button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="flat-table">
-              <thead>
-                <tr>
-                  <th>Medicine</th>
-                  <th>Category</th>
-                  <th className="flat-col-right">Stock</th>
-                  <th>Expires</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && (
-                  <tr><td colSpan={6} className="flat-empty">Loading…</td></tr>
-                )}
-                {!loading && visibleMedicines.length === 0 && (
-                  <tr><td colSpan={6} className="flat-empty">No medicines match the current filters.</td></tr>
-                )}
-                {!loading && visibleMedicines.map((m) => {
-                  const state = stockStateOf(m);
-                  const expiry = expiryLabel(m);
-                  return (
-                    <tr key={m.id} data-clickable onClick={() => openDetail(m)}>
-                      <td>
-                        <div className="flat-med-name">{m.name}</div>
-                        <div className="flat-med-meta">
-                          {[m.generic_name, m.dosage_form].filter(Boolean).join(' · ') || '—'}
-                          {m.requires_prescription ? ' · Rx' : ''}
-                        </div>
-                      </td>
-                      <td>{categoryOf(m)}</td>
-                      <td className="flat-col-right">{m.total_stock ?? 0} {m.unit}</td>
-                      <td>{expiry ? expiry.label : '—'}</td>
-                      <td><span className={`flat-status-label ${STOCK_FLAT_CLS[state.key]}`}>{state.label}</span></td>
-                      <td>
-                        <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); openEdit(m); }}>
-                          <Pencil size={13} /> Edit
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+          )}
+          {!error && !loading && visibleMedicines.length === 0 && (
+            <div className="flat-empty">No medicines match the current filters.</div>
+          )}
+          {!error && loading && (
+            <div className="flat-medicine-grid">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="flat-card flat-medicine-card">
+                  <div className="flat-medicine-icon skeleton" style={{ border: 'none' }} />
+                  <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
+                  <div className="skeleton" style={{ height: 12, width: '50%' }} />
+                </div>
+              ))}
+            </div>
+          )}
+          {!error && !loading && visibleMedicines.length > 0 && (
+            <div className="flat-medicine-grid">
+              {visibleMedicines.map((m) => {
+                const state = stockStateOf(m);
+                const expiry = expiryLabel(m);
+                const Icon = iconForDosageForm(m.dosage_form);
+                return (
+                  <div key={m.id} className="flat-card flat-medicine-card" onClick={() => openDetail(m)}>
+                    <div className="flat-medicine-card__top">
+                      <div className="flat-medicine-icon"><Icon size={22} /></div>
+                      <span className={`flat-status-label ${STOCK_FLAT_CLS[state.key]}`}>{state.label}</span>
+                    </div>
+                    <div className="flat-med-name">{m.name}</div>
+                    <div className="flat-med-meta">
+                      {m.generic_name || '—'}
+                      {m.requires_prescription ? ' · Rx' : ''}
+                    </div>
+                    <span className="flat-tag">{categoryOf(m)}</span>
+                    <div className="flat-medicine-row">
+                      <span>Stock</span>
+                      <strong>{m.total_stock ?? 0} {m.unit}</strong>
+                    </div>
+                    <div className="flat-medicine-row">
+                      <span>Expires</span>
+                      <strong>{expiry ? expiry.label : '—'}</strong>
+                    </div>
+                    <button type="button" className="flat-action-btn flat-medicine-card__edit" onClick={(e) => { e.stopPropagation(); openEdit(m); }}>
+                      <Pencil size={13} /> Edit
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Medicine detail modal with integrated batches */}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Search, X, Download, ChevronDown, ArrowDownLeft, ArrowUpRight, RefreshCw, Trash2 } from 'lucide-react';
+import { Plus, Search, X, Download, ChevronDown, ArrowDownLeft, ArrowUpRight, RefreshCw, Trash2, Calendar } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import Skeleton from '../components/Skeleton';
@@ -76,6 +77,8 @@ export default function Transactions() {
   const [formError, setFormError] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [dateFilter, setDateFilter] = useState(searchParams.get('date') || '');
 
   async function fetchAll() {
     try {
@@ -92,21 +95,33 @@ export default function Transactions() {
 
   useEffect(() => { fetchAll(); }, []);
 
+  // Deep-link support from the Dashboard's sales chart: clicking a day bar
+  // lands here with ?date=YYYY-MM-DD already applied, then the param is
+  // cleared so it doesn't re-trigger on subsequent navigations.
+  useEffect(() => {
+    if (searchParams.get('date')) {
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const visibleTransactions = useMemo(() => {
     const term = search.trim().toLowerCase();
     return transactions.filter((t) => {
       if (typeFilter !== 'all' && t.transaction_type !== typeFilter) return false;
+      if (dateFilter && new Date(t.created_at).toISOString().slice(0, 10) !== dateFilter) return false;
       if (!term) return true;
       return [t.medicine_name, t.batch_number, t.user_name, t.reason]
         .some((value) => String(value || '').toLowerCase().includes(term));
     });
-  }, [transactions, search, typeFilter]);
+  }, [transactions, search, typeFilter, dateFilter]);
 
-  const filtersActive = Boolean(search) || typeFilter !== 'all';
+  const filtersActive = Boolean(search) || typeFilter !== 'all' || Boolean(dateFilter);
 
   function clearFilters() {
     setSearch('');
     setTypeFilter('all');
+    setDateFilter('');
   }
 
   async function handleSubmit(e) {
@@ -221,6 +236,11 @@ export default function Transactions() {
               {TYPE_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
+          {dateFilter && (
+            <button type="button" className="filter-toggle" onClick={() => setDateFilter('')} title="Clear date filter">
+              <Calendar size={14} /> {new Date(`${dateFilter}T00:00:00`).toLocaleDateString()} <X size={13} />
+            </button>
+          )}
           {filtersActive && (
             <button type="button" className="btn btn-secondary" onClick={clearFilters}>
               <X size={15} /> Clear filters
