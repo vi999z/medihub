@@ -102,6 +102,7 @@ export default function Dashboard() {
   const filteredItems = useMemo(() => {
     const items = needsAttention?.items || [];
     return items.filter((i) =>
+      i.status !== 'healthy' &&
       (categoryFilter === 'all' || (i.category || 'Uncategorized') === categoryFilter) &&
       (statusFilter === 'all' || i.status === statusFilter)
     );

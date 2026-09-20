@@ -104,12 +104,20 @@ function categoryOf(medicine) {
   return medicine.category || 'Other';
 }
 
+// Mutually-exclusive classification shared with the Dashboard's "Needs
+// attention" table (server/models/reportModel.js:getNeedsAttention) — a
+// medicine's `status` field decides its bucket by priority: out of stock
+// beats expiring beats low stock beats healthy. Keeping both pages on the
+// same source avoids the counts disagreeing for the same underlying data.
+const STOCK_STATE_BY_STATUS = {
+  out_of_stock: { key: 'out', cls: 'critical', label: 'Out of stock', Icon: CircleAlert },
+  low_stock: { key: 'low', cls: 'warning', label: 'Running low', Icon: AlertTriangle },
+  expiring: { key: 'expiring', cls: 'warning', label: 'Expiring soon', Icon: AlertTriangle },
+  healthy: { key: 'healthy', cls: 'safe', label: 'In stock', Icon: Check },
+};
+
 function stockStateOf(medicine) {
-  const stock = Number(medicine.total_stock) || 0;
-  const reorder = Number(medicine.reorder_level) || 0;
-  if (stock <= 0) return { key: 'out', cls: 'critical', label: 'Out of stock', Icon: CircleAlert };
-  if (stock <= reorder) return { key: 'low', cls: 'warning', label: 'Running low', Icon: AlertTriangle };
-  return { key: 'healthy', cls: 'safe', label: 'In stock', Icon: Check };
+  return STOCK_STATE_BY_STATUS[medicine.status] || STOCK_STATE_BY_STATUS.healthy;
 }
 
 function expiryLabel(medicine) {
@@ -137,6 +145,7 @@ export default function Medicines() {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [medicines, setMedicines] = useState([]);
+  const [medicineStatusById, setMedicineStatusById] = useState({});
   const [batches, setBatches] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -181,6 +190,7 @@ export default function Medicines() {
 
   function handleCsvImportComplete(result) {
     api.invalidateCache('/medicines');
+    api.invalidateCache('/reports/needs-attention?days=14');
     api.invalidateCache('/batches');
     api.invalidateCache('/notifications');
     api.invalidateCache('/notifications?unread=true');
@@ -194,8 +204,14 @@ export default function Medicines() {
 
   async function fetchMedicines() {
     try {
-      const res = await api.cachedGet('/medicines');
-      setMedicines(res.data);
+      const [medRes, statusRes] = await Promise.all([
+        api.cachedGet('/medicines'),
+        api.cachedGet('/reports/needs-attention?days=14'),
+      ]);
+      setMedicines(medRes.data);
+      const statusMap = {};
+      (statusRes.data?.items || []).forEach((item) => { statusMap[item.id] = item.status; });
+      setMedicineStatusById(statusMap);
       setError('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load medicines');
@@ -232,6 +248,7 @@ export default function Medicines() {
       });
       api.invalidateCache('/batches');
       api.invalidateCache('/medicines');
+    api.invalidateCache('/reports/needs-attention?days=14');
       api.invalidateCache('/notifications');
       api.invalidateCache('/notifications?unread=true');
       await Promise.all([fetchBatches(), fetchMedicines()]);
@@ -250,6 +267,7 @@ export default function Medicines() {
       api.invalidateCache('/transactions/recent');
       api.invalidateCache('/batches');
       api.invalidateCache('/medicines');
+    api.invalidateCache('/reports/needs-attention?days=14');
       api.invalidateCache('/notifications');
       api.invalidateCache('/notifications?unread=true');
       await Promise.all([fetchBatches(), fetchMedicines()]);
@@ -296,20 +314,25 @@ export default function Medicines() {
     return acc;
   }, {}), [medicines]);
 
-  const summary = useMemo(() => medicines.reduce((acc, medicine) => {
-    const state = stockStateOf(medicine).key;
-    acc[state] += 1;
-    if (Number(medicine.expiring_batches) > 0) acc.expiring += 1;
+  // Overlay the authoritative status (out_of_stock/low_stock/expiring/healthy)
+  // from the shared needs-attention classification onto the full medicine
+  // records, so counts and filtering here always agree with the Dashboard.
+  const medicinesWithStatus = useMemo(() => medicines.map((medicine) => ({
+    ...medicine,
+    status: medicineStatusById[medicine.id] || 'healthy',
+  })), [medicines, medicineStatusById]);
+
+  const summary = useMemo(() => medicinesWithStatus.reduce((acc, medicine) => {
+    acc[stockStateOf(medicine).key] += 1;
     return acc;
-  }, { out: 0, low: 0, healthy: 0, expiring: 0 }), [medicines]);
+  }, { out: 0, low: 0, healthy: 0, expiring: 0 }), [medicinesWithStatus]);
 
   const visibleMedicines = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const filtered = medicines.filter((medicine) => {
+    const filtered = medicinesWithStatus.filter((medicine) => {
       if (activeCategory !== 'All' && categoryOf(medicine) !== activeCategory) return false;
       if (prescriptionOnly && !medicine.requires_prescription) return false;
-      if (stockFilter === 'expiring' && !(Number(medicine.expiring_batches) > 0)) return false;
-      if (stockFilter !== 'all' && stockFilter !== 'expiring' && stockStateOf(medicine).key !== stockFilter) return false;
+      if (stockFilter !== 'all' && stockStateOf(medicine).key !== stockFilter) return false;
       if (!term) return true;
       return [medicine.name, medicine.generic_name, medicine.category, medicine.dosage_form, medicine.strength]
         .some((value) => String(value || '').toLowerCase().includes(term));
@@ -372,6 +395,7 @@ export default function Medicines() {
         addToast('Medicine added', 'success');
       }
       api.invalidateCache('/medicines');
+    api.invalidateCache('/reports/needs-attention?days=14');
       resetForm();
       await fetchMedicines();
     } catch (err) {
@@ -384,6 +408,7 @@ export default function Medicines() {
     try {
       await api.delete(`/medicines/${id}`);
       api.invalidateCache('/medicines');
+    api.invalidateCache('/reports/needs-attention?days=14');
       api.invalidateCache('/notifications');
       api.invalidateCache('/notifications?unread=true');
       api.invalidateCache('/batches');
@@ -398,6 +423,7 @@ export default function Medicines() {
   async function handleRefresh() {
     setLoading(true);
     api.invalidateCache('/medicines');
+    api.invalidateCache('/reports/needs-attention?days=14');
     api.invalidateCache('/batches');
     await Promise.all([fetchMedicines(), fetchBatches()]);
     addToast('Catalog refreshed', 'success');
@@ -499,6 +525,7 @@ export default function Medicines() {
       }
       api.invalidateCache('/batches');
       api.invalidateCache('/medicines');
+    api.invalidateCache('/reports/needs-attention?days=14');
       api.invalidateCache('/notifications');
       api.invalidateCache('/notifications?unread=true');
       resetBatchForm();
@@ -517,6 +544,7 @@ export default function Medicines() {
       await api.delete(`/batches/${batch.id}`);
       api.invalidateCache('/batches');
       api.invalidateCache('/medicines');
+    api.invalidateCache('/reports/needs-attention?days=14');
       api.invalidateCache('/notifications');
       api.invalidateCache('/notifications?unread=true');
       await Promise.all([fetchBatches(), fetchMedicines()]);

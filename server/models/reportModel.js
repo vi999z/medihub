@@ -99,12 +99,12 @@ async function getNeedsAttention(days = 14) {
     return { ...r, total_remaining: remaining, status };
   });
 
-  const priority = { out_of_stock: 0, expiring: 1, low_stock: 2 };
+  const priority = { out_of_stock: 0, expiring: 1, low_stock: 2, healthy: 3 };
   const items = classified
-    .filter((r) => r.status !== 'healthy')
     .sort((a, b) => {
       if (priority[a.status] !== priority[b.status]) return priority[a.status] - priority[b.status];
       if (a.status === 'expiring') return new Date(a.nearest_expiry) - new Date(b.nearest_expiry);
+      if (a.status === 'healthy') return String(a.name).localeCompare(String(b.name));
       return a.total_remaining - b.total_remaining;
     });
 
