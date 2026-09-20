@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Plus, Pencil, Trash2, RefreshCw, Download, Search, X, Check,
-  AlertTriangle, CircleAlert,
-  FileWarning, Upload, QrCode, ChevronDown
+  Plus, Pencil, Trash2, RefreshCw, Download, Search, X,
+  Upload, QrCode, ChevronDown
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
@@ -12,7 +11,6 @@ import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
 import CsvImport from '../components/CsvImport';
 import AnimatedModal from '../components/AnimatedModal';
-import Skeleton from '../components/Skeleton';
 import QRCodeDisplay from '../components/QRCode';
 import ReceiveStockModal from '../components/ReceiveStockModal';
 import StockMovementModal from '../components/StockMovementModal';
@@ -41,23 +39,23 @@ function MedicineExportDropdown({ onExport }) {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className="btn btn-secondary" onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <button type="button" className="flat-action-btn" onClick={() => setOpen(o => !o)}>
         <Download size={15} /> Export <ChevronDown size={13} />
       </button>
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 220,
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 12, boxShadow: 'var(--shadow-xl)', zIndex: 50, padding: '6px 0'
+          background: '#fff', border: '1px solid var(--flat-border)',
+          borderRadius: 8, zIndex: 50, padding: '6px 0'
         }}>
           {OPTIONS.map((opt, idx) => opt === null ? (
-            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--flat-border)' }} />
           ) : (
             <button
               key={idx}
               onClick={() => { onExport(opt.key, opt.format); setOpen(false); }}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--ink)', transition: 'background 0.12s ease' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--flat-text)', transition: 'background 0.12s ease' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--flat-bg)'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}
             >{opt.label}</button>
           ))}
@@ -110,15 +108,19 @@ function categoryOf(medicine) {
 // beats expiring beats low stock beats healthy. Keeping both pages on the
 // same source avoids the counts disagreeing for the same underlying data.
 const STOCK_STATE_BY_STATUS = {
-  out_of_stock: { key: 'out', cls: 'critical', label: 'Out of stock', Icon: CircleAlert },
-  low_stock: { key: 'low', cls: 'warning', label: 'Running low', Icon: AlertTriangle },
-  expiring: { key: 'expiring', cls: 'warning', label: 'Expiring soon', Icon: AlertTriangle },
-  healthy: { key: 'healthy', cls: 'safe', label: 'In stock', Icon: Check },
+  out_of_stock: { key: 'out', cls: 'critical', label: 'Out of stock' },
+  low_stock: { key: 'low', cls: 'warning', label: 'Running low' },
+  expiring: { key: 'expiring', cls: 'warning', label: 'Expiring soon' },
+  healthy: { key: 'healthy', cls: 'safe', label: 'In stock' },
 };
 
 function stockStateOf(medicine) {
   return STOCK_STATE_BY_STATUS[medicine.status] || STOCK_STATE_BY_STATUS.healthy;
 }
+
+// Maps each stock bucket to the flat design system's status colors
+// (server/models/reportModel.js:getNeedsAttention buckets, same as Dashboard).
+const STOCK_FLAT_CLS = { out: 'red', low: 'amber', expiring: 'orange', healthy: 'green' };
 
 function expiryLabel(medicine) {
   if (!medicine.nearest_expiry) return null;
@@ -557,7 +559,7 @@ export default function Medicines() {
   }
 
   return (
-    <div>
+    <div className="flat-dashboard">
       <div className="page-header">
         <div>
           <h1>Medicines</h1>
@@ -567,64 +569,60 @@ export default function Medicines() {
         </div>
         <div className="page-header-actions">
           <MedicineExportDropdown onExport={handleExport} />
-          <button className="btn btn-secondary" onClick={handleRefresh}>
+          <button className="flat-action-btn" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
           {user.role === 'admin' && (
             <>
-              <button className="btn btn-secondary" onClick={() => setShowCsvImport(true)}>
+              <button className="flat-action-btn" onClick={() => setShowCsvImport(true)}>
                 <Upload size={15} /> Import medicine list
               </button>
-              <button className="btn btn-primary" onClick={openCreate}>
+              <button className="flat-btn-primary" onClick={openCreate}>
                 <Plus size={15} /> Add medicine
               </button>
             </>
           )}
           {(user.role === 'admin' || user.role === 'pharmacist') && (
-            <button className="btn btn-primary" onClick={() => { setReceiveStockError(''); setShowReceiveStock(true); }}>
+            <button className="flat-btn-primary" onClick={() => { setReceiveStockError(''); setShowReceiveStock(true); }}>
               <Plus size={15} /> Receive stock
             </button>
           )}
         </div>
       </div>
 
-      <div className="stat-grid">
-        <button
-          type="button"
-          className={`card stat-card accent-red filter-tile ${stockFilter === 'out' ? 'active' : ''}`}
-          onClick={() => setStockFilter(stockFilter === 'out' ? 'all' : 'out')}
-        >
-          <div className="value">{summary.out}</div>
-          <div className="label">Out of stock</div>
+      <div className="flat-card flat-stock-strip">
+        <button type="button" className={`flat-stock-col${stockFilter === 'out' ? ' active' : ''}`} onClick={() => setStockFilter(stockFilter === 'out' ? 'all' : 'out')}>
+          <span className="flat-stock-dot red" />
+          <span className="flat-stock-text">
+            <span className="flat-stock-number">{summary.out}</span>
+            <span className="flat-stock-label">Out of stock</span>
+          </span>
         </button>
-        <button
-          type="button"
-          className={`card stat-card accent-gold filter-tile ${stockFilter === 'low' ? 'active' : ''}`}
-          onClick={() => setStockFilter(stockFilter === 'low' ? 'all' : 'low')}
-        >
-          <div className="value">{summary.low}</div>
-          <div className="label">At or below reorder level</div>
+        <button type="button" className={`flat-stock-col${stockFilter === 'low' ? ' active' : ''}`} onClick={() => setStockFilter(stockFilter === 'low' ? 'all' : 'low')}>
+          <span className="flat-stock-dot amber" />
+          <span className="flat-stock-text">
+            <span className="flat-stock-number">{summary.low}</span>
+            <span className="flat-stock-label">At or below reorder level</span>
+          </span>
         </button>
-        <button
-          type="button"
-          className={`card stat-card accent-amber filter-tile ${stockFilter === 'expiring' ? 'active' : ''}`}
-          onClick={() => setStockFilter(stockFilter === 'expiring' ? 'all' : 'expiring')}
-        >
-          <div className="value">{summary.expiring}</div>
-          <div className="label">Expiring within 14 days</div>
+        <button type="button" className={`flat-stock-col${stockFilter === 'expiring' ? ' active' : ''}`} onClick={() => setStockFilter(stockFilter === 'expiring' ? 'all' : 'expiring')}>
+          <span className="flat-stock-dot orange" />
+          <span className="flat-stock-text">
+            <span className="flat-stock-number">{summary.expiring}</span>
+            <span className="flat-stock-label">Expiring within 14 days</span>
+          </span>
         </button>
-        <button
-          type="button"
-          className={`card stat-card accent-green filter-tile ${stockFilter === 'healthy' ? 'active' : ''}`}
-          onClick={() => setStockFilter(stockFilter === 'healthy' ? 'all' : 'healthy')}
-        >
-          <div className="value">{summary.healthy}</div>
-          <div className="label">Healthy stock</div>
+        <button type="button" className={`flat-stock-col${stockFilter === 'healthy' ? ' active' : ''}`} onClick={() => setStockFilter(stockFilter === 'healthy' ? 'all' : 'healthy')}>
+          <span className="flat-stock-dot green" />
+          <span className="flat-stock-text">
+            <span className="flat-stock-number">{summary.healthy}</span>
+            <span className="flat-stock-label">Healthy stock</span>
+          </span>
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
+        <form onSubmit={handleSubmit} className="flat-card" style={{ marginBottom: 0, padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
           <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
           <div className="field"><label>Generic name</label><input value={form.generic_name} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} /></div>
           <div className="field">
@@ -642,15 +640,15 @@ export default function Medicines() {
             Requires prescription
           </label>
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">{editingId ? 'Update medicine' : 'Save medicine'}</button>
-            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
+            <button type="submit" className="flat-btn-primary">{editingId ? 'Update medicine' : 'Save medicine'}</button>
+            <button type="button" className="flat-action-btn" onClick={resetForm}>Cancel</button>
           </div>
           {error && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{error}</p>}
         </form>
       )}
 
-      <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
-        <div className="filter-bar" style={{ margin: 0 }}>
+      <div className="flat-card" style={{ padding: '16px' }}>
+        <div className="filter-bar" style={{ margin: 0, background: 'none', border: 'none', padding: 0 }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -680,13 +678,13 @@ export default function Medicines() {
             Prescription only
           </label>
           {filtersActive && (
-            <button type="button" className="btn btn-secondary" onClick={clearFilters}>
+            <button type="button" className="flat-action-btn" onClick={clearFilters}>
               <X size={15} /> Clear filters
             </button>
           )}
         </div>
 
-        <div className="chip-row">
+        <div className="chip-row" style={{ marginBottom: 0, paddingBottom: 0 }}>
           <button type="button" className={`chip ${activeCategory === 'All' ? 'active' : ''}`} onClick={() => setActiveCategory('All')}>
             All <span>{medicines.length}</span>
           </button>
@@ -703,135 +701,69 @@ export default function Medicines() {
         </div>
       </div>
 
-      {error && (
-        <div className="empty-state">
-          <strong>Unable to load medicines</strong>
-          <p style={{ margin: '6px 0 0' }}>{error}</p>
-          <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchMedicines}>Retry</button>
-        </div>
-      )}
-
-      {!loading && !error && visibleMedicines.length === 0 && (
-        <div className="empty-state">
-          <FileWarning size={24} style={{ marginBottom: 6 }} />
-          <strong>No medicines found</strong>
-          <p style={{ margin: '6px 0 0' }}>No medicines match the current filters.</p>
+      <div className="flat-card">
+        <div className="flat-table-header">
+          <span className="flat-table-title">Catalog</span>
           {filtersActive && (
-            <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
+            <button type="button" className="flat-table-link" onClick={clearFilters}>Clear filters</button>
           )}
         </div>
-      )}
-
-      {loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="card" style={{ height: '260px' }}>
-              <Skeleton height={16} style={{ marginBottom: '12px' }} />
-              <Skeleton height={16} style={{ marginBottom: '8px' }} />
-              <Skeleton height={16} style={{ marginBottom: '16px' }} />
-              <Skeleton height={16} style={{ marginBottom: '12px' }} />
-              <Skeleton height={40} style={{ borderRadius: '999px' }} />
+        {error ? (
+          <div className="flat-empty">
+            Unable to load medicines — {error}
+            <div style={{ marginTop: 10 }}>
+              <button type="button" className="flat-action-btn" onClick={fetchMedicines}>Retry</button>
             </div>
-          ))}
-        </div>
-      )}
-
-      {!loading && !error && visibleMedicines.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-          {visibleMedicines.map((m) => {
-            const state = stockStateOf(m);
-            const expiry = expiryLabel(m);
-            return (
-              <div
-                key={m.id}
-                className={`card medicine-card ${state.cls}`}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  cursor: 'pointer'
-                }}
-                onClick={() => openDetail(m)}
-              >
-                {/* Top Row: ID & Status */}
-                <div className="medicine-card__top-row">
-                  <span className="stamp medicine-card__id">ID: {m.id}</span>
-                  <span className={`status-pill medicine-card__status ${state.cls}`}>
-                    <state.Icon aria-hidden="true" size={18} strokeWidth={2.5} />
-                    <span>{state.label}</span>
-                  </span>
-                </div>
-
-                {/* Middle Content */}
-                <div className="medicine-card__content">
-                  <div className="medicine-card__name">
-                    {m.name}
-                  </div>
-                  <div className="medicine-card__details">
-                    {[m.generic_name, m.dosage_form].filter(Boolean).join(' · ') || '—'}
-                    {m.requires_prescription ? ' · Rx' : ''}
-                  </div>
-                  <div className="medicine-card__stats">
-                    <div className="medicine-card__stat">
-                      <div className="medicine-card__label">Stock</div>
-                      <div className="medicine-card__value">{m.total_stock ?? 0} {m.unit}</div>
-                      <div
-                        className={`medicine-card__progress ${state.cls}`}
-                        role="progressbar"
-                        aria-label={`${m.name} stock level`}
-                        aria-valuenow={Math.max(0, Number(m.total_stock) || 0)}
-                        aria-valuemin="0"
-                        aria-valuemax={Math.max(1, Number(m.reorder_level) || 1)}
-                      >
-                        <span style={{ width: `${Math.min(100, Math.max(0, ((Number(m.total_stock) || 0) / Math.max(1, Number(m.reorder_level) || 1)) * 100))}%` }} />
-                      </div>
-                    </div>
-                    <div className="medicine-card__stat">
-                      <div className="medicine-card__label">Category</div>
-                      <div className="medicine-card__value">{categoryOf(m)}</div>
-                    </div>
-                  </div>
-                  {expiry && (
-                    <div className="medicine-card__expiry">
-                      <div className="medicine-card__label">Expiry</div>
-                      <span className={`status-pill medicine-card__expiry-value ${expiry.cls}`}>{expiry.label}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Bottom Row: Avatar + Label + Action */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>
-                      {(m.name || '?').charAt(0).toUpperCase()}
-                    </div>
-                    <div className="medicine-card__footer-label">{m.name.substring(0, 12)}</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); openEdit(m); }}
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      background: 'var(--bg-subtle)',
-                      border: '1px solid var(--border)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer'
-                    }}
-                    onMouseEnter={(e) => { e.target.style.background = 'var(--bg-hover)'; e.target.style.borderColor = 'var(--primary)'; }}
-                    onMouseLeave={(e) => { e.target.style.background = 'var(--bg-subtle)'; e.target.style.borderColor = 'var(--border)'; }}
-                    title="Edit medicine"
-                  >
-                    <Pencil size={16} color="var(--ink)" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="flat-table">
+              <thead>
+                <tr>
+                  <th>Medicine</th>
+                  <th>Category</th>
+                  <th className="flat-col-right">Stock</th>
+                  <th>Expires</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr><td colSpan={6} className="flat-empty">Loading…</td></tr>
+                )}
+                {!loading && visibleMedicines.length === 0 && (
+                  <tr><td colSpan={6} className="flat-empty">No medicines match the current filters.</td></tr>
+                )}
+                {!loading && visibleMedicines.map((m) => {
+                  const state = stockStateOf(m);
+                  const expiry = expiryLabel(m);
+                  return (
+                    <tr key={m.id} data-clickable onClick={() => openDetail(m)}>
+                      <td>
+                        <div className="flat-med-name">{m.name}</div>
+                        <div className="flat-med-meta">
+                          {[m.generic_name, m.dosage_form].filter(Boolean).join(' · ') || '—'}
+                          {m.requires_prescription ? ' · Rx' : ''}
+                        </div>
+                      </td>
+                      <td>{categoryOf(m)}</td>
+                      <td className="flat-col-right">{m.total_stock ?? 0} {m.unit}</td>
+                      <td>{expiry ? expiry.label : '—'}</td>
+                      <td><span className={`flat-status-label ${STOCK_FLAT_CLS[state.key]}`}>{state.label}</span></td>
+                      <td>
+                        <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); openEdit(m); }}>
+                          <Pencil size={13} /> Edit
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Medicine detail modal with integrated batches */}
       <AnimatedModal isOpen={Boolean(detailMedicine)} onClose={closeDetail} className="medicine-detail-modal">

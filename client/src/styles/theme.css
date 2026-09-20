@@ -657,45 +657,6 @@ input, select, textarea { font-family: var(--font-body); }
 .table-wrapper::-webkit-scrollbar-thumb { background: var(--steel); border-radius: 999px; opacity: 0.3; }
 .table-wrapper::-webkit-scrollbar-thumb:hover { opacity: 0.5; }
 
-.medicine-card {
-  gap: 18px;
-  min-height: 360px;
-  padding: 22px;
-  border: 1.5px solid var(--color-border-strong);
-  transition: border-color 0.15s ease;
-}
-/* Status is applied to the entire medicine card instead of only a top strip. */
-.medicine-card.safe { background: var(--color-success-bg); border-color: var(--color-success-border); }
-.medicine-card.warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); }
-.medicine-card.critical { background: var(--color-error-bg); border-color: var(--color-error-border); }
-.medicine-card.safe:hover { border-color: var(--color-success); }
-.medicine-card.warning:hover { border-color: var(--color-warning); }
-.medicine-card.critical:hover { border-color: var(--color-error); }
-.medicine-card__top-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.medicine-card__id { font-size: 15px; color: var(--color-text-primary); }
-.medicine-card__status { min-height: 36px; padding: 6px 10px; font-size: 15px; }
-.medicine-card__status svg { flex: 0 0 auto; }
-.medicine-card__content { flex: 1; display: flex; flex-direction: column; gap: 14px; margin-bottom: 0; }
-.medicine-card__name { color: var(--color-text-primary); font-size: 20px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
-.medicine-card__details { color: var(--color-text-primary); font-size: 16px; line-height: 1.45; }
-.medicine-card__stats { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.medicine-card__stat { min-width: 0; }
-.medicine-card__label { color: var(--color-text-primary); font-size: 15px; font-weight: 700; line-height: 1.35; }
-.medicine-card__value { color: var(--color-text-primary); font-size: 16px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
-.medicine-card__progress { height: 12px; margin-top: 9px; overflow: hidden; background: var(--color-surface-muted); border: 1.5px solid var(--color-border-strong); border-radius: 999px; }
-.medicine-card__progress span { display: block; height: 100%; min-width: 4px; background: var(--color-primary); border-radius: inherit; }
-.medicine-card__progress.warning span { background: var(--color-secondary); }
-.medicine-card__progress.critical span { background: var(--color-error); }
-.medicine-card__expiry { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; border-top: 1.5px solid var(--color-border-strong); }
-.medicine-card__expiry-value { font-size: 15px; }
-.medicine-card__footer-label { color: var(--color-text-primary); font-size: 15px; font-weight: 600; }
-
-@media (max-width: 600px) {
-  .medicine-card { padding: 20px; }
-  .medicine-card__stats { grid-template-columns: 1fr; gap: 12px; }
-  .medicine-card__expiry { align-items: flex-start; flex-direction: column; gap: 6px; }
-}
-
 .transaction-card,
 .alert-card {
   gap: 18px;
@@ -1158,7 +1119,43 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-action-btn {
   height: 40px; padding: 0 14px; border: 1px solid var(--flat-border);
   background: #fff; border-radius: 8px; font-size: 14px; cursor: pointer; color: var(--flat-text);
+  display: inline-flex; align-items: center; gap: 6px;
 }
+.flat-action-btn:hover { border-color: var(--flat-accent); color: var(--flat-accent); }
+.flat-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.flat-btn-primary {
+  height: 40px; padding: 0 16px; border: 1px solid var(--flat-accent);
+  background: var(--flat-accent); border-radius: 8px; font-size: 14px; font-weight: 500;
+  cursor: pointer; color: #fff; display: inline-flex; align-items: center; gap: 6px;
+}
+.flat-btn-primary:hover { background: #B84A28; border-color: #B84A28; }
+
+/* Page header for other pages reusing the flat-dashboard shell */
+.flat-dashboard .page-header { margin: 0; }
+.flat-dashboard .page-header h1 { font-size: 22px; font-weight: 600; color: var(--flat-text); }
+.flat-dashboard .page-header p { color: var(--flat-text-muted); font-size: 13px; }
+
+/* Form controls + chips inherit the flat look wherever they appear on a flat page */
+.flat-dashboard .filter-search input,
+.flat-dashboard .field input,
+.flat-dashboard .field select,
+.flat-dashboard .filter-toggle {
+  background: #fff; border: 1px solid var(--flat-border); border-radius: 8px; color: var(--flat-text);
+}
+.flat-dashboard .filter-search input:focus,
+.flat-dashboard .field input:focus,
+.flat-dashboard .field select:focus { border-color: var(--flat-accent); box-shadow: none; }
+.flat-dashboard .filter-search input:hover,
+.flat-dashboard .field input:hover,
+.flat-dashboard .field select:hover { border-color: var(--flat-accent); }
+.flat-dashboard .chip { background: #fff; border: 1px solid var(--flat-border); color: var(--flat-text); box-shadow: none; }
+.flat-dashboard .chip:hover { background: var(--flat-bg); border-color: var(--flat-accent); color: var(--flat-accent); }
+.flat-dashboard .chip.active { background: var(--flat-accent); border-color: var(--flat-accent); color: #fff; box-shadow: none; }
+.flat-dashboard .chip.active span { color: rgba(255,255,255,0.75); }
+
+.flat-table tbody tr[data-clickable] { cursor: pointer; }
+.flat-table tbody tr[data-clickable]:hover td { background: var(--flat-bg); }
 
 /* Bottom row: 7-day sales chart + top sellers */
 .flat-bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
