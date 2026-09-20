@@ -1097,35 +1097,50 @@ input, select, textarea { font-family: var(--font-body); }
 }
 .flat-filter-menu button:hover, .flat-filter-menu button.active { background: var(--flat-bg); }
 
-/* Summary strip: 4 equal columns, no dividers */
-.flat-summary-strip { display: grid; grid-template-columns: repeat(4, 1fr); }
-.flat-summary-col {
-  padding: 16px 20px; border: none; border-left: 1px solid var(--flat-border);
-  background: none; cursor: pointer; text-align: left; font-family: inherit; font-size: inherit;
-  width: 100%; outline: none; transition: background 0.12s ease;
+/* Summary strip — each stat is its own keycap-style button, not a divided
+   segment of one shared card, so it reads as obviously clickable. */
+.flat-card.flat-summary-strip, .flat-card.flat-stock-strip {
+  background: none; border: none; border-radius: 0; box-shadow: none;
 }
-.flat-summary-col:first-child { border-left: none; }
-.flat-summary-col:hover { background: var(--flat-bg); }
-.flat-summary-col:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: -2px; }
+.flat-summary-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.flat-summary-col {
+  padding: 16px 20px; border: 1px solid var(--flat-border-strong); border-radius: 8px;
+  background: #fff; cursor: pointer; text-align: left; font-family: inherit; font-size: inherit;
+  width: 100%; outline: none; box-shadow: var(--flat-shadow); transform: translateY(0);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
+}
+.flat-summary-col:hover { background: color-mix(in srgb, var(--flat-accent) 8%, white); border-color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
+.flat-summary-col:active { box-shadow: var(--flat-shadow-active); transform: translateY(1.5px); }
+.flat-summary-col:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: 1px; }
 .flat-summary-label { font-size: 13px; color: var(--flat-text-muted); margin-bottom: 6px; }
 .flat-summary-value { font-size: 28px; font-weight: 500; line-height: 1.2; }
 .flat-summary-sub { font-size: 13px; color: var(--flat-text-muted); margin-top: 4px; }
 .flat-summary-sub.positive { color: var(--flat-green); }
 .flat-summary-sub.negative { color: var(--flat-red); }
 
-/* Stock status strip: 4 columns, vertical dividers */
-.flat-stock-strip { display: grid; grid-template-columns: repeat(4, 1fr); }
+/* Stock status strip — same keycap treatment, plus a border colored to
+   match each status (via :has() on the dot already in the markup, so no
+   JSX changes needed) so severity is visible even before reading the text. */
+.flat-stock-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .flat-stock-col {
-  border: none; border-left: 1px solid var(--flat-border);
+  border: 1px solid var(--flat-border-strong); border-radius: 8px;
   padding: 16px 20px;
-  display: flex; align-items: center; gap: 10px; background: none;
+  display: flex; align-items: center; gap: 10px; background: #fff;
   cursor: pointer; text-align: left; font-family: inherit; font-size: inherit; width: 100%;
-  outline: none;
+  outline: none; box-shadow: var(--flat-shadow); transform: translateY(0);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
 }
-.flat-stock-col:first-child { border-left: none; }
-.flat-stock-col:hover { background: var(--flat-bg); }
-.flat-stock-col.active { background: color-mix(in srgb, var(--flat-accent) 8%, var(--flat-bg)); }
-.flat-stock-col:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: -2px; }
+.flat-stock-col:hover { box-shadow: var(--flat-shadow-hover); }
+.flat-stock-col:active { box-shadow: var(--flat-shadow-active); transform: translateY(1.5px); }
+.flat-stock-col:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: 1px; }
+.flat-stock-col:has(.flat-stock-dot.red) { border-color: var(--flat-red); }
+.flat-stock-col:has(.flat-stock-dot.amber) { border-color: var(--flat-amber); }
+.flat-stock-col:has(.flat-stock-dot.orange) { border-color: var(--flat-orange); }
+.flat-stock-col:has(.flat-stock-dot.green) { border-color: var(--flat-green); }
+.flat-stock-col.active:has(.flat-stock-dot.red) { background: color-mix(in srgb, var(--flat-red) 10%, white); }
+.flat-stock-col.active:has(.flat-stock-dot.amber) { background: color-mix(in srgb, var(--flat-amber) 10%, white); }
+.flat-stock-col.active:has(.flat-stock-dot.orange) { background: color-mix(in srgb, var(--flat-orange) 10%, white); }
+.flat-stock-col.active:has(.flat-stock-dot.green) { background: color-mix(in srgb, var(--flat-green) 10%, white); }
 .flat-stock-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 .flat-stock-dot.red { background: var(--flat-red); }
 .flat-stock-dot.amber { background: var(--flat-amber); }

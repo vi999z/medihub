@@ -56,6 +56,26 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'MediHub API running', version: '2.0', ai: 'modern-llm' });
 });
 
+// Lets you confirm from the deployed URL (no dashboard access needed)
+// whether uploads are actually landing on persistent storage — the
+// UPLOADS_DIR env var and the disk it points at only take effect if the
+// hosting platform actually provisioned/mounted it.
+app.get('/api/health/uploads', (req, res) => {
+  const fs = require('fs');
+  let writable = false;
+  try {
+    fs.accessSync(UPLOADS_ROOT, fs.constants.W_OK);
+    writable = true;
+  } catch {
+    writable = false;
+  }
+  res.json({
+    uploadsRoot: UPLOADS_ROOT,
+    uploadsDirEnvSet: Boolean(process.env.UPLOADS_DIR),
+    writable,
+  });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/medicines', medicineRoutes);
 app.use('/api/batches', batchRoutes);
