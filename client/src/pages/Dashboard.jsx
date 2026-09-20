@@ -173,9 +173,9 @@ export default function Dashboard() {
             <button type="button" className="flat-export-btn" onClick={handleExport}>Export</button>
           </div>
 
-          {/* b. Summary strip */}
+          {/* b. Summary strip — each column links to the page that explains the number */}
           <div className="flat-card flat-summary-strip">
-            <div className="flat-summary-col">
+            <button type="button" className="flat-summary-col" onClick={() => navigate(`/transactions?date=${todayKey}`)} title="View today's transactions">
               <div className="flat-summary-label">Sales today</div>
               <div className="flat-summary-value">{loading ? '—' : peso(todaySales?.total)}</div>
               <div className={`flat-summary-sub ${vsYesterday > 0 ? 'positive' : vsYesterday < 0 ? 'negative' : ''}`}>
@@ -183,22 +183,22 @@ export default function Dashboard() {
                   ? 'no sales yesterday'
                   : `${vsYesterday >= 0 ? '↑' : '↓'} ${Math.abs(vsYesterday).toFixed(0)}% vs yesterday`}
               </div>
-            </div>
-            <div className="flat-summary-col">
+            </button>
+            <button type="button" className="flat-summary-col" onClick={() => navigate('/medicines')} title="View the medicine catalog">
               <div className="flat-summary-label">Inventory value</div>
               <div className="flat-summary-value">{loading ? '—' : peso(summary?.inventory_value)}</div>
               <div className="flat-summary-sub">at cost</div>
-            </div>
-            <div className="flat-summary-col">
+            </button>
+            <button type="button" className="flat-summary-col" onClick={() => navigate('/medicines')} title="View the medicine catalog">
               <div className="flat-summary-label">Retail value</div>
               <div className="flat-summary-value">{loading ? '—' : peso(summary?.retail_value)}</div>
               <div className="flat-summary-sub">if all sold</div>
-            </div>
-            <div className="flat-summary-col">
+            </button>
+            <button type="button" className="flat-summary-col" onClick={() => navigate('/medicines')} title="View the medicine catalog">
               <div className="flat-summary-label">Margin</div>
               <div className="flat-summary-value">{loading ? '—' : `${Number(summary?.margin_pct || 0).toFixed(1)}%`}</div>
               <div className="flat-summary-sub">{loading ? '' : `${peso(summary?.margin_value)} profit`}</div>
-            </div>
+            </button>
           </div>
 
           {/* c. Stock status strip */}

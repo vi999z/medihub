@@ -825,7 +825,7 @@ export default function Medicines() {
                 return (
                   <div key={m.id} className={`flat-card flat-item-card flat-item-card--${STOCK_FLAT_CLS[state.key]}`} onClick={() => openDetail(m)}>
                     <div className="flat-item-card__top">
-                      <div className="flat-item-icon">
+                      <div className={`flat-item-icon${m.image_url ? ' flat-item-icon--photo' : ''}`}>
                         {m.image_url ? <img src={m.image_url} alt="" /> : <Icon size={22} />}
                       </div>
                       <span className={`flat-status-label ${STOCK_FLAT_CLS[state.key]}`}>{state.label}</span>
@@ -864,7 +864,7 @@ export default function Medicines() {
             <div className="medicine-detail-modal__header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 {detailMedicine.image_url && (
-                  <div className="flat-item-icon" style={{ width: 56, height: 56 }}>
+                  <div className="flat-item-icon flat-item-icon--photo">
                     <img src={detailMedicine.image_url} alt="" />
                   </div>
                 )}

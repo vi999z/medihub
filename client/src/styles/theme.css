@@ -1010,9 +1010,12 @@ input, select, textarea { font-family: var(--font-body); }
 
 /* ============================================================
    Flat Dashboard — scoped under .flat-dashboard only.
-   Deliberately flat: no gradients, no box-shadow, no blur, no
-   hover-lift/scale transforms, no Framer Motion. Uses its own
-   page-local tokens instead of the app's --primary/--amber so
+   Mostly flat: no gradients, no blur, no hover-lift/scale
+   transforms, no Framer Motion. Clickable buttons/pills do carry
+   a small resting shadow (deepening on hover, flattening on
+   press) purely as a "this is clickable" affordance cue — everything
+   else (cards, strips, tags) stays flush with no shadow. Uses its
+   own page-local tokens instead of the app's --primary/--amber so
    the shared shell and every other page are unaffected.
    ============================================================ */
 .flat-dashboard {
@@ -1020,6 +1023,9 @@ input, select, textarea { font-family: var(--font-body); }
   --flat-bg: #F5F5F5;
   --flat-border: #E0E0E0;
   --flat-border-strong: #C4C4C4;
+  --flat-shadow: 0 1px 2px rgba(0, 0, 0, 0.09);
+  --flat-shadow-hover: 0 3px 8px rgba(0, 0, 0, 0.14);
+  --flat-shadow-active: 0 1px 1px rgba(0, 0, 0, 0.1);
   /* Widened hue + saturation spacing (red -> amber -> orange -> green) so
      adjacent severities stay visually distinct even as small text/dots —
      the old amber/orange pair read as the same muddy brown at a glance. */
@@ -1052,16 +1058,20 @@ input, select, textarea { font-family: var(--font-body); }
   height: 40px; padding: 0 14px; background: var(--flat-bg); border: 1px solid var(--flat-border-strong);
   border-radius: 8px; font-size: 15px; color: var(--flat-text);
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  box-shadow: var(--flat-shadow);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
-.flat-filter-btn:hover { background: color-mix(in srgb, var(--flat-accent) 8%, white); border-color: var(--flat-accent); }
+.flat-filter-btn:hover { background: color-mix(in srgb, var(--flat-accent) 8%, white); border-color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
+.flat-filter-btn:active { box-shadow: var(--flat-shadow-active); }
 .flat-filter-spacer { flex: 1; }
 .flat-export-btn {
   height: 40px; padding: 0 16px; background: var(--flat-bg); border: 1px solid var(--flat-border-strong);
   border-radius: 8px; font-size: 15px; color: var(--flat-text); cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  box-shadow: var(--flat-shadow);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
-.flat-export-btn:hover { background: color-mix(in srgb, var(--flat-accent) 8%, white); border-color: var(--flat-accent); }
+.flat-export-btn:hover { background: color-mix(in srgb, var(--flat-accent) 8%, white); border-color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
+.flat-export-btn:active { box-shadow: var(--flat-shadow-active); }
 .flat-filter-menu {
   position: absolute; top: calc(100% + 4px); left: 0; min-width: 170px;
   background: #fff; border: 1px solid var(--flat-border); border-radius: 8px; z-index: 20; padding: 4px;
@@ -1074,7 +1084,14 @@ input, select, textarea { font-family: var(--font-body); }
 
 /* Summary strip: 4 equal columns, no dividers */
 .flat-summary-strip { display: grid; grid-template-columns: repeat(4, 1fr); }
-.flat-summary-col { padding: 16px 20px; }
+.flat-summary-col {
+  padding: 16px 20px; border: none; border-left: 1px solid var(--flat-border);
+  background: none; cursor: pointer; text-align: left; font-family: inherit; font-size: inherit;
+  width: 100%; outline: none; transition: background 0.12s ease;
+}
+.flat-summary-col:first-child { border-left: none; }
+.flat-summary-col:hover { background: var(--flat-bg); }
+.flat-summary-col:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: -2px; }
 .flat-summary-label { font-size: 13px; color: var(--flat-text-muted); margin-bottom: 6px; }
 .flat-summary-value { font-size: 28px; font-weight: 500; line-height: 1.2; }
 .flat-summary-sub { font-size: 13px; color: var(--flat-text-muted); margin-top: 4px; }
@@ -1146,22 +1163,24 @@ input, select, textarea { font-family: var(--font-body); }
   height: 40px; padding: 0 14px; border: 1px solid var(--flat-border-strong);
   background: var(--flat-bg); border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--flat-text);
   display: inline-flex; align-items: center; gap: 6px;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  box-shadow: var(--flat-shadow);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
-.flat-action-btn:hover { background: color-mix(in srgb, var(--flat-accent) 10%, white); border-color: var(--flat-accent); color: var(--flat-accent); }
-.flat-action-btn:active { background: color-mix(in srgb, var(--flat-accent) 18%, white); }
+.flat-action-btn:hover { background: color-mix(in srgb, var(--flat-accent) 10%, white); border-color: var(--flat-accent); color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
+.flat-action-btn:active { background: color-mix(in srgb, var(--flat-accent) 18%, white); box-shadow: var(--flat-shadow-active); }
 .flat-action-btn:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: 1px; }
-.flat-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.flat-action-btn:disabled:hover { background: var(--flat-bg); border-color: var(--flat-border-strong); color: var(--flat-text); }
+.flat-action-btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.flat-action-btn:disabled:hover { background: var(--flat-bg); border-color: var(--flat-border-strong); color: var(--flat-text); box-shadow: none; }
 
 .flat-btn-primary {
   height: 40px; padding: 0 16px; border: 1px solid var(--flat-accent);
   background: var(--flat-accent); border-radius: 8px; font-size: 14px; font-weight: 600;
   cursor: pointer; color: #fff; display: inline-flex; align-items: center; gap: 6px;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  box-shadow: var(--flat-shadow);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
-.flat-btn-primary:hover { background: #B84A28; border-color: #B84A28; }
-.flat-btn-primary:active { background: #A1401F; border-color: #A1401F; }
+.flat-btn-primary:hover { background: #B84A28; border-color: #B84A28; box-shadow: var(--flat-shadow-hover); }
+.flat-btn-primary:active { background: #A1401F; border-color: #A1401F; box-shadow: var(--flat-shadow-active); }
 .flat-btn-primary:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: 2px; }
 
 /* Page header for other pages reusing the flat-dashboard shell */
@@ -1186,12 +1205,20 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-dashboard .field select:hover { border-color: var(--flat-accent); }
 .flat-dashboard .filter-toggle {
   background: var(--flat-bg); border: 1px solid var(--flat-border-strong); border-radius: 8px; color: var(--flat-text);
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  box-shadow: var(--flat-shadow);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
-.flat-dashboard .filter-toggle:hover { background: color-mix(in srgb, var(--flat-accent) 10%, white); border-color: var(--flat-accent); color: var(--flat-accent); }
-.flat-dashboard .chip { background: var(--flat-bg); border: 1px solid var(--flat-border-strong); color: var(--flat-text); box-shadow: none; font-weight: 500; }
-.flat-dashboard .chip:hover { background: color-mix(in srgb, var(--flat-accent) 10%, white); border-color: var(--flat-accent); color: var(--flat-accent); }
-.flat-dashboard .chip.active { background: var(--flat-accent); border-color: var(--flat-accent); color: #fff; box-shadow: none; }
+.flat-dashboard .filter-toggle:hover { background: color-mix(in srgb, var(--flat-accent) 10%, white); border-color: var(--flat-accent); color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
+.flat-dashboard .filter-toggle:active { box-shadow: var(--flat-shadow-active); }
+.flat-dashboard .chip {
+  background: var(--flat-bg); border: 1px solid var(--flat-border-strong); color: var(--flat-text); font-weight: 500;
+  box-shadow: var(--flat-shadow);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+.flat-dashboard .chip:hover { background: color-mix(in srgb, var(--flat-accent) 10%, white); border-color: var(--flat-accent); color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
+.flat-dashboard .chip:active { box-shadow: var(--flat-shadow-active); }
+.flat-dashboard .chip.active { background: var(--flat-accent); border-color: var(--flat-accent); color: #fff; box-shadow: var(--flat-shadow); }
+.flat-dashboard .chip.active:hover { box-shadow: var(--flat-shadow-hover); }
 .flat-dashboard .chip.active span { color: rgba(255,255,255,0.75); }
 
 .flat-table tbody tr[data-clickable] { cursor: pointer; }
@@ -1221,11 +1248,14 @@ input, select, textarea { font-family: var(--font-body); }
   overflow: hidden;
 }
 .flat-item-icon img { width: 100%; height: 100%; object-fit: cover; }
+/* A real uploaded photo is the visual focal point of the card, so it gets
+   a much larger tile than the generic dosage-form icon. */
+.flat-item-icon--photo { width: 104px; height: 104px; border-radius: 14px; }
 
 /* Photo picker in the add/edit medicine form */
 .flat-photo-picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .flat-photo-preview {
-  width: 56px; height: 56px; border-radius: 10px; background: var(--flat-bg); border: 1px solid var(--flat-border-strong);
+  width: 84px; height: 84px; border-radius: 14px; background: var(--flat-bg); border: 1px solid var(--flat-border-strong);
   display: flex; align-items: center; justify-content: center; color: var(--flat-text-muted); overflow: hidden; flex-shrink: 0;
 }
 .flat-photo-preview img { width: 100%; height: 100%; object-fit: cover; }
