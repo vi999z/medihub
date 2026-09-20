@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import { Plus, Trash2, RefreshCw, Pencil, Download, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
-import StaggeredList from '../components/StaggeredList';
 import Skeleton from '../components/Skeleton';
 
 export default function Suppliers() {
@@ -18,7 +16,6 @@ export default function Suppliers() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ name: '', contact_person: '', phone: '', email: '', address: '' });
   const [error, setError] = useState('');
-  const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
@@ -108,11 +105,7 @@ export default function Suppliers() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
+    <div>
       <div className="page-header">
         <div>
           <h1>Suppliers</h1>
@@ -134,14 +127,10 @@ export default function Suppliers() {
       </div>
 
       {showForm && (
-        <motion.form
+        <form
           onSubmit={handleSubmit}
           className="card"
           style={{ marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
         >
           <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
           <div className="field"><label>Contact person</label><input value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
@@ -152,14 +141,10 @@ export default function Suppliers() {
             <button type="submit" className="btn btn-primary">{editingId ? 'Update supplier' : 'Save supplier'}</button>
             <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
           </div>
-        </motion.form>
+        </form>
       )}
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-      >
+      <div>
         <div className="filter-bar" style={{ padding: 16, margin: 0, marginBottom: 16, background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
@@ -206,9 +191,9 @@ export default function Suppliers() {
         )}
 
         {!loading && !error && visibleSuppliers.length > 0 && (
-          <StaggeredList staggerDelay={0.03} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
             {visibleSuppliers.map((s) => (
-              <motion.div key={s.id} className="card supplier-card supplier-card--active" style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 220 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
+              <div key={s.id} className="card supplier-card supplier-card--active" style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 220 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <span className="stamp">ID: {s.id}</span>
                   <span className="status-pill safe" style={{ fontSize: 10, padding: '3px 8px' }}>Active supplier</span>
@@ -223,14 +208,14 @@ export default function Suppliers() {
                   <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10, color: 'var(--steel)', fontSize: 11 }}>{s.address || 'No address listed'}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--gradient-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{(s.name || '?').charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Supplier</span></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{(s.name || '?').charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Supplier</span></div>
                   {user.role === 'admin' && <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(s)} title="Edit supplier"><Pencil size={14} /></button><button className="btn-icon" onClick={() => handleDelete(s.id)} title="Remove supplier"><Trash2 size={14} /></button></div>}
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </StaggeredList>
+          </div>
         )}
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }

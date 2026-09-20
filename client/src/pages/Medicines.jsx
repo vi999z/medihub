@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import {
   Plus, Pencil, Trash2, RefreshCw, Download, Search, X, Check,
   AlertTriangle, CircleAlert,
@@ -12,8 +11,6 @@ import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
 import CsvImport from '../components/CsvImport';
-import AnimatedNumber from '../components/AnimatedNumber';
-import StaggeredList from '../components/StaggeredList';
 import AnimatedModal from '../components/AnimatedModal';
 import Skeleton from '../components/Skeleton';
 import QRCodeDisplay from '../components/QRCode';
@@ -152,7 +149,6 @@ export default function Medicines() {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const prefersReducedMotion = useReducedMotion();
 
   // Medicine detail modal state
   const [detailMedicine, setDetailMedicine] = useState(null);
@@ -533,11 +529,7 @@ export default function Medicines() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
+    <div>
       <div className="page-header">
         <div>
           <h1>Medicines</h1>
@@ -568,53 +560,40 @@ export default function Medicines() {
         </div>
       </div>
 
-      <motion.div 
-        className="stat-grid"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-      >
-        <motion.button
+      <div className="stat-grid">
+        <button
           type="button"
           className={`card stat-card accent-red filter-tile ${stockFilter === 'out' ? 'active' : ''}`}
           onClick={() => setStockFilter(stockFilter === 'out' ? 'all' : 'out')}
-          whileHover={{ y: -2 }}
-          whileTap={{ scale: 0.98 }}
         >
-          <div className="value"><AnimatedNumber value={summary.out} /></div>
+          <div className="value">{summary.out}</div>
           <div className="label">Out of stock</div>
-        </motion.button>
-        <motion.button
+        </button>
+        <button
           type="button"
           className={`card stat-card accent-gold filter-tile ${stockFilter === 'low' ? 'active' : ''}`}
           onClick={() => setStockFilter(stockFilter === 'low' ? 'all' : 'low')}
-          whileHover={{ y: -2 }}
-          whileTap={{ scale: 0.98 }}
         >
-          <div className="value"><AnimatedNumber value={summary.low} /></div>
+          <div className="value">{summary.low}</div>
           <div className="label">At or below reorder level</div>
-        </motion.button>
-        <motion.button
+        </button>
+        <button
           type="button"
           className={`card stat-card accent-amber filter-tile ${stockFilter === 'expiring' ? 'active' : ''}`}
           onClick={() => setStockFilter(stockFilter === 'expiring' ? 'all' : 'expiring')}
-          whileHover={{ y: -2 }}
-          whileTap={{ scale: 0.98 }}
         >
-          <div className="value"><AnimatedNumber value={summary.expiring} /></div>
+          <div className="value">{summary.expiring}</div>
           <div className="label">Expiring within 14 days</div>
-        </motion.button>
-        <motion.button
+        </button>
+        <button
           type="button"
           className={`card stat-card accent-green filter-tile ${stockFilter === 'healthy' ? 'active' : ''}`}
           onClick={() => setStockFilter(stockFilter === 'healthy' ? 'all' : 'healthy')}
-          whileHover={{ y: -2 }}
-          whileTap={{ scale: 0.98 }}
         >
-          <div className="value"><AnimatedNumber value={summary.healthy} /></div>
+          <div className="value">{summary.healthy}</div>
           <div className="label">Healthy stock</div>
-        </motion.button>
-      </motion.div>
+        </button>
+      </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="card" style={{ marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
@@ -730,26 +709,19 @@ export default function Medicines() {
       )}
 
       {!loading && !error && visibleMedicines.length > 0 && (
-        <motion.div 
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
           {visibleMedicines.map((m) => {
             const state = stockStateOf(m);
             const expiry = expiryLabel(m);
             return (
-              <motion.div
+              <div
                 key={m.id}
                 className={`card medicine-card ${state.cls}`}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  cursor: 'pointer'
                 }}
-                whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
                 onClick={() => openDetail(m)}
               >
                 {/* Top Row: ID & Status */}
@@ -801,7 +773,7 @@ export default function Medicines() {
                 {/* Bottom Row: Avatar + Label + Action */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>
                       {(m.name || '?').charAt(0).toUpperCase()}
                     </div>
                     <div className="medicine-card__footer-label">{m.name.substring(0, 12)}</div>
@@ -818,8 +790,7 @@ export default function Medicines() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
+                      cursor: 'pointer'
                     }}
                     onMouseEnter={(e) => { e.target.style.background = 'var(--bg-hover)'; e.target.style.borderColor = 'var(--primary)'; }}
                     onMouseLeave={(e) => { e.target.style.background = 'var(--bg-subtle)'; e.target.style.borderColor = 'var(--border)'; }}
@@ -828,10 +799,10 @@ export default function Medicines() {
                     <Pencil size={16} color="var(--ink)" />
                   </button>
                 </div>
-              </motion.div>
+              </div>
             );
           })}
-        </motion.div>
+        </div>
       )}
 
       {/* Medicine detail modal with integrated batches */}
@@ -914,12 +885,11 @@ export default function Medicines() {
 
             {detailBatches.length > 0 && (
               <div className="medicine-detail-batches">
-                <StaggeredList staggerDelay={0.03}>
-                  {detailBatches.map((b) => {
+                {detailBatches.map((b) => {
                     const pill = batchStatusPill(b);
                     const borderColorMap = { 'safe': 'var(--green)', 'warning': 'var(--gold)', 'critical': 'var(--red)' };
                             return (
-                      <motion.div
+                      <div
                         key={b.id}
                         className="card"
                         style={{
@@ -928,7 +898,6 @@ export default function Medicines() {
                           padding: '14px',
                           borderTop: `4px solid ${borderColorMap[pill.cls]}`
                         }}
-                        whileHover={{ y: -2, boxShadow: 'var(--shadow-md)' }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                           <span className="stamp" style={{ fontSize: '11px' }}>Batch: {b.batch_number}</span>
@@ -986,10 +955,9 @@ export default function Medicines() {
                             </button>
                           )}
                         </div>
-                      </motion.div>
+                      </div>
                     );
                   })}
-                </StaggeredList>
               </div>
             )}
           </div>
@@ -1058,6 +1026,6 @@ export default function Medicines() {
           error={stockMovementError}
         />
       )}
-    </motion.div>
+    </div>
   );
 }

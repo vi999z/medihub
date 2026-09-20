@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
-import { CheckCheck, RefreshCw, BellRing, Search, X, AlertTriangle, Info, Bell, Download, ChevronDown } from 'lucide-react';
+import { CheckCheck, RefreshCw, BellRing, Search, X, AlertTriangle, Info, Download, ChevronDown } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
-import StaggeredList from '../components/StaggeredList';
 import Skeleton from '../components/Skeleton';
 
 // ── Alerts export dropdown ────────────────────────────────────────────────────
@@ -73,7 +71,6 @@ export default function Notifications() {
   const [search, setSearch] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [error, setError] = useState('');
-  const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
@@ -157,11 +154,7 @@ export default function Notifications() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
+    <div>
       <div className="page-header">
         <div>
           <h1>Alerts</h1>
@@ -249,29 +242,18 @@ export default function Notifications() {
 
       {/* Cards grid */}
       {!loading && !error && visibleNotifications.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
-        >
-          <StaggeredList
-            staggerDelay={0.03}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
-          >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {visibleNotifications.map((n) => {
               const cfg = severityConfig(n.severity);
               const SevIcon = cfg.icon;
               return (
-                <motion.div
+                <div
                   key={n.id}
                   className={`card alert-card ${cfg.cls}`}
                   style={{
                     display: 'flex',
-                    flexDirection: 'column',
-                    opacity: 1,
-                    transition: 'all 0.2s ease',
+                    flexDirection: 'column'
                   }}
-                  whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
                 >
                   {/* Top row: severity pill + type */}
                   <div className="alert-card__top-row">
@@ -313,12 +295,11 @@ export default function Notifications() {
                       <span className="alert-card__read">Read</span>
                     )}
                   </div>
-                </motion.div>
+                </div>
               );
             })}
-          </StaggeredList>
-        </motion.div>
+          </div>
       )}
-    </motion.div>
+    </div>
   );
 }

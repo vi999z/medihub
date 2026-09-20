@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import { RefreshCw, AlertCircle, CheckCircle2, Info, Download, ChevronDown } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -129,7 +128,6 @@ export default function AiInsights() {
   const [trainMsg, setTrainMsg] = useState('');
   const [trainStatus, setTrainStatus] = useState('info'); // 'success' | 'error' | 'info'
   const [error, setError] = useState('');
-  const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     setLoading(true);
@@ -233,11 +231,7 @@ export default function AiInsights() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
+    <div>
       <div className="page-header">
         <div>
           <h1>AI Insights</h1>
@@ -280,12 +274,7 @@ export default function AiInsights() {
       </div>
 
       {tab === 'risk' && (
-        <motion.div 
-          className="card table-card"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-        >
+        <div className="card table-card">
           <div className="table-scroll">
             <table className="data-table">
               <thead><tr><th>Medicine</th><th>Batch</th><th>Days left</th><th>Qty</th><th>Signal</th><th>Action</th></tr></thead>
@@ -323,16 +312,11 @@ export default function AiInsights() {
               <button className="btn btn-secondary" onClick={fetchAll} style={{ marginTop: 10 }}>Retry</button>
             </div>
           )}
-        </motion.div>
+        </div>
       )}
 
       {tab === 'reorder' && (
-        <motion.div 
-          className="card table-card"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-        >
+        <div className="card table-card">
           <div className="table-scroll">
             <table className="data-table">
               <thead><tr><th>Medicine</th><th>Current stock</th><th>Avg demand/day</th><th>Days left</th><th>Signal</th><th>Suggested order</th></tr></thead>
@@ -370,16 +354,11 @@ export default function AiInsights() {
               <button className="btn btn-secondary" onClick={fetchAll} style={{ marginTop: 10 }}>Retry</button>
             </div>
           )}
-        </motion.div>
+        </div>
       )}
 
       {tab === 'anomalies' && (
-        <motion.div 
-          className="card table-card"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-        >
+        <div className="card table-card">
           <div className="table-scroll">
             <table className="data-table">
               <thead><tr><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>Signal</th><th>Action</th></tr></thead>
@@ -417,8 +396,8 @@ export default function AiInsights() {
               <button className="btn btn-secondary" onClick={fetchAll} style={{ marginTop: 10 }}>Retry</button>
             </div>
           )}
-        </motion.div>
+        </div>
       )}
-    </motion.div>
+    </div>
   );
 }

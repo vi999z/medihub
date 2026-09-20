@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
-import { IconSend, IconRobot, IconUser, IconRefresh, IconAlertTriangle, IconSparkles, IconPaperclip, IconX, IconDownload } from '@tabler/icons-react';
+import { IconSend, IconRobot, IconUser, IconRefresh, IconSparkles, IconPaperclip, IconX, IconDownload } from '@tabler/icons-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import api from '../api/axios';
@@ -26,7 +25,6 @@ function StarterPromptButton({ prompt, onClick }) {
         color: hovered ? 'var(--primary)' : 'var(--ink-soft)',
         fontWeight: hovered ? 600 : 500,
         textAlign: 'left',
-        transition: 'all 0.18s ease',
         lineHeight: 1.4
       }}
     >
@@ -192,7 +190,6 @@ export default function AiChatModern() {
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
   const fileInputRef = useRef(null);
-  const prefersReducedMotion = useReducedMotion();
 
   function handleImageSelect(e) {
     const file = e.target.files?.[0];
@@ -612,11 +609,7 @@ export default function AiChatModern() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
+    <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 'clamp(1.2rem, 1.8vw, 1.55rem)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -734,11 +727,8 @@ export default function AiChatModern() {
         {/* Messages Area */}
         <div style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {messages.map((msg, index) => (
-            <motion.div
+            <div
               key={index}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
               style={{
                 display: 'flex',
                 justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
@@ -828,22 +818,18 @@ export default function AiChatModern() {
                   <IconUser size={18} />
                 </div>
               )}
-            </motion.div>
+            </div>
           ))}
           <div ref={messagesEndRef} />
         </div>
 
         {/* Starter Prompts */}
         {messages.length === 1 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}
-        >
+        <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
           {STARTER_PROMPTS.map((prompt, idx) => (
             <StarterPromptButton key={idx} prompt={prompt} onClick={() => handleStarterPrompt(prompt)} />
           ))}
-        </motion.div>
+        </div>
       )}
 
         {/* Input Area */}
@@ -975,6 +961,6 @@ export default function AiChatModern() {
           50%, 99% { opacity: 0; }
         }
       `}</style>
-    </motion.div>
+    </div>
   );
 }

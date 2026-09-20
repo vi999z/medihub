@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import { Search, X } from 'lucide-react';
 import api from '../api/axios';
-import StaggeredList from '../components/StaggeredList';
 import Skeleton from '../components/Skeleton';
 
 export default function AuditLog() {
@@ -10,7 +8,6 @@ export default function AuditLog() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
-  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     let mounted = true;
@@ -34,11 +31,7 @@ export default function AuditLog() {
   }, [logs, search]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
+    <div>
       <div className="page-header">
         <div>
           <h1>Audit Log</h1>
@@ -93,37 +86,27 @@ export default function AuditLog() {
       )}
 
       {!loading && !error && visibleLogs.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <StaggeredList
-            staggerDelay={0.03}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
-          >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {visibleLogs.map((l) => {
               const actionColorMap = { 'create': 'var(--green)', 'update': 'var(--amber)', 'delete': 'var(--red)', 'login': 'var(--green)', 'logout': 'var(--steel)', 'export': 'var(--gold)', 'ai': 'var(--info)' };
               const actionKey = l.action.split('_')[0].toLowerCase();
               const actionToneMap = { create: 'safe', update: 'warning', delete: 'critical', login: 'safe', logout: 'neutral', export: 'warning', ai: 'info' };
               const actionTone = actionToneMap[actionKey] || 'neutral';
               return (
-                <motion.div
+                <div
                   key={l.id}
                   className={`card audit-card audit-card--${actionTone}`}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
                     padding: '16px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
+                    cursor: 'pointer'
                   }}
-                  whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
                 >
                   {/* Top Row: Time & Action */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                     <span className="stamp" style={{ fontSize: '11px' }}>{new Date(l.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: `${actionColorMap[actionKey] || 'var(--steel)'}15`, color: actionColorMap[actionKey] || 'var(--steel)', textTransform: 'capitalize' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: actionColorMap[actionKey] || 'var(--steel)', textTransform: 'capitalize' }}>
                       {l.action.replace(/_/g, ' ')}
                     </span>
                   </div>
@@ -145,19 +128,18 @@ export default function AuditLog() {
 
                   {/* Bottom Row: Avatar + User */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
                       {(l.user_name || 'S').charAt(0).toUpperCase()}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {l.user_name || 'System'}
                     </div>
                   </div>
-                </motion.div>
+                </div>
               );
             })}
-          </StaggeredList>
-        </motion.div>
+          </div>
       )}
-    </motion.div>
+    </div>
   );
 }

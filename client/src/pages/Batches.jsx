@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import { Plus, Trash2, Pencil, Download, Search, X, QrCode, ChevronDown } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
-import StaggeredList from '../components/StaggeredList';
 import QRCodeDisplay from '../components/QRCode';
 import Skeleton from '../components/Skeleton';
 
@@ -116,7 +114,6 @@ export default function Batches() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrBatch, setQrBatch] = useState(null);
-  const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
@@ -250,11 +247,7 @@ export default function Batches() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
+    <div>
       <div className="page-header">
         <div>
           <h1>Batches</h1>
@@ -274,14 +267,10 @@ export default function Batches() {
       </div>
 
       {showForm && (
-        <motion.form 
-          onSubmit={handleSubmit} 
-          className="card" 
+        <form
+          onSubmit={handleSubmit}
+          className="card"
           style={{ marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
         >
           <div className="field">
             <label>Medicine</label>
@@ -314,7 +303,7 @@ export default function Batches() {
             <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
           </div>
           {error && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{error}</p>}
-        </motion.form>
+        </form>
       )}
 
       <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
@@ -379,18 +368,12 @@ export default function Batches() {
       )}
 
       {!loading && !error && visibleBatches.length > 0 && (
-        <motion.div 
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <StaggeredList staggerDelay={0.03}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {visibleBatches.map((b) => {
               const pill = statusPillFor(b);
               const borderColorMap = { 'safe': 'var(--green)', 'warning': 'var(--gold)', 'critical': 'var(--red)' };
               return (
-                <motion.div
+                <div
                   key={b.id}
                   className="card"
                   style={{
@@ -398,10 +381,8 @@ export default function Batches() {
                     flexDirection: 'column',
                     padding: '16px',
                     borderTop: `4px solid ${borderColorMap[pill.cls]}`,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
+                    cursor: 'pointer'
                   }}
-                  whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
                 >
                   {/* Top Row: ID & Status */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -437,7 +418,7 @@ export default function Batches() {
                   {/* Bottom Row: Avatar + Label + Actions */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
                         {(b.medicine_name || '?').charAt(0).toUpperCase()}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.medicine_name.substring(0, 12)}</div>
@@ -455,8 +436,7 @@ export default function Batches() {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
+                          cursor: 'pointer'
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-subtle)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
@@ -476,8 +456,7 @@ export default function Batches() {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
+                          cursor: 'pointer'
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-subtle)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
@@ -487,21 +466,17 @@ export default function Batches() {
                       </button>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               );
             })}
-          </StaggeredList>
-        </motion.div>
+        </div>
       )}
 
       {showQRModal && qrBatch && (
         <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowQRModal(false)}>
-          <motion.div 
-            className="card" 
+          <div
+            className="card"
             style={{ padding: 24, maxWidth: 400, width: '90%' }}
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -531,9 +506,9 @@ export default function Batches() {
             >
               Download QR Code
             </button>
-          </motion.div>
+          </div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }

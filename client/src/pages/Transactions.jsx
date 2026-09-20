@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import { Plus, Search, X, Download, ChevronDown, ArrowDownLeft, ArrowUpRight, RefreshCw, Trash2 } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
-import StaggeredList from '../components/StaggeredList';
 import Skeleton from '../components/Skeleton';
 import { downloadCsv } from '../utils/csv';
 
@@ -78,7 +76,6 @@ export default function Transactions() {
   const [formError, setFormError] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
-  const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
@@ -158,11 +155,7 @@ export default function Transactions() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
+    <div>
       <div className="page-header">
         <div>
           <h1>Transactions</h1>
@@ -177,14 +170,10 @@ export default function Transactions() {
       </div>
 
       {showForm && (
-        <motion.form 
-          onSubmit={handleSubmit} 
-          className="card" 
+        <form
+          onSubmit={handleSubmit}
+          className="card"
           style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
         >
           <div className="field">
             <label>Batch</label>
@@ -208,7 +197,7 @@ export default function Transactions() {
             <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
           </div>
           {formError && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{formError}</p>}
-        </motion.form>
+        </form>
       )}
 
       <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
@@ -273,30 +262,20 @@ export default function Transactions() {
       )}
 
       {!loading && !error && visibleTransactions.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <StaggeredList
-            staggerDelay={0.03}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}
-          >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {visibleTransactions.map((t) => {
               const isIncrease = t.quantity > 0;
               const config = transactionConfig(t.transaction_type);
               const TypeIcon = config.Icon;
               return (
-                <motion.div
+                <div
                   key={t.id}
                   className={`card transaction-card ${config.cls}`}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
+                    cursor: 'pointer'
                   }}
-                  whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}
                 >
                   {/* Top Row: ID & Type Badge */}
                   <div className="transaction-card__top-row">
@@ -346,12 +325,11 @@ export default function Transactions() {
                       {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
-                </motion.div>
+                </div>
               );
             })}
-          </StaggeredList>
-        </motion.div>
+          </div>
       )}
-    </motion.div>
+    </div>
   );
 }

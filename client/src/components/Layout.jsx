@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useMemo } from 'react';
 import {
   IconLayoutDashboard, IconPill, IconReceipt, IconBellRinging, IconBox,
@@ -173,26 +172,17 @@ function TopBar({ pageTitle }) {
             />
           </button>
 
-          <AnimatePresence>
-            {menuOpen && (
-              <motion.div
-                className="avatar-menu"
-                initial={{ opacity: 0, scale: 0.94, y: -6 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.94, y: -6 }}
-                transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-                style={{ transformOrigin: 'top right' }}
-              >
-                <div className="avatar-menu-header">
-                  <strong>{user?.full_name}</strong>
-                  <span>{user?.role}</span>
-                </div>
-                <button className="avatar-menu-item danger" onClick={handleLogout}>
-                  <IconLogout size={15} stroke={1.8} /> Log out
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {menuOpen && (
+            <div className="avatar-menu">
+              <div className="avatar-menu-header">
+                <strong>{user?.full_name}</strong>
+                <span>{user?.role}</span>
+              </div>
+              <button className="avatar-menu-item danger" onClick={handleLogout}>
+                <IconLogout size={15} stroke={1.8} /> Log out
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -212,7 +202,6 @@ function TopBar({ pageTitle }) {
 export default function Layout({ children }) {
   const { user } = useAuth();
   const location = useLocation();
-  const prefersReducedMotion = useReducedMotion();
   const pageTitle = useMemo(() => ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub', [location.pathname]);
   const secondaryItems = NAV_GROUP_SECONDARY.filter((item) => !item.adminOnly || user?.role === 'admin');
 
@@ -248,16 +237,7 @@ export default function Layout({ children }) {
       <div className="shell-main">
         <TopBar pageTitle={pageTitle} />
         <main className="main-content" style={{ position: 'relative' }}>
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.25, ease: [0.4, 0, 0.2, 1] }}
-            style={{ height: '100%' }}
-          >
-            {children}
-          </motion.div>
+          {children}
         </main>
       </div>
     </div>

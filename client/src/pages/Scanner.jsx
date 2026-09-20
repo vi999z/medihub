@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import { Camera, X, ImagePlus, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useZxing } from 'react-zxing';
@@ -13,8 +12,7 @@ export default function Scanner() {
   const [drugData, setDrugData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const prefersReducedMotion = useReducedMotion();
-  
+
   const photoInputRef = useRef(null);
   const barcodeFormats = ['QRCode', 'EAN13', 'UPCA', 'Code128', 'EAN8', 'UPCE'];
 
@@ -105,11 +103,7 @@ export default function Scanner() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
+    <div>
       <div className="page-header">
         <div>
           <h1>Scanner</h1>
@@ -117,13 +111,7 @@ export default function Scanner() {
         </div>
       </div>
 
-      <motion.div 
-        className="card"
-        style={{ padding: 20, marginBottom: 20 }}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-      >
+      <div className="card" style={{ padding: 20, marginBottom: 20 }}>
         {/* Scanner View */}
         {!isScanning && !scanResult && !drugData && (
           <div style={{ textAlign: 'center', padding: '40px 20px' }}>
@@ -131,14 +119,14 @@ export default function Scanner() {
             <p style={{ color: 'var(--steel)', marginBottom: 20 }}>
               Scan a product code to add it to stock
             </p>
-            <motion.button className="btn btn-primary" onClick={startScanning} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+            <button className="btn btn-primary" onClick={startScanning}>
               <Camera size={18} />
               Start Scanning
-            </motion.button>
-            <motion.button className="btn btn-secondary" onClick={() => photoInputRef.current?.click()} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+            </button>
+            <button className="btn btn-secondary" onClick={() => photoInputRef.current?.click()}>
               <ImagePlus size={18} />
               Upload Photo
-            </motion.button>
+            </button>
             <input
               ref={photoInputRef}
               type="file"
@@ -177,15 +165,13 @@ export default function Scanner() {
                 boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)'
               }} />
             </div>
-            <motion.button
+            <button
               className="btn btn-secondary"
               style={{ position: 'absolute', top: 12, right: 12, borderRadius: '50%', padding: 8 }}
               onClick={() => setIsScanning(false)}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
             >
               <X size={20} />
-            </motion.button>
+            </button>
             <div style={{
               position: 'absolute',
               bottom: 12,
@@ -216,23 +202,19 @@ export default function Scanner() {
           <div className="empty-state">
             <AlertCircle size={16} style={{ marginBottom: 6 }} />
             <div>{error}</div>
-            <motion.button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={resetScanner} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={resetScanner}>
               Try Again
-            </motion.button>
+            </button>
           </div>
         )}
 
         {/* Scan Result */}
         {drugData && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{ padding: 20 }}
-          >
+          <div style={{ padding: 20 }}>
             <h3 style={{ margin: '0 0 16px' }}>
               {drugData.scannedCode ? 'Code Captured' : 'Product Found'}
             </h3>
-            
+
             {drugData.scannedCode ? (
               <div style={{ background: 'var(--bg-soft)', padding: 16, borderRadius: 12, marginBottom: 16 }}>
                 <p style={{ color: 'var(--steel)', marginBottom: 8 }}>
@@ -244,27 +226,25 @@ export default function Scanner() {
                 </div>
               </div>
             ) : null}
-            
+
             <div style={{ display: 'flex', gap: 12 }}>
-              <motion.button className="btn btn-secondary" style={{ flex: 1 }} onClick={resetScanner} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={resetScanner}>
                 Scan Another
-              </motion.button>
-              <motion.button
+              </button>
+              <button
                 className="btn btn-primary"
                 style={{ flex: 1 }}
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.98 }}
                 onClick={() => {
                   // Navigate to medicines page to add stock with pre-filled data
                   navigate(`/medicines?addBatch=true&code=${encodeURIComponent(scanResult.code)}`);
                 }}
               >
                 Add to Stock
-              </motion.button>
+              </button>
             </div>
-          </motion.div>
+          </div>
         )}
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }

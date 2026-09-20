@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import {
   IconCloud, IconCloudRain, IconSun, IconWind, IconDroplet,
   IconThermometer, IconRefresh, IconAlertTriangle, IconPackage,
@@ -242,16 +241,11 @@ function DemandCategoryBadges({ categories, loading }) {
   );
 }
 
-function RecommendationRow({ rec, index, prefersReducedMotion }) {
+function RecommendationRow({ rec }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <motion.tr
-      key={rec.medicine_id}
-      initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.2, delay: prefersReducedMotion ? 0 : index * 0.04 }}
-    >
+    <tr key={rec.medicine_id}>
       <td style={{ fontWeight: 600, fontSize: 13 }}>
         <div>{rec.medicine_name}</div>
         <div style={{ fontSize: 11, color: 'var(--steel)', marginTop: 2 }}>
@@ -310,7 +304,7 @@ function RecommendationRow({ rec, index, prefersReducedMotion }) {
           </div>
         )}
       </td>
-    </motion.tr>
+    </tr>
   );
 }
 
@@ -394,7 +388,6 @@ function TableSkeleton() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function WeatherRecommendations() {
-  const prefersReducedMotion = useReducedMotion();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -434,11 +427,7 @@ export default function WeatherRecommendations() {
   const allCategories = [...new Set(recommendations.map(r => r.demand_category))];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
+    <div>
       {/* Page header */}
       <div className="page-header">
         <div>
@@ -483,11 +472,8 @@ export default function WeatherRecommendations() {
       <DemandCategoryBadges categories={data?.high_demand_categories} loading={loading} />
 
       {/* How it works info */}
-      <div className="card" style={{
-        padding: '12px 18px', marginBottom: 20,
-        background: 'linear-gradient(135deg, #fefcf8 0%, #f8ebdc 100%)'
-      }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--amber)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+      <div className="card" style={{ padding: '12px 18px', marginBottom: 20 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           How weather recommendations work
         </div>
         <p style={{ margin: '5px 0 0', color: 'var(--ink-soft)', fontSize: 12, lineHeight: 1.6 }}>
@@ -576,12 +562,10 @@ export default function WeatherRecommendations() {
                 <TableSkeleton />
               ) : (
                 <tbody>
-                  {filtered.map((rec, i) => (
+                  {filtered.map((rec) => (
                     <RecommendationRow
                       key={rec.medicine_id}
                       rec={rec}
-                      index={i}
-                      prefersReducedMotion={prefersReducedMotion}
                     />
                   ))}
                 </tbody>
@@ -603,6 +587,6 @@ export default function WeatherRecommendations() {
           </div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }

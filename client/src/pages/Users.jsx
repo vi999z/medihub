@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import { KeyRound, Plus, Pencil, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import StaggeredList from '../components/StaggeredList';
 import Skeleton from '../components/Skeleton';
 
 export default function Users() {
@@ -17,7 +15,6 @@ export default function Users() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ full_name: '', email: '', password: '', role: 'pharmacist', is_active: true });
   const [error, setError] = useState('');
-  const prefersReducedMotion = useReducedMotion();
 
   async function fetchAll() {
     try {
@@ -92,11 +89,7 @@ export default function Users() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.4 }}
-    >
+    <div>
       <div className="page-header">
         <div>
           <h1>Users</h1>
@@ -106,14 +99,10 @@ export default function Users() {
       </div>
 
       {showForm && (
-        <motion.form 
-          onSubmit={handleSubmit} 
-          className="card" 
+        <form
+          onSubmit={handleSubmit}
+          className="card"
           style={{ marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
         >
           <div className="field"><label>Full name</label><input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} required /></div>
           <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
@@ -132,14 +121,10 @@ export default function Users() {
             <button type="submit" className="btn btn-primary">{editingId ? 'Update account' : 'Create account'}</button>
             <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
           </div>
-        </motion.form>
+        </form>
       )}
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-      >
+      <div>
         <div className="filter-bar" style={{ padding: 16, margin: 0, marginBottom: 16, background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
@@ -184,9 +169,9 @@ export default function Users() {
         )}
 
         {!loading && !error && visibleUsers.length > 0 && (
-          <StaggeredList staggerDelay={0.03} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
             {visibleUsers.map((u) => (
-              <motion.div key={u.id} className={`card user-card ${u.is_active ? 'user-card--active' : 'user-card--inactive'}`} style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 205 }} whileHover={{ y: -4, boxShadow: 'var(--shadow-md)' }}>
+              <div key={u.id} className={`card user-card ${u.is_active ? 'user-card--active' : 'user-card--inactive'}`} style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 205 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <span className="stamp">ID: {u.id}</span>
                   <span className={`status-pill ${u.is_active ? 'safe' : 'critical'}`} style={{ fontSize: 10, padding: '3px 8px' }}>{u.is_active ? 'Active' : 'Inactive'}</span>
@@ -197,14 +182,14 @@ export default function Users() {
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}><div style={{ color: 'var(--steel)', fontSize: 11 }}>Role</div><div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{u.role}</div></div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--gradient-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{(u.full_name || '?').charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Account</span></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{(u.full_name || '?').charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Account</span></div>
                   <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(u)} title="Edit account"><Pencil size={14} /></button>{u.id !== me.id && <><button className="btn-icon" onClick={() => resetPassword(u)} title="Generate temporary password"><KeyRound size={14} /></button><button className="btn-icon" onClick={() => toggleActive(u)} title={u.is_active ? 'Deactivate' : 'Reactivate'}>{u.is_active ? <X size={14} /> : <Plus size={14} />}</button></>}</div>
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </StaggeredList>
+          </div>
         )}
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }
