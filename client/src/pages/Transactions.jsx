@@ -3,7 +3,6 @@ import { Plus, Search, X, Download, ChevronDown, ArrowDownLeft, ArrowUpRight, Re
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
-import Skeleton from '../components/Skeleton';
 import { downloadCsv } from '../utils/csv';
 
 // ── Transactions export dropdown ──────────────────────────────────────────────
@@ -30,23 +29,23 @@ function TransactionExportDropdown({ onExport }) {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className="btn btn-secondary" onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <button type="button" className="flat-action-btn" onClick={() => setOpen(o => !o)}>
         <Download size={15} /> Export <ChevronDown size={13} />
       </button>
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 240,
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 12, boxShadow: 'var(--shadow-xl)', zIndex: 50, padding: '6px 0'
+          background: '#fff', border: '1px solid var(--flat-border)',
+          borderRadius: 8, zIndex: 50, padding: '6px 0'
         }}>
           {OPTIONS.map((opt, idx) => opt === null ? (
-            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--flat-border)' }} />
           ) : (
             <button
               key={idx}
               onClick={() => { onExport(opt.key, opt.format, opt.days); setOpen(false); }}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--ink)', transition: 'background 0.12s ease' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--flat-text)', transition: 'background 0.12s ease' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--flat-bg)'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}
             >{opt.label}</button>
           ))}
@@ -65,6 +64,9 @@ function transactionConfig(type) {
   if (type === 'return') return { cls: 'safe', Icon: ArrowUpRight, label: 'Return' };
   return { cls: 'warning', Icon: RefreshCw, label: 'Adjustment' };
 }
+
+// Maps transaction type severity onto the flat design system's palette.
+const TX_FLAT_CLS = { critical: 'red', warning: 'amber', safe: 'green' };
 
 export default function Transactions() {
   const { addToast } = useToast();
@@ -170,15 +172,15 @@ export default function Transactions() {
   }
 
   return (
-    <div>
+    <div className="flat-dashboard">
       <div className="page-header">
         <div>
           <h1>Transactions</h1>
           <p>{loading ? 'Loading movements…' : `${visibleTransactions.length} of ${transactions.length} movements shown`}</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div className="page-header-actions">
           <TransactionExportDropdown onExport={handleExport} />
-          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+          <button type="button" className="flat-btn-primary" onClick={() => setShowForm(!showForm)}>
             <Plus size={15} /> {showForm ? 'Close form' : 'Record transaction'}
           </button>
         </div>
@@ -187,8 +189,8 @@ export default function Transactions() {
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="card"
-          style={{ padding: 20, marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
+          className="flat-card"
+          style={{ padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
         >
           <div className="field">
             <label>Batch</label>
@@ -208,15 +210,15 @@ export default function Transactions() {
           <div className="field"><label>Quantity</label><input type="number" min="1" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required /></div>
           <div className="field"><label>Reason (optional)</label><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">Save transaction</button>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+            <button type="submit" className="flat-btn-primary">Save transaction</button>
+            <button type="button" className="flat-action-btn" onClick={() => setShowForm(false)}>Cancel</button>
           </div>
           {formError && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{formError}</p>}
         </form>
       )}
 
-      <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
-        <div className="filter-bar" style={{ margin: 0 }}>
+      <div className="flat-card" style={{ padding: 16 }}>
+        <div className="filter-bar" style={{ margin: 0, background: 'none', border: 'none', padding: 0 }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -242,114 +244,77 @@ export default function Transactions() {
             </button>
           )}
           {filtersActive && (
-            <button type="button" className="btn btn-secondary" onClick={clearFilters}>
+            <button type="button" className="flat-action-btn" onClick={clearFilters}>
               <X size={15} /> Clear filters
             </button>
           )}
         </div>
       </div>
 
-      {error && (
-        <div className="empty-state">
-          <strong>Unable to load transactions</strong>
-          <p style={{ margin: '6px 0 0' }}>{error}</p>
-          <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
-        </div>
-      )}
-
-      {!loading && !error && visibleTransactions.length === 0 && (
-        <div className="empty-state">
-          <strong>No transactions found</strong>
-          <p style={{ margin: '6px 0 0' }}>{transactions.length === 0 ? 'No stock movements recorded yet.' : 'No movements match the current filters.'}</p>
+      <div className="flat-card">
+        <div className="flat-table-header">
+          <span className="flat-table-title">Movements</span>
           {filtersActive && (
-            <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
+            <button type="button" className="flat-table-link" onClick={clearFilters}>Clear filters</button>
           )}
         </div>
-      )}
-
-      {loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="card" style={{ height: '260px' }}>
-              <Skeleton height={16} style={{ marginBottom: '12px' }} />
-              <Skeleton height={16} style={{ marginBottom: '8px' }} />
-              <Skeleton height={16} style={{ marginBottom: '16px' }} />
-              <Skeleton height={16} style={{ marginBottom: '12px' }} />
-              <Skeleton height={40} style={{ borderRadius: '999px' }} />
+        <div style={{ padding: 16 }}>
+          {error && (
+            <div className="flat-empty">
+              Unable to load transactions — {error}
+              <div style={{ marginTop: 10 }}>
+                <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
+              </div>
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {!loading && !error && visibleTransactions.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-            {visibleTransactions.map((t) => {
-              const isIncrease = t.quantity > 0;
-              const config = transactionConfig(t.transaction_type);
-              const TypeIcon = config.Icon;
-              return (
-                <div
-                  key={t.id}
-                  className={`card transaction-card ${config.cls}`}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {/* Top Row: ID & Type Badge */}
-                  <div className="transaction-card__top-row">
-                    <span className="stamp transaction-card__id">ID: {t.id}</span>
-                    <span className={`status-pill transaction-card__type ${config.cls}`}>
-                      <TypeIcon aria-hidden="true" size={18} strokeWidth={2.5} />
-                      <span>{config.label}</span>
-                    </span>
-                  </div>
-
-                  {/* Middle Content */}
-                  <div className="transaction-card__content">
-                    <div className="transaction-card__name">
-                      {t.medicine_name}
-                    </div>
-                    <div className="transaction-card__details">
-                      Batch: <span className="stamp transaction-card__batch">{t.batch_number}</span>
-                    </div>
-                    <div className="transaction-card__stats">
-                      <div>
-                        <div className="transaction-card__label">Quantity</div>
-                        <div className={`transaction-card__quantity ${isIncrease ? 'increase' : 'decrease'}`}>
-                          {isIncrease ? '+' : ''}{t.quantity}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="transaction-card__label">Date</div>
-                        <div className="transaction-card__value">{new Date(t.created_at).toLocaleDateString()}</div>
-                      </div>
-                    </div>
-                    {t.reason && (
-                      <div className="transaction-card__reason">
-                        Reason: <span>{t.reason}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bottom Row: Avatar + User + Time */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                      <div className="transaction-card__avatar">
-                        {(t.user_name || '?').charAt(0).toUpperCase()}
-                      </div>
-                      <div className="transaction-card__user">{t.user_name.substring(0, 12)}</div>
-                    </div>
-                    <div className="transaction-card__time">
-                      {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  </div>
+          {!error && loading && (
+            <div className="flat-card-grid">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="flat-card flat-item-card">
+                  <div className="flat-item-icon skeleton" style={{ border: 'none' }} />
+                  <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
+                  <div className="skeleton" style={{ height: 12, width: '50%' }} />
                 </div>
-              );
-            })}
-          </div>
-      )}
+              ))}
+            </div>
+          )}
+
+          {!error && !loading && visibleTransactions.length === 0 && (
+            <div className="flat-empty">{transactions.length === 0 ? 'No stock movements recorded yet.' : 'No movements match the current filters.'}</div>
+          )}
+
+          {!error && !loading && visibleTransactions.length > 0 && (
+            <div className="flat-card-grid">
+              {visibleTransactions.map((t) => {
+                const isIncrease = t.quantity > 0;
+                const config = transactionConfig(t.transaction_type);
+                const TypeIcon = config.Icon;
+                return (
+                  <div key={t.id} className="flat-card flat-item-card" style={{ cursor: 'default' }}>
+                    <div className="flat-item-card__top">
+                      <div className="flat-item-icon"><TypeIcon size={20} /></div>
+                      <span className={`flat-status-label ${TX_FLAT_CLS[config.cls]}`}>{config.label}</span>
+                    </div>
+                    <div className="flat-med-name">{t.medicine_name}</div>
+                    <div className="flat-med-meta">{t.user_name} · {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    <span className="flat-tag">Batch {t.batch_number}</span>
+                    <div className="flat-item-row">
+                      <span>Quantity</span>
+                      <strong className={`flat-status-label ${isIncrease ? 'green' : 'red'}`}>{isIncrease ? '+' : ''}{t.quantity}</strong>
+                    </div>
+                    <div className="flat-item-row">
+                      <span>Date</span>
+                      <strong>{new Date(t.created_at).toLocaleDateString()}</strong>
+                    </div>
+                    {t.reason && <div className="flat-med-meta">Reason: {t.reason}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

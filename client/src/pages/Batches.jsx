@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, Pencil, Download, Search, X, QrCode, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Pencil, Download, Search, X, QrCode, ChevronDown, Package } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
 import QRCodeDisplay from '../components/QRCode';
-import Skeleton from '../components/Skeleton';
 
 // ── Export dropdown button ────────────────────────────────────────────────────
 function ExportDropdown({ onExport }) {
@@ -35,23 +34,19 @@ function ExportDropdown({ onExport }) {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        className="btn btn-secondary"
-        onClick={() => setOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-      >
+      <button type="button" className="flat-action-btn" onClick={() => setOpen(o => !o)}>
         <Download size={15} /> Export <ChevronDown size={13} />
       </button>
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 230,
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 12, boxShadow: 'var(--shadow-xl)', zIndex: 50,
+          background: '#fff', border: '1px solid var(--flat-border)',
+          borderRadius: 8, zIndex: 50,
           padding: '6px 0', overflow: 'hidden'
         }}>
           {EXPORT_OPTIONS.map((opt, idx) =>
             opt === null ? (
-              <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+              <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--flat-border)' }} />
             ) : (
               <button
                 key={idx}
@@ -59,10 +54,10 @@ function ExportDropdown({ onExport }) {
                 style={{
                   display: 'block', width: '100%', textAlign: 'left',
                   padding: '9px 16px', background: 'none', border: 'none',
-                  cursor: 'pointer', fontSize: 13, color: 'var(--ink)',
+                  cursor: 'pointer', fontSize: 13, color: 'var(--flat-text)',
                   transition: 'background 0.12s ease'
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--flat-bg)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
                 {opt.label}
@@ -87,7 +82,7 @@ const STATUS_FILTERS = [
 function statusPillFor(batch) {
   if (batch.status === 'expired') return { cls: 'critical', label: 'Expired' };
   if (batch.status === 'depleted') return { cls: 'orange', label: 'Depleted' };
-  if (batch.status === 'recalled') return { cls: 'purple', label: 'Recalled' };
+  if (batch.status === 'recalled') return { cls: 'critical', label: 'Recalled' };
   if (!batch.expiry_date) return { cls: 'safe', label: 'Active' };
   const days = daysUntil(batch.expiry_date);
   if (days <= 3) return { cls: 'critical', label: `${days}d left` };
@@ -95,6 +90,9 @@ function statusPillFor(batch) {
   if (days <= 60) return { cls: 'orange', label: `${days}d left` };
   return { cls: 'safe', label: 'Active' };
 }
+
+// Maps the same pill classification onto the flat design system's palette.
+const BATCH_FLAT_CLS = { critical: 'red', warning: 'amber', orange: 'orange', safe: 'green' };
 
 export default function Batches() {
   const { user } = useAuth();
@@ -247,7 +245,7 @@ export default function Batches() {
   }
 
   return (
-    <div>
+    <div className="flat-dashboard">
       <div className="page-header">
         <div>
           <h1>Batches</h1>
@@ -256,11 +254,11 @@ export default function Batches() {
         <div className="page-header-actions">
           <ExportDropdown onExport={handleExport} />
           {user.role === 'admin' && (
-            <button className="btn btn-secondary" onClick={handleRemoveDepleted}>
+            <button type="button" className="flat-action-btn" onClick={handleRemoveDepleted}>
               <Trash2 size={15} /> Remove depleted
             </button>
           )}
-          <button className="btn btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}>
+          <button type="button" className="flat-btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}>
             <Plus size={15} /> {showForm ? 'Close form' : 'Receive stock'}
           </button>
         </div>
@@ -269,8 +267,8 @@ export default function Batches() {
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="card"
-          style={{ marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
+          className="flat-card"
+          style={{ padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
         >
           <div className="field">
             <label>Medicine</label>
@@ -299,15 +297,15 @@ export default function Batches() {
           <div className="field"><label>Selling price</label><input type="number" step="0.01" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} /></div>
           <div className="field"><label>Status</label><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="active">Active</option><option value="recalled">Recalled</option><option value="depleted">Depleted</option><option value="expired">Expired</option></select></div>
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">{editingId ? 'Update batch' : 'Save batch'}</button>
-            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
+            <button type="submit" className="flat-btn-primary">{editingId ? 'Update batch' : 'Save batch'}</button>
+            <button type="button" className="flat-action-btn" onClick={resetForm}>Cancel</button>
           </div>
           {error && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{error}</p>}
         </form>
       )}
 
-      <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
-        <div className="filter-bar" style={{ margin: 0 }}>
+      <div className="flat-card" style={{ padding: 16 }}>
+        <div className="filter-bar" style={{ margin: 0, background: 'none', border: 'none', padding: 0 }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -328,149 +326,82 @@ export default function Batches() {
             </select>
           </div>
           {filtersActive && (
-            <button type="button" className="btn btn-secondary" onClick={clearFilters}>
+            <button type="button" className="flat-action-btn" onClick={clearFilters}>
               <X size={15} /> Clear filters
             </button>
           )}
         </div>
       </div>
 
-      {error && (
-        <div className="empty-state">
-          <strong>Unable to load batches</strong>
-          <p style={{ margin: '6px 0 0' }}>{error}</p>
-          <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
-        </div>
-      )}
-
-      {loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="card" style={{ height: '280px' }}>
-              <Skeleton height={16} style={{ marginBottom: '12px' }} />
-              <Skeleton height={16} style={{ marginBottom: '8px' }} />
-              <Skeleton height={16} style={{ marginBottom: '16px' }} />
-              <Skeleton height={16} style={{ marginBottom: '12px' }} />
-              <Skeleton height={40} style={{ borderRadius: '999px' }} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!loading && !error && visibleBatches.length === 0 && (
-        <div className="empty-state">
-          <strong>No batches found</strong>
-          <p style={{ margin: '6px 0 0' }}>{batches.length === 0 ? 'No batches recorded yet.' : 'No batches match the current filters.'}</p>
+      <div className="flat-card">
+        <div className="flat-table-header">
+          <span className="flat-table-title">Batches</span>
           {filtersActive && (
-            <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={clearFilters}>Clear filters</button>
+            <button type="button" className="flat-table-link" onClick={clearFilters}>Clear filters</button>
           )}
         </div>
-      )}
+        <div style={{ padding: 16 }}>
+          {error && (
+            <div className="flat-empty">
+              Unable to load batches — {error}
+              <div style={{ marginTop: 10 }}>
+                <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
+              </div>
+            </div>
+          )}
 
-      {!loading && !error && visibleBatches.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-            {visibleBatches.map((b) => {
-              const pill = statusPillFor(b);
-              const borderColorMap = { 'safe': 'var(--green)', 'warning': 'var(--gold)', 'critical': 'var(--red)' };
-              return (
-                <div
-                  key={b.id}
-                  className="card"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    padding: '16px',
-                    borderTop: `4px solid ${borderColorMap[pill.cls]}`,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {/* Top Row: ID & Status */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <span className="stamp" style={{ fontSize: '11px' }}>ID: {b.id}</span>
-                    <span className={`status-pill ${pill.cls}`} style={{ fontSize: '10px', padding: '3px 8px' }}>{pill.label}</span>
-                  </div>
-
-                  {/* Middle Content */}
-                  <div style={{ flex: 1, marginBottom: '12px' }}>
-                    <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)', marginBottom: '4px', lineHeight: 1.3 }}>
-                      {b.medicine_name}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--steel)', marginBottom: '8px', lineHeight: 1.4 }}>
-                      Batch: <span className="stamp" style={{ fontSize: '11px' }}>{b.batch_number}</span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
-                      <div>
-                        <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Remaining</div>
-                        <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{b.quantity_remaining}</div>
-                      </div>
-                      <div>
-                        <div style={{ color: 'var(--steel)', fontSize: '11px' }}>Expiry</div>
-                        <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{new Date(b.expiry_date).toLocaleDateString()}</div>
-                      </div>
-                    </div>
-                    {b.supplier_name && (
-                      <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)', fontSize: '11px', color: 'var(--steel)' }}>
-                        Supplier: <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{b.supplier_name}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bottom Row: Avatar + Label + Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
-                        {(b.medicine_name || '?').charAt(0).toUpperCase()}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.medicine_name.substring(0, 12)}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={() => openEdit(b)}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          background: 'var(--bg-subtle)',
-                          border: '1px solid var(--border)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer'
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-subtle)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
-                        title="Edit batch"
-                      >
-                        <Pencil size={14} color="var(--ink)" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setQrBatch(b); setShowQRModal(true); }}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          background: 'var(--bg-subtle)',
-                          border: '1px solid var(--border)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer'
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-subtle)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
-                        title="Show QR code"
-                      >
-                        <QrCode size={14} color="var(--ink)" />
-                      </button>
-                    </div>
-                  </div>
+          {!error && loading && (
+            <div className="flat-card-grid">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="flat-card flat-item-card">
+                  <div className="flat-item-icon skeleton" style={{ border: 'none' }} />
+                  <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
+                  <div className="skeleton" style={{ height: 12, width: '50%' }} />
                 </div>
-              );
-            })}
+              ))}
+            </div>
+          )}
+
+          {!error && !loading && visibleBatches.length === 0 && (
+            <div className="flat-empty">{batches.length === 0 ? 'No batches recorded yet.' : 'No batches match the current filters.'}</div>
+          )}
+
+          {!error && !loading && visibleBatches.length > 0 && (
+            <div className="flat-card-grid">
+              {visibleBatches.map((b) => {
+                const pill = statusPillFor(b);
+                return (
+                  <div key={b.id} className="flat-card flat-item-card" style={{ cursor: 'default' }}>
+                    <div className="flat-item-card__top">
+                      <div className="flat-item-icon"><Package size={22} /></div>
+                      <span className={`flat-status-label ${BATCH_FLAT_CLS[pill.cls]}`}>{pill.label}</span>
+                    </div>
+                    <div className="flat-med-name">{b.medicine_name}</div>
+                    <div className="flat-med-meta">{b.supplier_name || 'No supplier listed'}</div>
+                    <span className="flat-tag">Batch {b.batch_number}</span>
+                    <div className="flat-item-row">
+                      <span>Remaining</span>
+                      <strong>{b.quantity_remaining}</strong>
+                    </div>
+                    <div className="flat-item-row">
+                      <span>Expiry</span>
+                      <strong>{new Date(b.expiry_date).toLocaleDateString()}</strong>
+                    </div>
+                    <div className="flat-item-card__actions">
+                      <button type="button" className="flat-action-btn" onClick={() => openEdit(b)}>
+                        <Pencil size={13} /> Edit
+                      </button>
+                      <button type="button" className="flat-action-btn" onClick={() => { setQrBatch(b); setShowQRModal(true); }}>
+                        <QrCode size={13} /> QR
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {showQRModal && qrBatch && (
         <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowQRModal(false)}>
@@ -491,8 +422,9 @@ export default function Batches() {
               <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>Batch: {qrBatch.batch_number}</p>
               <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>ID: {qrBatch.id}</p>
             </div>
-            <button 
-              className="btn btn-primary" 
+            <button
+              type="button"
+              className="flat-btn-primary"
               style={{ width: '100%' }}
               onClick={() => {
                 const canvas = document.querySelector('.qr-code-container canvas');

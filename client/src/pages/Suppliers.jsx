@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, RefreshCw, Pencil, Download, Search, X } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Pencil, Download, Search, X, Building2 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
-import Skeleton from '../components/Skeleton';
 
 export default function Suppliers() {
   const { user } = useAuth();
@@ -105,21 +104,21 @@ export default function Suppliers() {
   }
 
   return (
-    <div>
+    <div className="flat-dashboard">
       <div className="page-header">
         <div>
           <h1>Suppliers</h1>
           <p>{loading ? 'Loading suppliers…' : `${visibleSuppliers.length} of ${suppliers.length} shown`}</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={handleExport}>
+        <div className="page-header-actions">
+          <button type="button" className="flat-action-btn" onClick={handleExport}>
             <Download size={15} /> Export CSV
           </button>
-          <button className="btn btn-secondary" onClick={handleRefresh}>
+          <button type="button" className="flat-action-btn" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
           {user.role === 'admin' && (
-            <button className="btn btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}>
+            <button type="button" className="flat-btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}>
               <Plus size={15} /> {showForm ? 'Close form' : 'Add supplier'}
             </button>
           )}
@@ -129,8 +128,8 @@ export default function Suppliers() {
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="card"
-          style={{ marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
+          className="flat-card"
+          style={{ padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
         >
           <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
           <div className="field"><label>Contact person</label><input value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
@@ -138,14 +137,14 @@ export default function Suppliers() {
           <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
           <div className="field" style={{ gridColumn: '1 / -1' }}><label>Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">{editingId ? 'Update supplier' : 'Save supplier'}</button>
-            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
+            <button type="submit" className="flat-btn-primary">{editingId ? 'Update supplier' : 'Save supplier'}</button>
+            <button type="button" className="flat-action-btn" onClick={resetForm}>Cancel</button>
           </div>
         </form>
       )}
 
-      <div>
-        <div className="filter-bar" style={{ padding: 16, margin: 0, marginBottom: 16, background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
+      <div className="flat-card" style={{ padding: 16 }}>
+        <div className="filter-bar" style={{ margin: 0, background: 'none', border: 'none', padding: 0 }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -161,60 +160,71 @@ export default function Suppliers() {
             )}
           </div>
         </div>
+      </div>
 
-        {error && (
-          <div className="empty-state">
-            <strong>Unable to load suppliers</strong>
-            <p style={{ margin: '6px 0 0' }}>{error}</p>
-            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
-          </div>
-        )}
-
-        {!loading && !error && visibleSuppliers.length === 0 && (
-          <div className="empty-state compact-empty-state">
-            {suppliers.length === 0 ? 'No suppliers yet. Add your first one above.' : `No suppliers match "${search}".`}
-          </div>
-        )}
-
-        {loading && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="card" style={{ minHeight: 210, padding: 16 }}>
-                <Skeleton height={14} style={{ marginBottom: 14, width: '35%' }} />
-                <Skeleton height={18} style={{ marginBottom: 10 }} />
-                <Skeleton height={14} style={{ marginBottom: 8, width: '75%' }} />
-                <Skeleton height={14} style={{ marginBottom: 18, width: '60%' }} />
-                <Skeleton height={32} style={{ borderRadius: 999 }} />
+      <div className="flat-card">
+        <div className="flat-table-header">
+          <span className="flat-table-title">Suppliers</span>
+        </div>
+        <div style={{ padding: 16 }}>
+          {error && (
+            <div className="flat-empty">
+              Unable to load suppliers — {error}
+              <div style={{ marginTop: 10 }}>
+                <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
 
-        {!loading && !error && visibleSuppliers.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-            {visibleSuppliers.map((s) => (
-              <div key={s.id} className="card supplier-card supplier-card--active" style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 220 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <span className="stamp">ID: {s.id}</span>
-                  <span className="status-pill safe" style={{ fontSize: 10, padding: '3px 8px' }}>Active supplier</span>
+          {!error && loading && (
+            <div className="flat-card-grid">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flat-card flat-item-card">
+                  <div className="flat-item-icon skeleton" style={{ border: 'none' }} />
+                  <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
+                  <div className="skeleton" style={{ height: 12, width: '50%' }} />
                 </div>
-                <div style={{ flex: 1, marginBottom: 14 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{s.name}</div>
-                  <div style={{ color: 'var(--steel)', fontSize: 12, marginBottom: 12 }}>{s.contact_person || 'No contact person listed'}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
-                    <div><div style={{ color: 'var(--steel)', fontSize: 11 }}>Phone</div><div style={{ fontWeight: 600 }}>{s.phone || '—'}</div></div>
-                    <div><div style={{ color: 'var(--steel)', fontSize: 11 }}>Email</div><div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.email || '—'}</div></div>
+              ))}
+            </div>
+          )}
+
+          {!error && !loading && visibleSuppliers.length === 0 && (
+            <div className="flat-empty">{suppliers.length === 0 ? 'No suppliers yet. Add your first one above.' : `No suppliers match "${search}".`}</div>
+          )}
+
+          {!error && !loading && visibleSuppliers.length > 0 && (
+            <div className="flat-card-grid">
+              {visibleSuppliers.map((s) => (
+                <div key={s.id} className="flat-card flat-item-card" style={{ cursor: 'default' }}>
+                  <div className="flat-item-card__top">
+                    <div className="flat-item-icon"><Building2 size={22} /></div>
                   </div>
-                  <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10, color: 'var(--steel)', fontSize: 11 }}>{s.address || 'No address listed'}</div>
+                  <div className="flat-med-name">{s.name}</div>
+                  <div className="flat-med-meta">{s.contact_person || 'No contact person listed'}</div>
+                  <div className="flat-item-row">
+                    <span>Phone</span>
+                    <strong>{s.phone || '—'}</strong>
+                  </div>
+                  <div className="flat-item-row">
+                    <span>Email</span>
+                    <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.email || '—'}</strong>
+                  </div>
+                  <div className="flat-med-meta" style={{ marginTop: 2 }}>{s.address || 'No address listed'}</div>
+                  {user.role === 'admin' && (
+                    <div className="flat-item-card__actions">
+                      <button type="button" className="flat-action-btn" onClick={() => openEdit(s)}>
+                        <Pencil size={13} /> Edit
+                      </button>
+                      <button type="button" className="flat-action-btn" onClick={() => handleDelete(s.id)}>
+                        <Trash2 size={13} /> Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{(s.name || '?').charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Supplier</span></div>
-                  {user.role === 'admin' && <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(s)} title="Edit supplier"><Pencil size={14} /></button><button className="btn-icon" onClick={() => handleDelete(s.id)} title="Remove supplier"><Trash2 size={14} /></button></div>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

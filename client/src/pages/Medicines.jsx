@@ -731,10 +731,10 @@ export default function Medicines() {
             <div className="flat-empty">No medicines match the current filters.</div>
           )}
           {!error && loading && (
-            <div className="flat-medicine-grid">
+            <div className="flat-card-grid">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="flat-card flat-medicine-card">
-                  <div className="flat-medicine-icon skeleton" style={{ border: 'none' }} />
+                <div key={i} className="flat-card flat-item-card">
+                  <div className="flat-item-icon skeleton" style={{ border: 'none' }} />
                   <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
                   <div className="skeleton" style={{ height: 12, width: '50%' }} />
                 </div>
@@ -742,15 +742,15 @@ export default function Medicines() {
             </div>
           )}
           {!error && !loading && visibleMedicines.length > 0 && (
-            <div className="flat-medicine-grid">
+            <div className="flat-card-grid">
               {visibleMedicines.map((m) => {
                 const state = stockStateOf(m);
                 const expiry = expiryLabel(m);
                 const Icon = iconForDosageForm(m.dosage_form);
                 return (
-                  <div key={m.id} className="flat-card flat-medicine-card" onClick={() => openDetail(m)}>
-                    <div className="flat-medicine-card__top">
-                      <div className="flat-medicine-icon"><Icon size={22} /></div>
+                  <div key={m.id} className="flat-card flat-item-card" onClick={() => openDetail(m)}>
+                    <div className="flat-item-card__top">
+                      <div className="flat-item-icon"><Icon size={22} /></div>
                       <span className={`flat-status-label ${STOCK_FLAT_CLS[state.key]}`}>{state.label}</span>
                     </div>
                     <div className="flat-med-name">{m.name}</div>
@@ -759,17 +759,19 @@ export default function Medicines() {
                       {m.requires_prescription ? ' · Rx' : ''}
                     </div>
                     <span className="flat-tag">{categoryOf(m)}</span>
-                    <div className="flat-medicine-row">
+                    <div className="flat-item-row">
                       <span>Stock</span>
                       <strong>{m.total_stock ?? 0} {m.unit}</strong>
                     </div>
-                    <div className="flat-medicine-row">
+                    <div className="flat-item-row">
                       <span>Expires</span>
                       <strong>{expiry ? expiry.label : '—'}</strong>
                     </div>
-                    <button type="button" className="flat-action-btn flat-medicine-card__edit" onClick={(e) => { e.stopPropagation(); openEdit(m); }}>
-                      <Pencil size={13} /> Edit
-                    </button>
+                    <div className="flat-item-card__actions">
+                      <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); openEdit(m); }}>
+                        <Pencil size={13} /> Edit
+                      </button>
+                    </div>
                   </div>
                 );
               })}

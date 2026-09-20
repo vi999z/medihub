@@ -1160,15 +1160,16 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-table tbody tr[data-clickable] { cursor: pointer; }
 .flat-table tbody tr[data-clickable]:hover td { background: var(--flat-bg); }
 
-/* Medicine catalog card grid — same flat tokens as the table it replaced */
-.flat-medicine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-.flat-medicine-card {
+/* Generic flat card grid — used by the Medicines, Batches, Suppliers and
+   Transactions catalogs so every list page shares one visual system. */
+.flat-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.flat-item-card {
   padding: 18px; display: flex; flex-direction: column; gap: 8px; cursor: pointer;
   transition: border-color 0.15s ease;
 }
-.flat-medicine-card:hover { border-color: var(--flat-accent); }
-.flat-medicine-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
-.flat-medicine-icon {
+.flat-item-card:hover { border-color: var(--flat-accent); }
+.flat-item-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.flat-item-icon {
   width: 48px; height: 48px; border-radius: 10px; background: var(--flat-bg); border: 1px solid var(--flat-border);
   display: flex; align-items: center; justify-content: center; color: var(--flat-accent); flex-shrink: 0;
 }
@@ -1176,13 +1177,14 @@ input, select, textarea { font-family: var(--font-body); }
   display: inline-flex; align-self: flex-start; font-size: 12px; color: var(--flat-text-muted);
   background: var(--flat-bg); border: 1px solid var(--flat-border); border-radius: 999px; padding: 3px 10px; margin: 2px 0 4px;
 }
-.flat-medicine-row {
+.flat-item-row {
   display: flex; align-items: center; justify-content: space-between; font-size: 14px;
   padding: 6px 0; border-top: 1px solid var(--flat-border);
 }
-.flat-medicine-row span { color: var(--flat-text-muted); }
-.flat-medicine-row strong { font-weight: 600; }
-.flat-medicine-card__edit { margin-top: 8px; width: 100%; justify-content: center; }
+.flat-item-row span { color: var(--flat-text-muted); }
+.flat-item-row strong { font-weight: 600; }
+.flat-item-card__actions { display: flex; gap: 8px; margin-top: 8px; }
+.flat-item-card__actions .flat-action-btn { flex: 1; justify-content: center; }
 
 /* Bottom row: 7-day sales chart + top sellers */
 .flat-bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
