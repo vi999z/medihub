@@ -4,6 +4,7 @@ const { logAudit } = require('../utils/auditLogger');
 const { parse } = require('csv-parse');
 const fs = require('fs');
 const path = require('path');
+const { UPLOADS_ROOT } = require('../config/uploadPaths');
 const {
   createNearExpiryAlert,
   createExpiredAlert,
@@ -76,9 +77,11 @@ async function remove(req, res) {
 
 // Best-effort cleanup of a previously-uploaded photo when it's replaced or
 // removed — only touches files under our own uploads/medicines/ folder.
+// Resolved against UPLOADS_ROOT (not the app checkout) since that's where
+// files actually live once UPLOADS_DIR points at a mounted disk.
 function deleteImageFileIfLocal(imageUrl) {
   if (!imageUrl || !imageUrl.startsWith('/uploads/medicines/')) return;
-  fs.unlink(path.join(__dirname, '..', imageUrl), () => {});
+  fs.unlink(path.join(UPLOADS_ROOT, imageUrl.replace(/^\/uploads\//, '')), () => {});
 }
 
 async function uploadImage(req, res) {

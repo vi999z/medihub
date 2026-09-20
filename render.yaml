@@ -8,3 +8,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Medicine photo uploads live on this disk instead of the app's own
+      # (ephemeral) checkout directory — Render wipes local disk on every
+      # deploy/restart, which is why uploaded photos went missing.
+      - key: UPLOADS_DIR
+        value: /var/data/uploads
+    disk:
+      name: medihub-uploads
+      mountPath: /var/data/uploads
+      sizeGB: 1

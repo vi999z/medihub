@@ -1010,22 +1010,34 @@ input, select, textarea { font-family: var(--font-body); }
 
 /* ============================================================
    Flat Dashboard — scoped under .flat-dashboard only.
-   Mostly flat: no gradients, no blur, no hover-lift/scale
-   transforms, no Framer Motion. Clickable buttons/pills do carry
-   a small resting shadow (deepening on hover, flattening on
-   press) purely as a "this is clickable" affordance cue — everything
-   else (cards, strips, tags) stays flush with no shadow. Uses its
-   own page-local tokens instead of the app's --primary/--amber so
-   the shared shell and every other page are unaffected.
+   Mostly flat: no gradients, no blur, no Framer Motion. Clickable
+   buttons/pills use a "keycap" affordance instead — a solid ledge
+   drawn as a shadow under the button (not a real border, so it
+   doesn't affect layout), a soft drop shadow for lift, and a
+   translateY press on :active — so it unmistakably reads as a
+   physical, pressable control rather than a flat tinted box.
+   Everything else (cards, strips, tags) stays flush with no
+   shadow. Uses its own page-local tokens instead of the app's
+   --primary/--amber so the shared shell and every other page are
+   unaffected.
    ============================================================ */
 .flat-dashboard {
   --flat-accent: #D85A30;
   --flat-bg: #F5F5F5;
   --flat-border: #E0E0E0;
   --flat-border-strong: #C4C4C4;
-  --flat-shadow: 0 1px 2px rgba(0, 0, 0, 0.09);
-  --flat-shadow-hover: 0 3px 8px rgba(0, 0, 0, 0.14);
-  --flat-shadow-active: 0 1px 1px rgba(0, 0, 0, 0.1);
+  /* "Keycap" affordance: a solid ledge directly under the button (like a
+     bottom border, but drawn as a shadow so it doesn't affect layout) plus
+     a soft drop shadow for lift. The ledge goes accent-colored on hover and
+     collapses to 1px on press, paired with a 1.5px translateY so the whole
+     button visibly pushes down — an unambiguous "this is a physical button"
+     cue rather than a subtle tint change. */
+  --flat-shadow: 0 2px 0 var(--flat-border-strong), 0 3px 6px rgba(0, 0, 0, 0.14);
+  --flat-shadow-hover: 0 2px 0 var(--flat-accent), 0 5px 12px rgba(0, 0, 0, 0.2);
+  --flat-shadow-active: 0 1px 0 var(--flat-border-strong);
+  --flat-shadow-primary: 0 2px 0 #A1401F, 0 3px 6px rgba(0, 0, 0, 0.2);
+  --flat-shadow-primary-hover: 0 2px 0 #7A2F17, 0 5px 12px rgba(0, 0, 0, 0.26);
+  --flat-shadow-primary-active: 0 1px 0 #A1401F;
   /* Widened hue + saturation spacing (red -> amber -> orange -> green) so
      adjacent severities stay visually distinct even as small text/dots —
      the old amber/orange pair read as the same muddy brown at a glance. */
@@ -1054,24 +1066,27 @@ input, select, textarea { font-family: var(--font-body); }
 /* Filter row */
 .flat-filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: relative; z-index: 5; }
 .flat-filter-wrapper { position: relative; }
+/* These two sit directly on the page background (--flat-bg), not on a
+   white card, so they need a white fill — not --flat-bg — to actually
+   stand out as raised chrome instead of blending into the page. */
 .flat-filter-btn {
-  height: 40px; padding: 0 14px; background: var(--flat-bg); border: 1px solid var(--flat-border-strong);
+  height: 40px; padding: 0 14px; background: #fff; border: 1px solid var(--flat-border-strong);
   border-radius: 8px; font-size: 15px; color: var(--flat-text);
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-  box-shadow: var(--flat-shadow);
-  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: var(--flat-shadow); transform: translateY(0);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
 }
 .flat-filter-btn:hover { background: color-mix(in srgb, var(--flat-accent) 8%, white); border-color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
-.flat-filter-btn:active { box-shadow: var(--flat-shadow-active); }
+.flat-filter-btn:active { box-shadow: var(--flat-shadow-active); transform: translateY(1.5px); }
 .flat-filter-spacer { flex: 1; }
 .flat-export-btn {
-  height: 40px; padding: 0 16px; background: var(--flat-bg); border: 1px solid var(--flat-border-strong);
+  height: 40px; padding: 0 16px; background: #fff; border: 1px solid var(--flat-border-strong);
   border-radius: 8px; font-size: 15px; color: var(--flat-text); cursor: pointer;
-  box-shadow: var(--flat-shadow);
-  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: var(--flat-shadow); transform: translateY(0);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
 }
 .flat-export-btn:hover { background: color-mix(in srgb, var(--flat-accent) 8%, white); border-color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
-.flat-export-btn:active { box-shadow: var(--flat-shadow-active); }
+.flat-export-btn:active { box-shadow: var(--flat-shadow-active); transform: translateY(1.5px); }
 .flat-filter-menu {
   position: absolute; top: calc(100% + 4px); left: 0; min-width: 170px;
   background: #fff; border: 1px solid var(--flat-border); border-radius: 8px; z-index: 20; padding: 4px;
@@ -1163,11 +1178,11 @@ input, select, textarea { font-family: var(--font-body); }
   height: 40px; padding: 0 14px; border: 1px solid var(--flat-border-strong);
   background: var(--flat-bg); border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--flat-text);
   display: inline-flex; align-items: center; gap: 6px;
-  box-shadow: var(--flat-shadow);
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: var(--flat-shadow); transform: translateY(0);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
 }
 .flat-action-btn:hover { background: color-mix(in srgb, var(--flat-accent) 10%, white); border-color: var(--flat-accent); color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
-.flat-action-btn:active { background: color-mix(in srgb, var(--flat-accent) 18%, white); box-shadow: var(--flat-shadow-active); }
+.flat-action-btn:active { background: color-mix(in srgb, var(--flat-accent) 18%, white); box-shadow: var(--flat-shadow-active); transform: translateY(1.5px); }
 .flat-action-btn:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: 1px; }
 .flat-action-btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 .flat-action-btn:disabled:hover { background: var(--flat-bg); border-color: var(--flat-border-strong); color: var(--flat-text); box-shadow: none; }
@@ -1176,11 +1191,11 @@ input, select, textarea { font-family: var(--font-body); }
   height: 40px; padding: 0 16px; border: 1px solid var(--flat-accent);
   background: var(--flat-accent); border-radius: 8px; font-size: 14px; font-weight: 600;
   cursor: pointer; color: #fff; display: inline-flex; align-items: center; gap: 6px;
-  box-shadow: var(--flat-shadow);
-  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: var(--flat-shadow-primary); transform: translateY(0);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
 }
-.flat-btn-primary:hover { background: #B84A28; border-color: #B84A28; box-shadow: var(--flat-shadow-hover); }
-.flat-btn-primary:active { background: #A1401F; border-color: #A1401F; box-shadow: var(--flat-shadow-active); }
+.flat-btn-primary:hover { background: #B84A28; border-color: #B84A28; box-shadow: var(--flat-shadow-primary-hover); }
+.flat-btn-primary:active { background: #A1401F; border-color: #A1401F; box-shadow: var(--flat-shadow-primary-active); transform: translateY(1.5px); }
 .flat-btn-primary:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: 2px; }
 
 /* Page header for other pages reusing the flat-dashboard shell */
@@ -1205,20 +1220,21 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-dashboard .field select:hover { border-color: var(--flat-accent); }
 .flat-dashboard .filter-toggle {
   background: var(--flat-bg); border: 1px solid var(--flat-border-strong); border-radius: 8px; color: var(--flat-text);
-  box-shadow: var(--flat-shadow);
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: var(--flat-shadow); transform: translateY(0);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
 }
 .flat-dashboard .filter-toggle:hover { background: color-mix(in srgb, var(--flat-accent) 10%, white); border-color: var(--flat-accent); color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
-.flat-dashboard .filter-toggle:active { box-shadow: var(--flat-shadow-active); }
+.flat-dashboard .filter-toggle:active { box-shadow: var(--flat-shadow-active); transform: translateY(1.5px); }
 .flat-dashboard .chip {
   background: var(--flat-bg); border: 1px solid var(--flat-border-strong); color: var(--flat-text); font-weight: 500;
-  box-shadow: var(--flat-shadow);
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: var(--flat-shadow); transform: translateY(0);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
 }
 .flat-dashboard .chip:hover { background: color-mix(in srgb, var(--flat-accent) 10%, white); border-color: var(--flat-accent); color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
-.flat-dashboard .chip:active { box-shadow: var(--flat-shadow-active); }
-.flat-dashboard .chip.active { background: var(--flat-accent); border-color: var(--flat-accent); color: #fff; box-shadow: var(--flat-shadow); }
-.flat-dashboard .chip.active:hover { box-shadow: var(--flat-shadow-hover); }
+.flat-dashboard .chip:active { box-shadow: var(--flat-shadow-active); transform: translateY(1.5px); }
+.flat-dashboard .chip.active { background: var(--flat-accent); border-color: var(--flat-accent); color: #fff; box-shadow: var(--flat-shadow-primary); }
+.flat-dashboard .chip.active:hover { box-shadow: var(--flat-shadow-primary-hover); }
+.flat-dashboard .chip.active:active { box-shadow: var(--flat-shadow-primary-active); transform: translateY(1.5px); }
 .flat-dashboard .chip.active span { color: rgba(255,255,255,0.75); }
 
 .flat-table tbody tr[data-clickable] { cursor: pointer; }

@@ -5,6 +5,7 @@ const { verifyToken, requireRole } = require('../middleware/auth');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const { MEDICINE_IMAGE_DIR } = require('../config/uploadPaths');
 
 const upload = multer({
   dest: 'uploads/',
@@ -17,11 +18,10 @@ const upload = multer({
 
 // Medicine photos — kept in their own subfolder with real extensions (unlike
 // the CSV upload above, these files persist and get served back over HTTP).
-const IMAGE_DIR = path.join(__dirname, '..', 'uploads', 'medicines');
-fs.mkdirSync(IMAGE_DIR, { recursive: true });
+fs.mkdirSync(MEDICINE_IMAGE_DIR, { recursive: true });
 const imageUpload = multer({
   storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, IMAGE_DIR),
+    destination: (req, file, cb) => cb(null, MEDICINE_IMAGE_DIR),
     filename: (req, file, cb) => {
       const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
       cb(null, `medicine-${req.params.id}-${Date.now()}${ext}`);

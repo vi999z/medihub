@@ -4,6 +4,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 const { testConnection } = require('./config/db');
+const { UPLOADS_ROOT } = require('./config/uploadPaths');
 const authRoutes = require('./routes/authRoutes');
 const medicineRoutes = require('./routes/medicineRoutes');
 const batchRoutes = require('./routes/batchRoutes');
@@ -74,9 +75,11 @@ const clientDist = path.join(__dirname, '../client/dist');
 const indexHtml  = path.join(clientDist, 'index.html');
 const fs         = require('fs');
 
-// Serve uploaded medicine photos (server/uploads/medicines/<file>) at
-// /uploads/medicines/<file> — the only currently-persisted upload type.
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploaded medicine photos at /uploads/medicines/<file> — the only
+// currently-persisted upload type. UPLOADS_ROOT points at the Render
+// persistent disk in production (see server/config/uploadPaths.js) so this
+// keeps working across deploys/restarts, and at server/uploads locally.
+app.use('/uploads', express.static(UPLOADS_ROOT));
 
 // Serve static assets from the built client (js/css/images)
 app.use(express.static(clientDist, { index: false, fallthrough: true }));
