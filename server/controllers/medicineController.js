@@ -3,6 +3,7 @@ const { pool } = require('../config/db');
 const { logAudit } = require('../utils/auditLogger');
 const { parse } = require('csv-parse');
 const fs = require('fs');
+const path = require('path');
 const {
   createNearExpiryAlert,
   createExpiredAlert,
@@ -71,6 +72,35 @@ async function remove(req, res) {
 
   await logAudit(req.user.id, 'deleted_medicine', `Deleted medicine: ${existing.name}`, req);
   res.status(204).send();
+}
+
+// Best-effort cleanup of a previously-uploaded photo when it's replaced or
+// removed — only touches files under our own uploads/medicines/ folder.
+function deleteImageFileIfLocal(imageUrl) {
+  if (!imageUrl || !imageUrl.startsWith('/uploads/medicines/')) return;
+  fs.unlink(path.join(__dirname, '..', imageUrl), () => {});
+}
+
+async function uploadImage(req, res) {
+  const existing = await medicineModel.getById(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Medicine not found' });
+  if (!req.file) return res.status(400).json({ error: 'No image file uploaded' });
+
+  const imageUrl = `/uploads/medicines/${req.file.filename}`;
+  await medicineModel.setImage(req.params.id, imageUrl);
+  deleteImageFileIfLocal(existing.image_url);
+  await logAudit(req.user.id, 'updated_medicine_image', `Updated photo for medicine: ${existing.name}`, req);
+  res.json({ id: req.params.id, image_url: imageUrl });
+}
+
+async function removeImage(req, res) {
+  const existing = await medicineModel.getById(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Medicine not found' });
+
+  await medicineModel.setImage(req.params.id, null);
+  deleteImageFileIfLocal(existing.image_url);
+  await logAudit(req.user.id, 'updated_medicine_image', `Removed photo for medicine: ${existing.name}`, req);
+  res.json({ id: req.params.id, image_url: null });
 }
 
 function hasBatchData(row) {
@@ -357,4 +387,4 @@ async function downloadCsvTemplate(req, res) {
   res.send(csv);
 }
 
-module.exports = { getAll, getOne, create, update, remove, validateCsvImport, commitCsvImport, downloadCsvTemplate };
+module.exports = { getAll, getOne, create, update, remove, uploadImage, removeImage, validateCsvImport, commitCsvImport, downloadCsvTemplate };

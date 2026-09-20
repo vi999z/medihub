@@ -1120,6 +1120,10 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-table td { padding: 10px 20px; height: 56px; border-bottom: 1px solid var(--flat-border); vertical-align: middle; }
 .flat-table tr:last-child td { border-bottom: none; }
 .flat-table td.flat-col-right { text-align: right; }
+/* Zebra striping — makes it much easier to track a row across columns
+   without losing your place, which matters most for older/low-vision
+   readers scanning a dense table. */
+.flat-table tbody tr:nth-child(even) td { background: var(--flat-bg); }
 .flat-med-name { font-size: 15px; }
 .flat-med-meta { font-size: 13px; color: var(--flat-text-muted); margin-top: 2px; }
 
@@ -1191,21 +1195,40 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-dashboard .chip.active span { color: rgba(255,255,255,0.75); }
 
 .flat-table tbody tr[data-clickable] { cursor: pointer; }
-.flat-table tbody tr[data-clickable]:hover td { background: var(--flat-bg); }
+.flat-table tbody tr[data-clickable]:hover td { background: color-mix(in srgb, var(--flat-accent) 8%, var(--flat-bg)); }
 
 /* Generic flat card grid — used by the Medicines, Batches, Suppliers and
    Transactions catalogs so every list page shares one visual system. */
 .flat-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
 .flat-item-card {
-  padding: 18px; display: flex; flex-direction: column; gap: 8px; cursor: pointer;
+  padding: 18px 18px 18px 16px; display: flex; flex-direction: column; gap: 8px; cursor: pointer;
+  border-left: 4px solid var(--flat-border-strong);
   transition: border-color 0.15s ease;
 }
-.flat-item-card:hover { border-color: var(--flat-accent); }
+/* Only the top/right/bottom edge highlights on hover — the left stripe
+   keeps carrying the status color throughout, since that's the whole
+   point of it (a quick glanceable color cue while scanning the list). */
+.flat-item-card:hover { border-top-color: var(--flat-accent); border-right-color: var(--flat-accent); border-bottom-color: var(--flat-accent); }
+.flat-item-card--red { border-left-color: var(--flat-red); }
+.flat-item-card--amber { border-left-color: var(--flat-amber); }
+.flat-item-card--orange { border-left-color: var(--flat-orange); }
+.flat-item-card--green { border-left-color: var(--flat-green); }
+.flat-item-card--accent { border-left-color: var(--flat-accent); }
 .flat-item-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
 .flat-item-icon {
   width: 48px; height: 48px; border-radius: 10px; background: var(--flat-bg); border: 1px solid var(--flat-border);
   display: flex; align-items: center; justify-content: center; color: var(--flat-accent); flex-shrink: 0;
+  overflow: hidden;
 }
+.flat-item-icon img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Photo picker in the add/edit medicine form */
+.flat-photo-picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.flat-photo-preview {
+  width: 56px; height: 56px; border-radius: 10px; background: var(--flat-bg); border: 1px solid var(--flat-border-strong);
+  display: flex; align-items: center; justify-content: center; color: var(--flat-text-muted); overflow: hidden; flex-shrink: 0;
+}
+.flat-photo-preview img { width: 100%; height: 100%; object-fit: cover; }
 .flat-tag {
   display: inline-flex; align-self: flex-start; font-size: 12px; color: var(--flat-text-muted);
   background: var(--flat-bg); border: 1px solid var(--flat-border); border-radius: 999px; padding: 3px 10px; margin: 2px 0 4px;

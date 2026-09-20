@@ -74,6 +74,10 @@ const clientDist = path.join(__dirname, '../client/dist');
 const indexHtml  = path.join(clientDist, 'index.html');
 const fs         = require('fs');
 
+// Serve uploaded medicine photos (server/uploads/medicines/<file>) at
+// /uploads/medicines/<file> — the only currently-persisted upload type.
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Serve static assets from the built client (js/css/images)
 app.use(express.static(clientDist, { index: false, fallthrough: true }));
 

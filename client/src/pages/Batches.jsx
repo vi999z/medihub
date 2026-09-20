@@ -371,7 +371,7 @@ export default function Batches() {
               {visibleBatches.map((b) => {
                 const pill = statusPillFor(b);
                 return (
-                  <div key={b.id} className="flat-card flat-item-card" style={{ cursor: 'default' }}>
+                  <div key={b.id} className={`flat-card flat-item-card flat-item-card--${BATCH_FLAT_CLS[pill.cls]}`} style={{ cursor: 'default' }}>
                     <div className="flat-item-card__top">
                       <div className="flat-item-icon"><Package size={22} /></div>
                       <span className={`flat-status-label ${BATCH_FLAT_CLS[pill.cls]}`}>{pill.label}</span>

@@ -79,4 +79,8 @@ async function remove(id) {
   await pool.query('DELETE FROM medicines WHERE id = ?', [id]);
 }
 
-module.exports = { getAll, getById, create, update, remove, CATEGORY_OPTIONS, normalizeCategory };
+async function setImage(id, imageUrl) {
+  await pool.query('UPDATE medicines SET image_url = ? WHERE id = ?', [imageUrl, id]);
+}
+
+module.exports = { getAll, getById, create, update, remove, setImage, CATEGORY_OPTIONS, normalizeCategory };

@@ -19,6 +19,12 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
+      // Uploaded medicine photos are served by the API server too (see
+      // server/server.js), so route them the same way as /api in dev.
+      '/uploads': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
     },
   },
 })

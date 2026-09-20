@@ -291,7 +291,7 @@ export default function Transactions() {
                 const config = transactionConfig(t.transaction_type);
                 const TypeIcon = config.Icon;
                 return (
-                  <div key={t.id} className="flat-card flat-item-card" style={{ cursor: 'default' }}>
+                  <div key={t.id} className={`flat-card flat-item-card flat-item-card--${TX_FLAT_CLS[config.cls]}`} style={{ cursor: 'default' }}>
                     <div className="flat-item-card__top">
                       <div className="flat-item-icon"><TypeIcon size={20} /></div>
                       <span className={`flat-status-label ${TX_FLAT_CLS[config.cls]}`}>{config.label}</span>

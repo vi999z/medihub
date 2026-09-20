@@ -117,7 +117,7 @@ export default function Suppliers() {
           <button type="button" className="flat-action-btn" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
-          {user.role === 'admin' && (
+          {(user.role === 'admin' || user.role === 'pharmacist') && (
             <button type="button" className="flat-btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}>
               <Plus size={15} /> {showForm ? 'Close form' : 'Add supplier'}
             </button>
@@ -195,7 +195,7 @@ export default function Suppliers() {
           {!error && !loading && visibleSuppliers.length > 0 && (
             <div className="flat-card-grid">
               {visibleSuppliers.map((s) => (
-                <div key={s.id} className="flat-card flat-item-card" style={{ cursor: 'default' }}>
+                <div key={s.id} className="flat-card flat-item-card flat-item-card--accent" style={{ cursor: 'default' }}>
                   <div className="flat-item-card__top">
                     <div className="flat-item-icon"><Building2 size={22} /></div>
                   </div>
@@ -210,7 +210,7 @@ export default function Suppliers() {
                     <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.email || '—'}</strong>
                   </div>
                   <div className="flat-med-meta" style={{ marginTop: 2 }}>{s.address || 'No address listed'}</div>
-                  {user.role === 'admin' && (
+                  {(user.role === 'admin' || user.role === 'pharmacist') && (
                     <div className="flat-item-card__actions">
                       <button type="button" className="flat-action-btn" onClick={() => openEdit(s)}>
                         <Pencil size={13} /> Edit

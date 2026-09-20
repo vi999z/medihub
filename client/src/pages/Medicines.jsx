@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus, Pencil, Trash2, RefreshCw, Download, Search, X,
-  Upload, QrCode, ChevronDown, Pill, PillBottle, Droplet, Syringe
+  Upload, QrCode, ChevronDown, Pill, PillBottle, Droplet, Syringe, Camera
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
@@ -171,6 +171,13 @@ export default function Medicines() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Medicine photo (separate from `form` since it uploads via its own
+  // multipart endpoint, not the JSON create/update body).
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
+  const imageInputRef = useRef(null);
+
   // Medicine detail modal state
   const [detailMedicine, setDetailMedicine] = useState(null);
   const [showBatchForm, setShowBatchForm] = useState(false);
@@ -191,6 +198,8 @@ export default function Medicines() {
     setForm(emptyForm);
     setEditingId(null);
     setShowForm(false);
+    setImageFile(null);
+    setImagePreview('');
   }
 
   function resetBatchForm() {
@@ -392,19 +401,67 @@ export default function Medicines() {
       reorder_level: medicine.reorder_level || 10,
       requires_prescription: Boolean(medicine.requires_prescription)
     });
+    setImageFile(null);
+    setImagePreview(medicine.image_url || '');
     setShowForm(true);
+  }
+
+  function handleImageSelect(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  }
+
+  function clearImageSelection() {
+    setImageFile(null);
+    setImagePreview('');
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  }
+
+  async function removeExistingImage() {
+    if (!editingId) { clearImageSelection(); return; }
+    if (!window.confirm('Remove this medicine’s photo?')) return;
+    try {
+      await api.delete(`/medicines/${editingId}/image`);
+      api.invalidateCache('/medicines');
+      clearImageSelection();
+      await fetchMedicines();
+      addToast('Photo removed', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'Failed to remove photo', 'error');
+    }
+  }
+
+  async function uploadMedicineImage(id, file) {
+    setImageUploading(true);
+    try {
+      const body = new FormData();
+      body.append('image', file);
+      await api.post(`/medicines/${id}/image`, body, { headers: { 'Content-Type': 'multipart/form-data' } });
+      api.invalidateCache('/medicines');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'Medicine saved, but the photo failed to upload', 'error');
+    } finally {
+      setImageUploading(false);
+    }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
     try {
+      let medicineId = editingId;
       if (editingId) {
         await api.put(`/medicines/${editingId}`, form);
         addToast('Medicine updated', 'success');
       } else {
-        await api.post('/medicines', form);
+        const res = await api.post('/medicines', form);
+        medicineId = res.data.id;
         addToast('Medicine added', 'success');
+      }
+      if (imageFile && medicineId) {
+        await uploadMedicineImage(medicineId, imageFile);
       }
       api.invalidateCache('/medicines');
     api.invalidateCache('/reports/needs-attention?days=14');
@@ -582,7 +639,7 @@ export default function Medicines() {
           <button className="flat-action-btn" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
-          {user.role === 'admin' && (
+          {(user.role === 'admin' || user.role === 'pharmacist') && (
             <>
               <button className="flat-action-btn" onClick={() => setShowCsvImport(true)}>
                 <Upload size={15} /> Import medicine list
@@ -633,6 +690,24 @@ export default function Medicines() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="flat-card" style={{ marginBottom: 0, padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
+          <div className="field" style={{ gridColumn: '1 / -1' }}>
+            <label>Photo</label>
+            <div className="flat-photo-picker">
+              <div className="flat-photo-preview">
+                {imagePreview ? <img src={imagePreview} alt="" /> : <Camera size={22} />}
+              </div>
+              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageSelect} hidden />
+              <button type="button" className="flat-action-btn" onClick={() => imageInputRef.current?.click()}>
+                <Camera size={13} /> {imagePreview ? 'Change photo' : 'Choose photo'}
+              </button>
+              {imagePreview && (
+                <button type="button" className="flat-action-btn" onClick={removeExistingImage}>
+                  <X size={13} /> Remove
+                </button>
+              )}
+              {imageUploading && <span className="flat-med-meta">Uploading…</span>}
+            </div>
+          </div>
           <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
           <div className="field"><label>Generic name</label><input value={form.generic_name} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} /></div>
           <div className="field">
@@ -748,9 +823,11 @@ export default function Medicines() {
                 const expiry = expiryLabel(m);
                 const Icon = iconForDosageForm(m.dosage_form);
                 return (
-                  <div key={m.id} className="flat-card flat-item-card" onClick={() => openDetail(m)}>
+                  <div key={m.id} className={`flat-card flat-item-card flat-item-card--${STOCK_FLAT_CLS[state.key]}`} onClick={() => openDetail(m)}>
                     <div className="flat-item-card__top">
-                      <div className="flat-item-icon"><Icon size={22} /></div>
+                      <div className="flat-item-icon">
+                        {m.image_url ? <img src={m.image_url} alt="" /> : <Icon size={22} />}
+                      </div>
                       <span className={`flat-status-label ${STOCK_FLAT_CLS[state.key]}`}>{state.label}</span>
                     </div>
                     <div className="flat-med-name">{m.name}</div>
@@ -785,11 +862,18 @@ export default function Medicines() {
         {detailMedicine && (
           <div className="medicine-detail-modal__body">
             <div className="medicine-detail-modal__header">
-              <div>
-                <h2 style={{ margin: 0 }}>{detailMedicine.name}</h2>
-                <p style={{ margin: '4px 0 0', color: 'var(--steel)', fontSize: 13 }}>
-                  {[detailMedicine.generic_name, detailMedicine.dosage_form, detailMedicine.strength].filter(Boolean).join(' · ') || '—'}
-                </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                {detailMedicine.image_url && (
+                  <div className="flat-item-icon" style={{ width: 56, height: 56 }}>
+                    <img src={detailMedicine.image_url} alt="" />
+                  </div>
+                )}
+                <div>
+                  <h2 style={{ margin: 0 }}>{detailMedicine.name}</h2>
+                  <p style={{ margin: '4px 0 0', color: 'var(--steel)', fontSize: 13 }}>
+                    {[detailMedicine.generic_name, detailMedicine.dosage_form, detailMedicine.strength].filter(Boolean).join(' · ') || '—'}
+                  </p>
+                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className={`status-pill ${stockStateOf(detailMedicine).cls}`}>{stockStateOf(detailMedicine).label}</span>
@@ -916,7 +1000,7 @@ export default function Medicines() {
                           >
                             <QrCode size={13} color="var(--ink)" />
                           </button>
-                          {user.role === 'admin' && (
+                          {(user.role === 'admin' || user.role === 'pharmacist') && (
                             <button
                               type="button"
                               onClick={() => handleBatchDelete(b)}
