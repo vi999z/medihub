@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { X } from 'lucide-react';
 import api from '../api/axios';
 import { downloadCsv } from '../utils/csv';
+import AnimatedModal from '../components/AnimatedModal';
 
 function peso(n) {
   const value = Number(n) || 0;
   return `₱${value.toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
+}
+
+// Per-medicine margin, same formula as the aggregate one the backend computes
+// (server/models/reportModel.js:43) — medicines with no selling price set are
+// excluded rather than ranked as "bad margin", since there's no real number there.
+function marginOf(medicine) {
+  const retail = Number(medicine.retail_value) || 0;
+  const cost = Number(medicine.inventory_value) || 0;
+  return retail > 0 ? ((retail - cost) / retail) * 100 : null;
 }
 
 const DATE_FILTERS = [
@@ -79,6 +90,7 @@ export default function Dashboard() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('30d');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [breakdown, setBreakdown] = useState(null);
 
   const loading = summary === null;
   const horizonDays = DATE_FILTERS.find((f) => f.value === dateFilter)?.days ?? 30;
@@ -146,6 +158,44 @@ export default function Dashboard() {
   const todayKey = new Date().toISOString().slice(0, 10);
   const vsYesterday = todaySales?.vs_yesterday_pct;
 
+  const BREAKDOWN_META = {
+    sales_today: { title: 'Top sellers today', viewAllLabel: 'View all transactions', viewAllHref: `/transactions?date=${todayKey}` },
+    inventory_value: { title: 'Highest inventory value', viewAllLabel: 'View all medicines', viewAllHref: '/medicines?sort=value-desc' },
+    retail_value: { title: 'Highest retail value', viewAllLabel: 'View all medicines', viewAllHref: '/medicines?sort=value-desc' },
+    margin: { title: 'Lowest margin', viewAllLabel: 'View all medicines', viewAllHref: '/medicines?sort=margin-asc' },
+  };
+
+  async function openBreakdown(metric) {
+    setBreakdown({ metric, loading: true, rows: [] });
+    try {
+      if (metric === 'sales_today') {
+        const res = await api.cachedGet('/reports/top-sellers?limit=6&days=1');
+        const rows = res.data.map((d) => ({ label: d.name, sub: `${d.quantity_sold} sold`, value: peso(d.revenue) }));
+        setBreakdown({ metric, loading: false, rows });
+      } else {
+        const res = await api.cachedGet('/medicines');
+        let list = res.data;
+        if (metric === 'margin') {
+          list = list
+            .map((m) => ({ ...m, margin_pct: marginOf(m) }))
+            .filter((m) => m.margin_pct !== null)
+            .sort((a, b) => a.margin_pct - b.margin_pct)
+            .slice(0, 6)
+            .map((m) => ({ label: m.name, sub: m.category || 'Other', value: `${m.margin_pct.toFixed(1)}%` }));
+        } else {
+          list = [...list]
+            .filter((m) => Number(m[metric]) > 0)
+            .sort((a, b) => (Number(b[metric]) || 0) - (Number(a[metric]) || 0))
+            .slice(0, 6)
+            .map((m) => ({ label: m.name, sub: m.category || 'Other', value: peso(m[metric]) }));
+        }
+        setBreakdown({ metric, loading: false, rows: list });
+      }
+    } catch (err) {
+      setBreakdown({ metric, loading: false, rows: [], error: true });
+    }
+  }
+
   return (
     <div className="flat-dashboard">
       <div className="page-header">
@@ -175,7 +225,7 @@ export default function Dashboard() {
 
           {/* b. Summary strip — each column links to the page that explains the number */}
           <div className="flat-card flat-summary-strip">
-            <button type="button" className="flat-summary-col" onClick={() => navigate(`/transactions?date=${todayKey}`)} title="View today's transactions">
+            <button type="button" className="flat-summary-col" onClick={() => openBreakdown('sales_today')} title="View today's top sellers">
               <div className="flat-summary-label">Sales today</div>
               <div className="flat-summary-value">{loading ? '—' : peso(todaySales?.total)}</div>
               <div className={`flat-summary-sub ${vsYesterday > 0 ? 'positive' : vsYesterday < 0 ? 'negative' : ''}`}>
@@ -184,17 +234,17 @@ export default function Dashboard() {
                   : `${vsYesterday >= 0 ? '↑' : '↓'} ${Math.abs(vsYesterday).toFixed(0)}% vs yesterday`}
               </div>
             </button>
-            <button type="button" className="flat-summary-col" onClick={() => navigate('/medicines')} title="View the medicine catalog">
+            <button type="button" className="flat-summary-col" onClick={() => openBreakdown('inventory_value')} title="View highest-value medicines">
               <div className="flat-summary-label">Inventory value</div>
               <div className="flat-summary-value">{loading ? '—' : peso(summary?.inventory_value)}</div>
               <div className="flat-summary-sub">at cost</div>
             </button>
-            <button type="button" className="flat-summary-col" onClick={() => navigate('/medicines')} title="View the medicine catalog">
+            <button type="button" className="flat-summary-col" onClick={() => openBreakdown('retail_value')} title="View highest-value medicines">
               <div className="flat-summary-label">Retail value</div>
               <div className="flat-summary-value">{loading ? '—' : peso(summary?.retail_value)}</div>
               <div className="flat-summary-sub">if all sold</div>
             </button>
-            <button type="button" className="flat-summary-col" onClick={() => navigate('/medicines')} title="View the medicine catalog">
+            <button type="button" className="flat-summary-col" onClick={() => openBreakdown('margin')} title="View lowest-margin medicines">
               <div className="flat-summary-label">Margin</div>
               <div className="flat-summary-value">{loading ? '—' : `${Number(summary?.margin_pct || 0).toFixed(1)}%`}</div>
               <div className="flat-summary-sub">{loading ? '' : `${peso(summary?.margin_value)} profit`}</div>
@@ -328,6 +378,49 @@ export default function Dashboard() {
           </div>
         </>
       )}
+
+      <AnimatedModal isOpen={Boolean(breakdown)} onClose={() => setBreakdown(null)} className="tile-breakdown-modal">
+        {breakdown && (
+          <div className="tile-breakdown-modal__body">
+            <div className="tile-breakdown-modal__header">
+              <h2 style={{ margin: 0 }}>{BREAKDOWN_META[breakdown.metric].title}</h2>
+              <button type="button" className="btn-icon" onClick={() => setBreakdown(null)} title="Close">
+                <X size={18} />
+              </button>
+            </div>
+
+            {breakdown.loading && <div className="flat-empty">Loading…</div>}
+            {!breakdown.loading && breakdown.error && <div className="flat-empty">Failed to load this breakdown.</div>}
+            {!breakdown.loading && !breakdown.error && breakdown.rows.length === 0 && (
+              <div className="flat-empty">
+                {breakdown.metric === 'sales_today' ? 'No sales recorded today.' : 'No data to show yet.'}
+              </div>
+            )}
+            {!breakdown.loading && !breakdown.error && breakdown.rows.length > 0 && (
+              <div className="tile-breakdown-list">
+                {breakdown.rows.map((row, idx) => (
+                  <div key={idx} className="tile-breakdown-row">
+                    <div>
+                      <div className="tile-breakdown-row__label">{row.label}</div>
+                      <div className="tile-breakdown-row__sub">{row.sub}</div>
+                    </div>
+                    <strong>{row.value}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="flat-action-btn"
+              style={{ width: '100%', justifyContent: 'center', marginTop: 14 }}
+              onClick={() => { navigate(BREAKDOWN_META[breakdown.metric].viewAllHref); setBreakdown(null); }}
+            >
+              {BREAKDOWN_META[breakdown.metric].viewAllLabel}
+            </button>
+          </div>
+        )}
+      </AnimatedModal>
     </div>
   );
 }

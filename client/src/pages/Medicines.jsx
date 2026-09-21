@@ -85,7 +85,9 @@ const SORT_OPTIONS = [
   { value: 'stock-asc', label: 'Stock (lowest first)' },
   { value: 'stock-desc', label: 'Stock (highest first)' },
   { value: 'expiry-asc', label: 'Nearest expiry' },
-  { value: 'category-asc', label: 'Category (A–Z)' }
+  { value: 'category-asc', label: 'Category (A–Z)' },
+  { value: 'value-desc', label: 'Value (highest first)' },
+  { value: 'margin-asc', label: 'Margin (lowest first)' }
 ];
 
 const emptyForm = {
@@ -100,6 +102,14 @@ const emptyBatchForm = {
 
 function categoryOf(medicine) {
   return medicine.category || 'Other';
+}
+
+// Same formula as the Dashboard's aggregate margin (server/models/reportModel.js:43),
+// applied per medicine so "Margin (lowest first)" can surface the worst performers.
+function marginOf(medicine) {
+  const retail = Number(medicine.retail_value) || 0;
+  const cost = Number(medicine.inventory_value) || 0;
+  return retail > 0 ? ((retail - cost) / retail) * 100 : 0;
 }
 
 // Mutually-exclusive classification shared with the Dashboard's "Needs
@@ -192,7 +202,7 @@ export default function Medicines() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [stockFilter, setStockFilter] = useState('all');
   const [prescriptionOnly, setPrescriptionOnly] = useState(false);
-  const [sortBy, setSortBy] = useState('name-asc');
+  const [sortBy, setSortBy] = useState(() => searchParams.get('sort') || 'name-asc');
 
   function resetForm() {
     setForm(emptyForm);
@@ -372,6 +382,8 @@ export default function Medicines() {
         const byCategory = categoryOf(a).localeCompare(categoryOf(b));
         if (byCategory !== 0) return sign * byCategory;
       }
+      if (field === 'value') return sign * ((Number(a.inventory_value) || 0) - (Number(b.inventory_value) || 0));
+      if (field === 'margin') return sign * (marginOf(a) - marginOf(b));
       return sign * String(a.name || '').localeCompare(String(b.name || ''));
     });
   }, [medicines, search, activeCategory, stockFilter, prescriptionOnly, sortBy]);
