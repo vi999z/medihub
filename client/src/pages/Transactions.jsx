@@ -181,7 +181,7 @@ export default function Transactions() {
         <div className="page-header-actions">
           <TransactionExportDropdown onExport={handleExport} />
           <button type="button" className="flat-btn-primary" onClick={() => setShowForm(!showForm)}>
-            <Plus size={15} /> {showForm ? 'Close form' : 'Record transaction'}
+            <Plus size={15} /> {showForm ? 'Close form' : 'New transaction'}
           </button>
         </div>
       </div>

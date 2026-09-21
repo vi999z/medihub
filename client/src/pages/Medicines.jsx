@@ -4,7 +4,7 @@ import {
   Upload, QrCode, ChevronDown, Pill, PillBottle, Droplet, Syringe, Camera
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import api from '../api/axios';
+import api, { resolveFileUrl } from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
@@ -402,7 +402,7 @@ export default function Medicines() {
       requires_prescription: Boolean(medicine.requires_prescription)
     });
     setImageFile(null);
-    setImagePreview(medicine.image_url || '');
+    setImagePreview(resolveFileUrl(medicine.image_url) || '');
     setShowForm(true);
   }
 
@@ -808,10 +808,12 @@ export default function Medicines() {
           {!error && loading && (
             <div className="flat-card-grid">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="flat-card flat-item-card">
-                  <div className="flat-item-icon skeleton" style={{ border: 'none' }} />
-                  <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
-                  <div className="skeleton" style={{ height: 12, width: '50%' }} />
+                <div key={i} className="flat-card flat-item-card flat-item-card--photo-layout">
+                  <div className="flat-item-photo skeleton" style={{ border: 'none', borderRadius: '7px 7px 0 0' }} />
+                  <div className="flat-item-card__body">
+                    <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
+                    <div className="skeleton" style={{ height: 12, width: '50%' }} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -823,31 +825,31 @@ export default function Medicines() {
                 const expiry = expiryLabel(m);
                 const Icon = iconForDosageForm(m.dosage_form);
                 return (
-                  <div key={m.id} className={`flat-card flat-item-card flat-item-card--${STOCK_FLAT_CLS[state.key]}`} onClick={() => openDetail(m)}>
-                    <div className="flat-item-card__top">
-                      <div className={`flat-item-icon${m.image_url ? ' flat-item-icon--photo' : ''}`}>
-                        {m.image_url ? <img src={m.image_url} alt="" /> : <Icon size={22} />}
+                  <div key={m.id} className={`flat-card flat-item-card flat-item-card--photo-layout flat-item-card--${STOCK_FLAT_CLS[state.key]}`} onClick={() => openDetail(m)}>
+                    <div className="flat-item-photo">
+                      {m.image_url ? <img src={resolveFileUrl(m.image_url)} alt="" /> : <Icon size={32} />}
+                      <span className={`flat-status-label flat-status-label--badge ${STOCK_FLAT_CLS[state.key]}`}>{state.label}</span>
+                    </div>
+                    <div className="flat-item-card__body">
+                      <div className="flat-med-name">{m.name}</div>
+                      <div className="flat-med-meta">
+                        {m.generic_name || '—'}
+                        {m.requires_prescription ? ' · Rx' : ''}
                       </div>
-                      <span className={`flat-status-label ${STOCK_FLAT_CLS[state.key]}`}>{state.label}</span>
-                    </div>
-                    <div className="flat-med-name">{m.name}</div>
-                    <div className="flat-med-meta">
-                      {m.generic_name || '—'}
-                      {m.requires_prescription ? ' · Rx' : ''}
-                    </div>
-                    <span className="flat-tag">{categoryOf(m)}</span>
-                    <div className="flat-item-row">
-                      <span>Stock</span>
-                      <strong>{m.total_stock ?? 0} {m.unit}</strong>
-                    </div>
-                    <div className="flat-item-row">
-                      <span>Expires</span>
-                      <strong>{expiry ? expiry.label : '—'}</strong>
-                    </div>
-                    <div className="flat-item-card__actions">
-                      <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); openEdit(m); }}>
-                        <Pencil size={13} /> Edit
-                      </button>
+                      <span className="flat-tag">{categoryOf(m)}</span>
+                      <div className="flat-item-row">
+                        <span>Stock</span>
+                        <strong>{m.total_stock ?? 0} {m.unit}</strong>
+                      </div>
+                      <div className="flat-item-row">
+                        <span>Expires</span>
+                        <strong>{expiry ? expiry.label : '—'}</strong>
+                      </div>
+                      <div className="flat-item-card__actions">
+                        <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); openEdit(m); }}>
+                          <Pencil size={13} /> Edit
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -865,7 +867,7 @@ export default function Medicines() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 {detailMedicine.image_url && (
                   <div className="flat-item-icon flat-item-icon--photo">
-                    <img src={detailMedicine.image_url} alt="" />
+                    <img src={resolveFileUrl(detailMedicine.image_url)} alt="" />
                   </div>
                 )}
                 <div>

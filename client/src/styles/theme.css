@@ -1303,6 +1303,22 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-item-card__actions { display: flex; gap: 8px; margin-top: 8px; }
 .flat-item-card__actions .flat-action-btn { flex: 1; justify-content: center; }
 
+/* Product-card photo layout — used only by the Medicines catalog grid, where
+   the photo is the focal point (unlike Suppliers/Batches/Transactions, which
+   keep the small side-by-side icon + status row above). The card's own
+   padding is disabled so the photo can bleed to its edges; __body carries
+   the padding/gap that .flat-item-card normally provides directly. */
+.flat-item-card--photo-layout { padding: 0; }
+.flat-item-card__body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+.flat-item-photo {
+  position: relative; width: 100%; aspect-ratio: 1 / 1;
+  background: var(--flat-bg); border-radius: 7px 7px 0 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--flat-accent); overflow: hidden;
+}
+.flat-item-photo img { width: 100%; height: 100%; object-fit: cover; }
+.flat-status-label--badge { position: absolute; top: 10px; left: 10px; box-shadow: var(--flat-shadow); }
+
 /* Bottom row: 7-day sales chart + top sellers */
 .flat-bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .flat-card-header {

@@ -1,8 +1,25 @@
 import axios from 'axios';
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+// Origin the API (and its /uploads static files) are served from — the
+// client's own baseURL minus the trailing /api. Client and API can be
+// deployed as separate origins in production, so relative upload paths
+// like /uploads/medicines/x.jpg must be resolved against this, not the
+// page's own origin.
+const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: API_BASE,
 });
+
+// Resolves a possibly-relative file URL (e.g. medicine photo `/uploads/...`
+// paths returned by the API) into an absolute URL against the API's origin.
+// Already-absolute URLs (blob:, http(s):) are returned unchanged.
+export function resolveFileUrl(url) {
+  if (!url) return url;
+  if (/^(https?:|blob:|data:)/i.test(url)) return url;
+  return `${API_ORIGIN}${url}`;
+}
 
 const cache = new Map();
 const CACHE_TTL = 60_000; // 60 s — reduces redundant API calls on page revisit
