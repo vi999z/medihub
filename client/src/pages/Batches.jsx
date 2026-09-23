@@ -246,11 +246,7 @@ export default function Batches() {
 
   return (
     <div className="flat-dashboard">
-      <div className="page-header">
-        <div>
-          <h1>Batches</h1>
-          <p>{loading ? 'Loading batches…' : `${visibleBatches.length} of ${batches.length} batches shown, sorted by nearest expiry`}</p>
-        </div>
+      <div className="page-actions-only">
         <div className="page-header-actions">
           <ExportDropdown onExport={handleExport} />
           {user.role === 'admin' && (

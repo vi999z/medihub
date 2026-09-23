@@ -116,8 +116,8 @@ function TopBar({ pageTitle }) {
 
   return (
     <header className="topbar">
-      <div className="breadcrumb-group">
-        <div className="breadcrumb">{pageTitle}</div>
+      <div className={`breadcrumb-group${pageTitle ? '' : ' breadcrumb-group--date-only'}`}>
+        {pageTitle && <div className="breadcrumb">{pageTitle}</div>}
         <div className="topbar-date">{today}</div>
       </div>
 
@@ -202,7 +202,11 @@ function TopBar({ pageTitle }) {
 export default function Layout({ children }) {
   const { user } = useAuth();
   const location = useLocation();
-  const pageTitle = useMemo(() => ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub', [location.pathname]);
+  const pageTitle = useMemo(() => {
+    const keepTitle = ['/dashboard', '/ai-chat', '/weather-recommendations'].includes(location.pathname);
+    if (!keepTitle) return '';
+    return ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub';
+  }, [location.pathname]);
   const secondaryItems = NAV_GROUP_SECONDARY.filter((item) => !item.adminOnly || user?.role === 'admin');
 
   useEffect(() => {

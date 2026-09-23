@@ -173,11 +173,7 @@ export default function Transactions() {
 
   return (
     <div className="flat-dashboard">
-      <div className="page-header">
-        <div>
-          <h1>Transactions</h1>
-          <p>{loading ? 'Loading movements…' : `${visibleTransactions.length} of ${transactions.length} movements shown`}</p>
-        </div>
+      <div className="page-actions-only">
         <div className="page-header-actions">
           <TransactionExportDropdown onExport={handleExport} />
           <button type="button" className="flat-btn-primary" onClick={() => setShowForm(!showForm)}>

@@ -105,11 +105,7 @@ export default function Suppliers() {
 
   return (
     <div className="flat-dashboard">
-      <div className="page-header">
-        <div>
-          <h1>Suppliers</h1>
-          <p>{loading ? 'Loading suppliers…' : `${visibleSuppliers.length} of ${suppliers.length} shown`}</p>
-        </div>
+      <div className="page-actions-only">
         <div className="page-header-actions">
           <button type="button" className="flat-action-btn" onClick={handleExport}>
             <Download size={15} /> Export CSV

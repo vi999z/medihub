@@ -104,13 +104,6 @@ export default function Scanner() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1>Scanner</h1>
-          <p>Scan a QR code or barcode to add stock</p>
-        </div>
-      </div>
-
       <div className="card" style={{ padding: 20, marginBottom: 20 }}>
         {/* Scanner View */}
         {!isScanning && !scanResult && !drugData && (

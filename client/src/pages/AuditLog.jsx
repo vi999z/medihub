@@ -32,12 +32,6 @@ export default function AuditLog() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1>Audit Log</h1>
-          <p>{loading ? 'Loading activity…' : `${visibleLogs.length} of the ${logs.length} most recent system actions`}</p>
-        </div>
-      </div>
       <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
         <div className="filter-bar" style={{ margin: 0 }}>
           <div className="filter-search">

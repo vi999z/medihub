@@ -232,11 +232,7 @@ export default function AiInsights() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1>AI Insights</h1>
-          <p>Expiry risk, reorder timing, and transaction anomalies — computed from your real inventory data</p>
-        </div>
+      <div className="page-actions-only">
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <InsightsExportDropdown onExport={handleExport} />
           {user.role === 'admin' && (

@@ -32,13 +32,6 @@ export default function Maintenance() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1>Maintenance</h1>
-          <p>Admin-only cleanup tools for transaction history, logs, expired stock, and system reset.</p>
-        </div>
-      </div>
-
       <div
         className="card"
         style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', padding: 18 }}

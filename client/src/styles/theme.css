@@ -484,6 +484,13 @@ input, select, textarea { font-family: var(--font-body); }
 .page-header h1 { font-size: clamp(1.2rem, 1.8vw, 1.55rem); }
 .page-header p { color: var(--steel); margin: 4px 0 0; font-size: 13px; }
 .page-header-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+/* Pages whose title is already present in the sidebar use an action-only toolbar. */
+.page-actions-only { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+@media (max-width: 768px) {
+  .page-actions-only { justify-content: flex-start; }
+  .page-actions-only .page-header-actions { width: 100%; flex-direction: column; align-items: stretch; }
+  .page-actions-only .page-header-actions > * { width: 100%; }
+}
 
 .hero-panel { background: linear-gradient(135deg, var(--color-surface-elevated) 0%, var(--color-surface-muted) 100%); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 24px 28px; box-shadow: var(--shadow-sm); }
 .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; }
@@ -1119,12 +1126,12 @@ input, select, textarea { font-family: var(--font-body); }
 }
 .flat-summary-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .flat-summary-col {
-  padding: 16px 20px; border: 1px solid var(--flat-border-strong); border-radius: 8px;
-  background: #fff; cursor: pointer; text-align: left; font-family: inherit; font-size: inherit;
+  padding: 16px 20px; border: 1px solid #A9D5F5; border-radius: 8px;
+  background: #DCEFFF; cursor: pointer; text-align: left; font-family: inherit; font-size: inherit;
   width: 100%; outline: none; box-shadow: var(--flat-shadow); transform: translateY(0);
   transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
 }
-.flat-summary-col:hover { background: color-mix(in srgb, var(--flat-accent) 8%, white); border-color: var(--flat-accent); box-shadow: var(--flat-shadow-hover); }
+.flat-summary-col:hover { background: #CFE8FB; border-color: #7FBEEC; box-shadow: var(--flat-shadow-hover); }
 .flat-summary-col:active { box-shadow: var(--flat-shadow-active); transform: translateY(1.5px); }
 .flat-summary-col:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: 1px; }
 .flat-summary-label { font-size: 13px; color: var(--flat-text-muted); margin-bottom: 6px; }
@@ -1152,10 +1159,15 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-stock-col:has(.flat-stock-dot.amber) { border-color: var(--flat-amber); }
 .flat-stock-col:has(.flat-stock-dot.orange) { border-color: var(--flat-orange); }
 .flat-stock-col:has(.flat-stock-dot.green) { border-color: var(--flat-green); }
-.flat-stock-col.active:has(.flat-stock-dot.red) { background: color-mix(in srgb, var(--flat-red) 10%, white); }
-.flat-stock-col.active:has(.flat-stock-dot.amber) { background: color-mix(in srgb, var(--flat-amber) 10%, white); }
-.flat-stock-col.active:has(.flat-stock-dot.orange) { background: color-mix(in srgb, var(--flat-orange) 10%, white); }
-.flat-stock-col.active:has(.flat-stock-dot.green) { background: color-mix(in srgb, var(--flat-green) 10%, white); }
+
+.flat-stock-col:has(.flat-stock-dot.red) { background: #FDE2E2; }
+.flat-stock-col:has(.flat-stock-dot.amber) { background: #FFF0D6; }
+.flat-stock-col:has(.flat-stock-dot.orange) { background: #FFE2CF; }
+.flat-stock-col:has(.flat-stock-dot.green) { background: #DCF5E5; }
+.flat-stock-col.active:has(.flat-stock-dot.red) { background: #F9CACA; }
+.flat-stock-col.active:has(.flat-stock-dot.amber) { background: #FFE1B0; }
+.flat-stock-col.active:has(.flat-stock-dot.orange) { background: #FFCCAD; }
+.flat-stock-col.active:has(.flat-stock-dot.green) { background: #BEEBCF; }
 .flat-stock-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 .flat-stock-dot.red { background: var(--flat-red); }
 .flat-stock-dot.amber { background: var(--flat-amber); }
@@ -1188,6 +1200,14 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-table tbody tr:nth-child(even) td { background: var(--flat-bg); }
 .flat-med-name { font-size: 15px; }
 .flat-med-meta { font-size: 13px; color: var(--flat-text-muted); margin-top: 2px; }
+
+/* Dashboard Needs-attention table: yellow frame plus a yellow divider on every row. */
+.flat-attention-card { border: 2px solid #F2C94C; }
+.flat-attention-card .flat-table-header { border-bottom: 2px solid #F2C94C; }
+.flat-attention-card .flat-table th { border-bottom: 2px solid #F2C94C; background: #FFF9E6; }
+.flat-attention-card .flat-table td { border-bottom: 1px solid #F2C94C; }
+.flat-attention-card .flat-table tbody tr:nth-child(even) td { background: #FFFCF2; }
+.flat-attention-card .flat-table tbody tr:last-child td { border-bottom: none; }
 
 /* Status pill: tinted background + leading dot so severity reads at a
    glance (color alone is never the only signal — shape/position carry
@@ -1275,18 +1295,37 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
 .flat-item-card {
   padding: 18px 18px 18px 16px; display: flex; flex-direction: column; gap: 8px; cursor: pointer;
-  border-left: 4px solid var(--flat-border-strong);
-  transition: border-color 0.15s ease;
+  border: 1px solid var(--flat-border-strong);
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
-/* Only the top/right/bottom edge highlights on hover — the left stripe
-   keeps carrying the status color throughout, since that's the whole
-   point of it (a quick glanceable color cue while scanning the list). */
-.flat-item-card:hover { border-top-color: var(--flat-accent); border-right-color: var(--flat-accent); border-bottom-color: var(--flat-accent); }
-.flat-item-card--red { border-left-color: var(--flat-red); }
-.flat-item-card--amber { border-left-color: var(--flat-amber); }
-.flat-item-card--orange { border-left-color: var(--flat-orange); }
-.flat-item-card--green { border-left-color: var(--flat-green); }
-.flat-item-card--accent { border-left-color: var(--flat-accent); }
+/* Status color now fills the complete card instead of appearing only as a
+   colored left-side stripe. This makes the meaning of each record visible
+   at a glance while keeping the existing status labels for exact wording. */
+.flat-item-card--red {
+  background: color-mix(in srgb, var(--flat-red) 11%, white);
+  border-color: color-mix(in srgb, var(--flat-red) 48%, var(--flat-border));
+}
+.flat-item-card--amber {
+  background: color-mix(in srgb, var(--flat-amber) 11%, white);
+  border-color: color-mix(in srgb, var(--flat-amber) 48%, var(--flat-border));
+}
+.flat-item-card--orange {
+  background: color-mix(in srgb, var(--flat-orange) 10%, white);
+  border-color: color-mix(in srgb, var(--flat-orange) 48%, var(--flat-border));
+}
+.flat-item-card--green {
+  background: color-mix(in srgb, var(--flat-green) 10%, white);
+  border-color: color-mix(in srgb, var(--flat-green) 48%, var(--flat-border));
+}
+.flat-item-card--accent {
+  background: color-mix(in srgb, var(--flat-accent) 9%, white);
+  border-color: color-mix(in srgb, var(--flat-accent) 45%, var(--flat-border));
+}
+.flat-item-card--red:hover { border-color: var(--flat-red); box-shadow: 0 2px 8px color-mix(in srgb, var(--flat-red) 18%, transparent); }
+.flat-item-card--amber:hover { border-color: var(--flat-amber); box-shadow: 0 2px 8px color-mix(in srgb, var(--flat-amber) 18%, transparent); }
+.flat-item-card--orange:hover { border-color: var(--flat-orange); box-shadow: 0 2px 8px color-mix(in srgb, var(--flat-orange) 18%, transparent); }
+.flat-item-card--green:hover { border-color: var(--flat-green); box-shadow: 0 2px 8px color-mix(in srgb, var(--flat-green) 18%, transparent); }
+.flat-item-card--accent:hover { border-color: var(--flat-accent); box-shadow: 0 2px 8px color-mix(in srgb, var(--flat-accent) 18%, transparent); }
 .flat-item-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
 .flat-item-icon {
   width: 48px; height: 48px; border-radius: 10px; background: var(--flat-bg); border: 1px solid var(--flat-border);
@@ -1327,7 +1366,7 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-item-card__body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
 .flat-item-photo {
   position: relative; width: 100%; aspect-ratio: 1 / 1;
-  background: var(--flat-bg); border-radius: 7px 7px 0 0;
+  background: transparent; border-radius: 7px 7px 0 0;
   display: flex; align-items: center; justify-content: center;
   color: var(--flat-accent); overflow: hidden;
 }

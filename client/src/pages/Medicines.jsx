@@ -639,13 +639,7 @@ export default function Medicines() {
 
   return (
     <div className="flat-dashboard">
-      <div className="page-header">
-        <div>
-          <h1>Medicines</h1>
-          <p>
-            {loading ? 'Loading catalog…' : `${visibleMedicines.length} of ${medicines.length} products shown`}
-          </p>
-        </div>
+      <div className="page-actions-only">
         <div className="page-header-actions">
           <MedicineExportDropdown onExport={handleExport} />
           <button className="flat-action-btn" onClick={handleRefresh}>

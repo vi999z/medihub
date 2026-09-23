@@ -114,7 +114,7 @@ export default function Dashboard() {
         setError('');
       })
       .catch((err) => {
-        if (mounted) setError(err.response?.data?.error || 'Failed to load dashboard data');
+        if (mounted) setError(err.response?.data?.error || 'Failed to load  data');
       });
     return () => { mounted = false; };
   }, [horizonDays]);
@@ -198,12 +198,6 @@ export default function Dashboard() {
 
   return (
     <div className="flat-dashboard">
-      <div className="page-header">
-        <div>
-          <h1>Dashboard</h1>
-        </div>
-      </div>
-
       {error && (
         <div className="flat-card" style={{ padding: 20 }}>
           <strong>Unable to load dashboard</strong>
@@ -284,7 +278,7 @@ export default function Dashboard() {
           </div>
 
           {/* d. Needs attention table */}
-          <div className="flat-card">
+          <div className="flat-card flat-attention-card">
             <div className="flat-table-header">
               <span className="flat-table-title">{TABLE_TITLE_BY_FILTER[statusFilter] || 'Needs attention'}</span>
             </div>

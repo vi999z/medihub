@@ -155,11 +155,7 @@ export default function Notifications() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1>Alerts</h1>
-          <p>{loading ? 'Loading alerts…' : `${unreadCount} unread of ${notifications.length}`}</p>
-        </div>
+      <div className="page-actions-only">
         <div className="page-header-actions">
           <AlertsExportDropdown onExport={handleExport} />
           <button className="btn btn-secondary" onClick={handleRefresh}>

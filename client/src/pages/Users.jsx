@@ -90,11 +90,7 @@ export default function Users() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1>Users</h1>
-          <p>{loading ? 'Loading accounts…' : `${visibleUsers.length} of ${users.length} accounts shown`}</p>
-        </div>
+      <div className="page-actions-only">
         <button className="btn btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}><Plus size={15} /> {showForm ? 'Close form' : 'Add account'}</button>
       </div>
 
