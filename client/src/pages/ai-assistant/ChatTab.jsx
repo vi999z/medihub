@@ -2,10 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { IconSend, IconRobot, IconUser, IconRefresh, IconSparkles, IconPaperclip, IconX, IconDownload } from '@tabler/icons-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import api from '../api/axios';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import Skeleton from '../components/Skeleton';
+import api from '../../api/axios';
+import { useToast } from '../../context/ToastContext';
+import { downloadBlob } from '../../utils/downloadFile';
 
 // ── Starter prompt button with proper hover state ─────────────────────────────
 function StarterPromptButton({ prompt, onClick }) {
@@ -83,14 +82,7 @@ async function triggerExportDownload(prompt) {
       const contentDisposition = response.headers['content-disposition'] || '';
       const serverFilename = contentDisposition.match(/filename="?([^";]+)"?/)?.[1];
       const filename = serverFilename || `${getExportTitle(prompt).replace(/\s+/g, '_').toLowerCase()}.${exportType}`;
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, filename);
       return true;
     }
 
@@ -145,20 +137,13 @@ async function triggerExportDownload(prompt) {
     const blob = new Blob([response.data], {
       type: response.headers['content-type'] || 'application/octet-stream'
     });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
     const extension = exportType === 'csv' ? 'csv'
       : exportType === 'pdf' ? 'pdf'
       : exportType === 'docx' ? 'docx'
       : exportType === 'txt' ? 'txt'
       : exportType === 'json' ? 'json'
       : 'json';
-    link.download = `${getExportTitle(prompt).replace(/\s+/g, '_').toLowerCase()}.${extension}`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    downloadBlob(blob, `${getExportTitle(prompt).replace(/\s+/g, '_').toLowerCase()}.${extension}`);
 
     return true;
   } catch (err) {
@@ -167,8 +152,7 @@ async function triggerExportDownload(prompt) {
   }
 }
 
-export default function AiChatModern() {
-  const { user } = useAuth();
+export default function ChatTab() {
   const { addToast } = useToast();
   const [messages, setMessages] = useState([
     {
@@ -352,20 +336,12 @@ export default function AiChatModern() {
         }
       }
 
-      // Streaming is not supported by the current /api/ai/chat endpoint;
-      // use the normal (non-streaming) path.
-      const useStreaming = false;
-
-      if (useStreaming) {
-        await handleStreamingResponse(userMessage, imageToSend);
-      } else {
-        await handleNormalResponse(userMessage, imageToSend);
-      }
+      await handleNormalResponse(userMessage, imageToSend);
     } catch (err) {
       console.error('Chat error:', err);
       const errorMsg = err.response?.data?.error || err.message || 'Failed to get response. Please try again.';
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
+      setMessages(prev => [...prev, {
+        role: 'assistant',
         content: errorMsg,
         timestamp: new Date(),
         isError: true
@@ -400,8 +376,8 @@ export default function AiChatModern() {
     const res = await api.post('/ai/chat', body, { signal: controller.signal });
     const responseText = res?.data?.response || res?.data?.error || 'AI service returned an empty response. Please try again.';
 
-    setMessages(prev => [...prev, { 
-      role: 'assistant', 
+    setMessages(prev => [...prev, {
+      role: 'assistant',
       content: responseText,
       timestamp: new Date(),
       intention: res?.data?.intention,
@@ -415,114 +391,6 @@ export default function AiChatModern() {
     abortControllerRef.current = null;
   }
 
-  async function handleStreamingResponse(userMessage, imageData = null) {
-    setStreaming(true);
-    let fullResponse = '';
-    let addedMessage = false;
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    try {
-      const streamBody = { question: userMessage, stream: true };
-      if (imageData) {
-        streamBody.image_base64 = imageData.base64;
-        streamBody.mime_type = imageData.mimeType;
-      }
-
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('medihub_token')}`,
-        },
-        signal: controller.signal,
-        body: JSON.stringify(streamBody)
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        if (controller.signal.aborted) {
-          break;
-        }
-
-        const { done, value } = await reader.read();
-        if (done || controller.signal.aborted) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              if (data.content) {
-                fullResponse += data.content;
-                
-                // Add message on first chunk
-                if (!addedMessage) {
-                  setMessages(prev => [...prev, { 
-                    role: 'assistant', 
-                    content: fullResponse,
-                    timestamp: new Date(),
-                    isStreaming: true
-                  }]);
-                  addedMessage = true;
-                } else {
-                  // Update existing message
-                  setMessages(prev => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = {
-                      ...updated[updated.length - 1],
-                      content: fullResponse
-                    };
-                    return updated;
-                  });
-                }
-              }
-
-              if (data.status === 'completed') {
-                setMessages(prev => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = {
-                    ...updated[updated.length - 1],
-                    isStreaming: false
-                  };
-                  return updated;
-                });
-              }
-            } catch (e) {
-              console.error('Parse error:', e);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: 'Request stopped by user.',
-          timestamp: new Date(),
-          isError: true
-        }]);
-        return;
-      }
-
-      console.error('Streaming error:', err);
-      // Fallback to normal response on streaming failure
-      await handleNormalResponse(userMessage);
-    } finally {
-      abortControllerRef.current = null;
-      setStreaming(false);
-    }
-  }
-
   function handleStarterPrompt(prompt) {
     if (loading || streaming) return;
     setInput(prompt);
@@ -533,8 +401,8 @@ export default function AiChatModern() {
     try {
       await api.post('/ai/conversation/clear');
       setMessages([
-        { 
-          role: 'assistant', 
+        {
+          role: 'assistant',
           content: 'Hello! I\'m MediHub AI, your modern pharmaceutical intelligence assistant. Conversation history cleared. How can I help?',
           timestamp: new Date()
         }
@@ -592,14 +460,7 @@ export default function AiChatModern() {
 
       const response = await api.post('/ai/report/export', { type: format, report }, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `medihub_ai_report_${new Date().toISOString().slice(0, 10)}.${format}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, `medihub_ai_report_${new Date().toISOString().slice(0, 10)}.${format}`);
       addToast(`AI report downloaded as ${format.toUpperCase()}`, 'success');
     } catch (err) {
       addToast('Failed to generate report', 'error');
@@ -611,15 +472,9 @@ export default function AiChatModern() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 'clamp(1.2rem, 1.8vw, 1.55rem)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <IconSparkles size={24} />
-            MediHub AI Assistant
-          </h1>
-          <p style={{ color: 'var(--steel)', margin: '4px 0 0', fontSize: 13 }}>
-            Modern pharmaceutical intelligence · Turn {conversationTurn + 1} {intention && `· Discussing ${intention.replace(/_/g, ' ')}`}
-          </p>
-        </div>
+        <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>
+          Turn {conversationTurn + 1} {intention && `· Discussing ${intention.replace(/_/g, ' ')}`}
+        </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={startNewConversation} title="Start a fresh conversation">
             + New
@@ -653,7 +508,7 @@ export default function AiChatModern() {
             border: '1px solid var(--border)',
             borderRadius: 10,
             display: 'flex', flexDirection: 'column',
-            height: 'calc(100vh - 168px)', minHeight: 500,
+            height: 'calc(100vh - 210px)', minHeight: 460,
             overflow: 'hidden'
           }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -723,7 +578,7 @@ export default function AiChatModern() {
         {/* ── Chat Panel ── */}
         <div style={{ flex: 1, minWidth: 0 }}>
 
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 168px)', minHeight: 500 }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 210px)', minHeight: 460 }}>
         {/* Messages Area */}
         <div style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {messages.map((msg, index) => (
@@ -756,10 +611,10 @@ export default function AiChatModern() {
                   maxWidth: '70%',
                   padding: '12px 16px',
                   borderRadius: 12,
-                  background: msg.role === 'user' 
-                    ? 'var(--color-user-bubble)' 
-                    : msg.isError 
-                    ? 'var(--bg-error)' 
+                  background: msg.role === 'user'
+                    ? 'var(--color-user-bubble)'
+                    : msg.isError
+                    ? 'var(--bg-error)'
                     : 'var(--color-assistant-bubble)',
                   color: msg.role === 'user' ? 'var(--color-primary-foreground)' : msg.isError ? 'var(--color-error)' : 'var(--color-text-primary)',
                   border: msg.isError ? '1px solid var(--color-error-border)' : msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
@@ -782,7 +637,7 @@ export default function AiChatModern() {
                       ol: ({node, ...props}) => <ol style={{marginLeft: '20px', marginTop: '6px', marginBottom: '6px'}} {...props} />,
                       li: ({node, ...props}) => <li style={{marginBottom: '4px'}} {...props} />,
                       blockquote: ({node, ...props}) => <blockquote style={{marginLeft: '12px', paddingLeft: '12px', borderLeft: '3px solid var(--color-primary)', opacity: 0.95, fontStyle: 'italic'}} {...props} />,
-                      code: ({node, inline, ...props}) => inline ? 
+                      code: ({node, inline, ...props}) => inline ?
                         <code style={{background: 'var(--color-code-surface)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px'}} {...props} /> :
                         <code style={{display: 'block', background: 'var(--color-code-surface)', padding: '12px', borderRadius: '6px', overflow: 'auto', margin: '8px 0', fontFamily: 'monospace', fontSize: '12px'}} {...props} />
                     }}

@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import {
   IconLayoutDashboard, IconPill, IconReceipt, IconBellRinging, IconBox,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
-  IconTools, IconQrcode, IconMessage, IconCloudRain, IconSun, IconMoon, IconHelpCircle
+  IconTools, IconQrcode, IconSun, IconMoon, IconHelpCircle
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -20,9 +20,7 @@ const NAV_GROUP_PRIMARY = [
   { to: '/scanner', label: 'Scanner', icon: IconQrcode },
 ];
 const NAV_GROUP_SECONDARY = [
-  { to: '/ai-chat', label: 'AI Chat', icon: IconMessage },
-  { to: '/ai-insights', label: 'AI Insights', icon: IconBrain },
-  { to: '/weather-recommendations', label: 'Weather', icon: IconCloudRain },
+  { to: '/ai-assistant', label: 'AI Assistant', icon: IconBrain },
   { to: '/notifications', label: 'Alerts', icon: IconBellRinging },
   { to: '/audit-log', label: 'Audit Log', icon: IconFileText, adminOnly: true },
   { to: '/users', label: 'Users', icon: IconUsers, adminOnly: true },
@@ -203,7 +201,7 @@ export default function Layout({ children }) {
   const { user } = useAuth();
   const location = useLocation();
   const pageTitle = useMemo(() => {
-    const keepTitle = ['/dashboard', '/ai-chat', '/weather-recommendations'].includes(location.pathname);
+    const keepTitle = ['/dashboard', '/ai-assistant'].includes(location.pathname);
     if (!keepTitle) return '';
     return ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub';
   }, [location.pathname]);

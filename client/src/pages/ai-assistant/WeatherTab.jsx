@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  IconCloud, IconCloudRain, IconSun, IconWind, IconDroplet,
-  IconThermometer, IconRefresh, IconAlertTriangle, IconPackage,
-  IconMapPin, IconCalendar, IconArrowUp, IconInfoCircle
-} from '@tabler/icons-react';
-import api from '../api/axios';
-import Skeleton from '../components/Skeleton';
+  Cloud, CloudRain, Sun, RefreshCw, AlertTriangle, Package,
+  MapPin, ArrowUp, Info
+} from 'lucide-react';
+import api from '../../api/axios';
+import Skeleton from '../../components/Skeleton';
+import TableSkeleton from '../../components/TableSkeleton';
 
 // ─── Utility helpers ──────────────────────────────────────────────────────────
 
@@ -34,15 +34,15 @@ const CATEGORY_LABEL = {
 
 function WeatherIcon({ condition, size = 32, style = {} }) {
   const icons = {
-    Rain: <IconCloudRain size={size} style={{ color: '#5a8aaa', ...style }} />,
-    Drizzle: <IconCloudRain size={size} style={{ color: '#7aaecc', ...style }} />,
-    Thunderstorm: <IconCloudRain size={size} style={{ color: '#4a5a8a', ...style }} />,
-    Clear: <IconSun size={size} style={{ color: '#c8a050', ...style }} />,
-    Clouds: <IconCloud size={size} style={{ color: '#8a9aaa', ...style }} />,
-    Mist: <IconCloud size={size} style={{ color: '#aab0b8', ...style }} />,
-    Haze: <IconCloud size={size} style={{ color: '#b0a890', ...style }} />,
+    Rain: <CloudRain size={size} style={{ color: '#5a8aaa', ...style }} />,
+    Drizzle: <CloudRain size={size} style={{ color: '#7aaecc', ...style }} />,
+    Thunderstorm: <CloudRain size={size} style={{ color: '#4a5a8a', ...style }} />,
+    Clear: <Sun size={size} style={{ color: '#c8a050', ...style }} />,
+    Clouds: <Cloud size={size} style={{ color: '#8a9aaa', ...style }} />,
+    Mist: <Cloud size={size} style={{ color: '#aab0b8', ...style }} />,
+    Haze: <Cloud size={size} style={{ color: '#b0a890', ...style }} />,
   };
-  return icons[condition] || <IconCloud size={size} style={{ color: '#8a9aaa', ...style }} />;
+  return icons[condition] || <Cloud size={size} style={{ color: '#8a9aaa', ...style }} />;
 }
 
 function UrgencyBadge({ urgency }) {
@@ -63,7 +63,7 @@ function MultiplierBadge({ multiplier }) {
       fontSize: 11, fontWeight: 700, color: 'var(--amber)',
       background: 'var(--amber-tint)', borderRadius: 6, padding: '2px 7px'
     }}>
-      <IconArrowUp size={10} /> +{pct}% demand
+      <ArrowUp size={10} /> +{pct}% demand
     </span>
   );
 }
@@ -176,7 +176,7 @@ function CurrentWeatherCard({ weather, loading }) {
               {current?.description || condition || 'Unknown'}
             </div>
             <div style={{ fontSize: 11, color: '#aaa', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <IconMapPin size={11} />
+              <MapPin size={11} />
               {weather.location}{weather.country ? `, ${weather.country}` : ''}
             </div>
           </div>
@@ -194,7 +194,7 @@ function CurrentWeatherCard({ weather, loading }) {
             label="Humidity"
             value={current?.humidity_pct}
             unit="%"
-            sub={current?.humidity_pct != null 
+            sub={current?.humidity_pct != null
               ? (current?.humidity_pct >= 80 ? 'High — cold/flu risk up' : current?.humidity_pct >= 60 ? 'Moderate' : 'Low')
               : 'N/A'}
           />
@@ -291,7 +291,7 @@ function RecommendationRow({ rec }) {
             display: 'flex', alignItems: 'center', gap: 3, marginTop: 4,
           }}
         >
-          <IconInfoCircle size={11} />
+          <Info size={11} />
           {expanded ? 'Less' : 'Why?'}
         </button>
         {expanded && (
@@ -339,7 +339,7 @@ function SummaryBanner({ data, loading }) {
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: 15, color: critical_count > 0 ? 'var(--red)' : 'var(--amber)' }}>
-            <IconAlertTriangle size={16} style={{ verticalAlign: 'middle', marginRight: 5 }} />
+            <AlertTriangle size={16} style={{ verticalAlign: 'middle', marginRight: 5 }} />
             {total_items_flagged} medicine{total_items_flagged > 1 ? 's' : ''} need weather-driven restocking
           </div>
           <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>
@@ -371,23 +371,9 @@ function SummaryBanner({ data, loading }) {
   );
 }
 
-function TableSkeleton() {
-  return (
-    <tbody>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <tr key={i}>
-          {[120, 70, 90, 50, 70, 80].map((w, j) => (
-            <td key={j}><div className="skeleton" style={{ height: 13, width: w }} /></td>
-          ))}
-        </tr>
-      ))}
-    </tbody>
-  );
-}
+// ─── Main tab ─────────────────────────────────────────────────────────────────
 
-// ─── Main page ────────────────────────────────────────────────────────────────
-
-export default function WeatherRecommendations() {
+export default function WeatherTab({ onBadgeChange }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -411,6 +397,11 @@ export default function WeatherRecommendations() {
 
   useEffect(() => { fetchData(city); }, [city, fetchData]);
 
+  // Surface a "needs attention" count on the shared tab widget.
+  useEffect(() => {
+    onBadgeChange?.(data?.total_items_flagged ?? 0);
+  }, [data, onBadgeChange]);
+
   function handleCityChange(e) {
     const val = e.target.value;
     setCityInput(val);
@@ -428,15 +419,11 @@ export default function WeatherRecommendations() {
 
   return (
     <div>
-      {/* Page header */}
-      <div className="page-header">
-        <div>
-          <h1>Weather-Aware Restocking</h1>
-          <p>Real-time weather data + Philippine seasonal patterns → proactive inventory recommendations</p>
-        </div>
+      {/* Local action row: city picker + refresh */}
+      <div className="page-actions-only">
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="filter-search" style={{ flex: '0 0 220px' }}>
-            <IconMapPin size={14} className="filter-search-icon" />
+            <MapPin size={14} className="filter-search-icon" />
             <select
               value={cityInput}
               onChange={handleCityChange}
@@ -456,7 +443,7 @@ export default function WeatherRecommendations() {
             onClick={() => fetchData(city)}
             disabled={loading}
           >
-            <IconRefresh size={14} className={loading ? 'spin' : ''} />
+            <RefreshCw size={14} className={loading ? 'spin' : ''} />
             {loading ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
@@ -551,7 +538,7 @@ export default function WeatherRecommendations() {
               <thead>
                 <tr>
                   <th>Medicine</th>
-                  <th><IconPackage size={13} style={{ verticalAlign: 'middle', marginRight: 3 }} />Current Stock</th>
+                  <th><Package size={13} style={{ verticalAlign: 'middle', marginRight: 3 }} />Current Stock</th>
                   <th>Demand Velocity</th>
                   <th>Days Left *</th>
                   <th>Priority</th>
@@ -559,7 +546,7 @@ export default function WeatherRecommendations() {
                 </tr>
               </thead>
               {loading ? (
-                <TableSkeleton />
+                <TableSkeleton cols={6} rows={5} />
               ) : (
                 <tbody>
                   {filtered.map((rec) => (

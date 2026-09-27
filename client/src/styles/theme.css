@@ -484,6 +484,23 @@ input, select, textarea { font-family: var(--font-body); }
 .page-header h1 { font-size: clamp(1.2rem, 1.8vw, 1.55rem); }
 .page-header p { color: var(--steel); margin: 4px 0 0; font-size: 13px; }
 .page-header-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* AI Assistant's top-level tab switcher (Chat / Insights / Weather Restock) */
+.ai-assistant-tabs { display: flex; gap: 6px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+.ai-assistant-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px; margin-bottom: -1px;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  font-size: 13.5px; font-weight: 600; color: var(--steel); cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.ai-assistant-tab:hover { color: var(--ink); }
+.ai-assistant-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.ai-assistant-tab-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 17px; height: 17px; padding: 0 5px; border-radius: 999px;
+  background: var(--red); color: #fff; font-size: 10.5px; font-weight: 700;
+}
 /* Pages whose title is already present in the sidebar use an action-only toolbar. */
 .page-actions-only { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
 @media (max-width: 768px) {
@@ -1273,7 +1290,29 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-btn-danger:focus-visible { outline: 2px solid var(--flat-red); outline-offset: 2px; }
 
 /* In-app replacement for window.confirm()/alert() — see DialogContext.jsx */
-.modal-content.confirm-modal { max-width: 400px; }
+/* This modal is used app-wide (DialogContext.jsx), not just from pages
+   nested under .flat-dashboard, but its buttons (.flat-action-btn,
+   .flat-btn-primary, .flat-btn-danger) read their colors from tokens that
+   are deliberately scoped to .flat-dashboard only (see the comment above
+   it). Re-declaring the handful this modal actually needs here means those
+   buttons still resolve correctly by normal CSS inheritance, wherever the
+   modal is mounted, without leaking these tokens app-wide. */
+.modal-content.confirm-modal {
+  max-width: 400px;
+  --flat-accent: #D85A30;
+  --flat-bg: #F5F5F5;
+  --flat-border: #E0E0E0;
+  --flat-border-strong: #C4C4C4;
+  --flat-red: #DC2626;
+  --flat-text: #1A1A1A;
+  --flat-text-muted: #6B6B6B;
+  --flat-shadow: 0 2px 0 var(--flat-border-strong), 0 3px 6px rgba(0, 0, 0, 0.14);
+  --flat-shadow-hover: 0 2px 0 var(--flat-accent), 0 5px 12px rgba(0, 0, 0, 0.2);
+  --flat-shadow-active: 0 1px 0 var(--flat-border-strong);
+  --flat-shadow-primary: 0 2px 0 #A1401F, 0 3px 6px rgba(0, 0, 0, 0.2);
+  --flat-shadow-primary-hover: 0 2px 0 #7A2F17, 0 5px 12px rgba(0, 0, 0, 0.26);
+  --flat-shadow-primary-active: 0 1px 0 #A1401F;
+}
 .confirm-modal__body { padding: 22px; }
 .confirm-modal__body h2 { margin: 0 0 10px; font-size: 17px; font-weight: 600; }
 .confirm-modal__body p { margin: 0 0 6px; font-size: 14px; color: var(--flat-text-muted); line-height: 1.5; }

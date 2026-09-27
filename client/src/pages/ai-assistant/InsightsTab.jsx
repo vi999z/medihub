@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw, AlertCircle, CheckCircle2, Info, Download, ChevronDown } from 'lucide-react';
-import api from '../api/axios';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
+import api from '../../api/axios';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { downloadBlob } from '../../utils/downloadFile';
+import TableSkeleton from '../../components/TableSkeleton';
 
 // ── AI Insights export dropdown ───────────────────────────────────────────────
 function InsightsExportDropdown({ onExport }) {
@@ -69,22 +71,6 @@ const TABS = [
   { key: 'anomalies', label: 'Anomalies' },
 ];
 
-function TableSkeleton({ cols }) {
-  return (
-    <tbody>
-      {Array.from({ length: 4 }).map((_, index) => (
-        <tr key={index}>
-          {Array.from({ length: cols }).map((__, colIndex) => (
-            <td key={colIndex}>
-              <div className="skeleton" style={{ height: 13, width: colIndex === cols - 1 ? '68%' : '100%' }} />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </tbody>
-  );
-}
-
 function TrainBanner({ trainMsg, trainStatus }) {
   if (!trainMsg) return null;
 
@@ -116,7 +102,7 @@ function TrainBanner({ trainMsg, trainStatus }) {
   );
 }
 
-export default function AiInsights() {
+export default function InsightsTab({ onBadgeChange }) {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [tab, setTab] = useState('risk');
@@ -152,6 +138,15 @@ export default function AiInsights() {
   }
 
   useEffect(() => { fetchAll(); }, []);
+
+  // Surface a "needs attention" count on the shared tab widget, so switching
+  // tabs isn't the only way to see something here needs a look.
+  useEffect(() => {
+    const criticalRisk = risk.filter((d) => d.risk_score >= 0.66).length;
+    const urgentReorder = reorder.filter((r) => r.days_of_stock_left <= 7).length;
+    const criticalAnomalies = anomalies.filter((a) => a.severity === 'critical').length;
+    onBadgeChange?.(criticalRisk + urgentReorder + criticalAnomalies);
+  }, [risk, reorder, anomalies, onBadgeChange]);
 
   async function handleTrain() {
     setTraining(true);
@@ -216,14 +211,7 @@ export default function AiInsights() {
       const res = await api.post('/ai/report/export', { type: format, report: reportData }, { responseType: 'blob' });
       const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
       const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `ai_insights_${key}_${new Date().toISOString().slice(0, 10)}.${ext}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, `ai_insights_${key}_${new Date().toISOString().slice(0, 10)}.${ext}`);
       addToast('AI Insights exported', 'success');
     } catch (err) {
       addToast('Export failed', 'error');
