@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { IconTrash, IconHistory, IconClock, IconRefresh, IconAlertTriangle } from '@tabler/icons-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
+import { useDialog } from '../context/DialogContext';
 
 const ACTIONS = [
   { key: 'transactions', label: 'Clear transaction history', icon: IconHistory, endpoint: '/maintenance/transactions', confirm: 'This will permanently remove all transaction records.' },
@@ -14,9 +15,10 @@ const ACTIONS = [
 export default function Maintenance() {
   const [loading, setLoading] = useState(null);
   const { addToast } = useToast();
+  const { confirm } = useDialog();
 
   async function runAction(action) {
-    if (!window.confirm(`${action.label}\n\n${action.confirm}`)) return;
+    if (!(await confirm({ title: action.label, message: action.confirm, confirmLabel: action.label, danger: true }))) return;
     setLoading(action.key);
     try {
       const res = await api.delete(action.endpoint);

@@ -31,7 +31,6 @@ export default function Login() {
     } catch (err) {
       const message = err.response?.data?.error || 'Login failed';
       setError(message);
-      window.alert(message);
     } finally {
       setLoading(false);
     }

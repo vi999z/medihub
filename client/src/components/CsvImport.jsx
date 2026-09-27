@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Upload, X, Check, AlertTriangle, Download, FileText } from 'lucide-react';
 import api from '../api/axios';
+import { useToast } from '../context/ToastContext';
 
 const ENTITY_CONFIG = {
   medicines: {
@@ -37,6 +38,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
   const [importing, setImporting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef(null);
+  const { addToast } = useToast();
 
   const config = ENTITY_CONFIG[entityType] || ENTITY_CONFIG.medicines;
 
@@ -68,7 +70,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
 
   const handleFile = (selectedFile) => {
     if (!selectedFile.name.endsWith('.csv')) {
-      alert('Please select a CSV file');
+      addToast('Please select a CSV file', 'error');
       return;
     }
     setFile(selectedFile);
@@ -86,7 +88,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
       setValidationResult(res.data);
       setStep('preview');
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to validate CSV file');
+      addToast(err.response?.data?.error || 'Failed to validate CSV file', 'error');
       setFile(null);
     }
   };
@@ -103,7 +105,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
         onImportComplete(res.data);
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to import data');
+      addToast(err.response?.data?.error || 'Failed to import data', 'error');
     } finally {
       setImporting(false);
     }
@@ -123,7 +125,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert('Failed to download template');
+      addToast('Failed to download template', 'error');
     }
   };
 

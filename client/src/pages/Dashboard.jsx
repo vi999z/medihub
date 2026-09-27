@@ -277,48 +277,8 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* d. Needs attention table */}
-          <div className="flat-card flat-attention-card">
-            <div className="flat-table-header">
-              <span className="flat-table-title">{TABLE_TITLE_BY_FILTER[statusFilter] || 'Needs attention'}</span>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="flat-table">
-                <thead>
-                  <tr>
-                    <th>Medicine</th>
-                    <th className="flat-col-right">In stock</th>
-                    <th>Expires</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading && (
-                    <tr><td colSpan={4} className="flat-empty">Loading…</td></tr>
-                  )}
-                  {!loading && filteredItems.length === 0 && (
-                    <tr><td colSpan={4} className="flat-empty">Nothing needs attention.</td></tr>
-                  )}
-                  {!loading && filteredItems.map((item) => {
-                    const meta = STATUS_META[item.status];
-                    return (
-                      <tr key={item.id}>
-                        <td>
-                          <div className="flat-med-name">{item.name}</div>
-                          <div className="flat-med-meta">{[item.category, item.dosage_form].filter(Boolean).join(' · ')}</div>
-                        </td>
-                        <td className="flat-col-right">{item.total_remaining} {item.unit}</td>
-                        <td>{item.nearest_expiry ? item.nearest_expiry.slice(0, 10) : '—'}</td>
-                        <td><span className={`flat-status-label ${meta?.cls}`}>{meta?.label}</span></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* e. Bottom row */}
+          {/* d. Bottom row — analytics (charts) stay grouped with the rest of
+              the analytics above the medicine list, per request. */}
           <div className="flat-bottom-row">
             <div className="flat-card">
               <div className="flat-card-header">
@@ -368,6 +328,49 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* e. Needs attention table — the medicine list, now last and in a
+              fixed-height scrollable panel so it doesn't push the page height
+              around as the filtered result count changes. */}
+          <div className="flat-card flat-attention-card">
+            <div className="flat-table-header">
+              <span className="flat-table-title">{TABLE_TITLE_BY_FILTER[statusFilter] || 'Needs attention'}</span>
+            </div>
+            <div className="flat-attention-scroll">
+              <table className="flat-table">
+                <thead>
+                  <tr>
+                    <th>Medicine</th>
+                    <th className="flat-col-right">In stock</th>
+                    <th>Expires</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading && (
+                    <tr><td colSpan={4} className="flat-empty">Loading…</td></tr>
+                  )}
+                  {!loading && filteredItems.length === 0 && (
+                    <tr><td colSpan={4} className="flat-empty">Nothing needs attention.</td></tr>
+                  )}
+                  {!loading && filteredItems.map((item) => {
+                    const meta = STATUS_META[item.status];
+                    return (
+                      <tr key={item.id}>
+                        <td>
+                          <div className="flat-med-name">{item.name}</div>
+                          <div className="flat-med-meta">{[item.category, item.dosage_form].filter(Boolean).join(' · ')}</div>
+                        </td>
+                        <td className="flat-col-right">{item.total_remaining} {item.unit}</td>
+                        <td>{item.nearest_expiry ? item.nearest_expiry.slice(0, 10) : '—'}</td>
+                        <td><span className={`flat-status-label ${meta?.cls}`}>{meta?.label}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </>

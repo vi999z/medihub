@@ -3,11 +3,14 @@ import { KeyRound, Plus, Pencil, Search, X } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useDialog } from '../context/DialogContext';
 import Skeleton from '../components/Skeleton';
+import { isValidName, isValidEmail } from '../utils/validation';
 
 export default function Users() {
   const { user: me } = useAuth();
   const { addToast } = useToast();
+  const { confirm, alert } = useDialog();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -49,6 +52,18 @@ export default function Users() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!isValidName(form.full_name)) {
+      addToast('Full name can only contain letters, numbers, spaces and . , \' & / ( ) -', 'error');
+      return;
+    }
+    if (!isValidEmail(form.email)) {
+      addToast('Enter a valid email address', 'error');
+      return;
+    }
+    if (!editingId && form.password.length < 8) {
+      addToast('Temporary password must be at least 8 characters', 'error');
+      return;
+    }
     try {
       if (editingId) {
         await api.put(`/users/${editingId}`, { full_name: form.full_name, email: form.email, role: form.role, is_active: form.is_active });
@@ -66,7 +81,7 @@ export default function Users() {
   }
 
   async function toggleActive(u) {
-    if (u.is_active && !window.confirm(`Deactivate ${u.full_name}'s account?`)) return;
+    if (u.is_active && !(await confirm({ title: 'Deactivate account', message: `Deactivate ${u.full_name}'s account?`, confirmLabel: 'Deactivate', danger: true }))) return;
     try {
       await api.patch(`/users/${u.id}/status`, { is_active: !u.is_active });
       api.invalidateCache('/users');
@@ -78,10 +93,10 @@ export default function Users() {
   }
 
   async function resetPassword(u) {
-    if (!window.confirm(`Generate a new temporary password for ${u.full_name}?`)) return;
+    if (!(await confirm({ title: 'Reset password', message: `Generate a new temporary password for ${u.full_name}?`, confirmLabel: 'Generate' }))) return;
     try {
       const res = await api.post(`/users/${u.id}/reset-password`);
-      window.alert(`Temporary password for ${u.full_name}:\n\n${res.data.temporary_password}\n\nThis password will not be shown again.`);
+      await alert({ title: 'Temporary password', message: `Temporary password for ${u.full_name}:\n\n${res.data.temporary_password}\n\nThis password will not be shown again.` });
       addToast('Temporary password generated', 'success');
     } catch (err) {
       addToast(err.response?.data?.error || 'Failed to reset password', 'error');

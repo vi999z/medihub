@@ -3,8 +3,10 @@ import { Plus, Trash2, Pencil, Download, Search, X, QrCode, ChevronDown, Package
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useDialog } from '../context/DialogContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
+import { isValidCode, isPositiveInteger, isNonNegativeNumber } from '../utils/validation';
 import QRCodeDisplay from '../components/QRCode';
 
 // ── Export dropdown button ────────────────────────────────────────────────────
@@ -97,6 +99,7 @@ const BATCH_FLAT_CLS = { critical: 'red', warning: 'amber', orange: 'orange', sa
 export default function Batches() {
   const { user } = useAuth();
   const { addToast } = useToast();
+  const { confirm } = useDialog();
   const [batches, setBatches] = useState([]);
   const [medicines, setMedicines] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -180,6 +183,42 @@ export default function Batches() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    if (!form.medicine_id) {
+      setError('Select a medicine');
+      return;
+    }
+    if (!isValidCode(form.batch_number)) {
+      setError('Batch number can only contain letters, numbers, - and _');
+      return;
+    }
+    if (!isPositiveInteger(form.quantity_received)) {
+      setError('Quantity received must be a whole number greater than 0');
+      return;
+    }
+    if (!isNonNegativeNumber(form.quantity_remaining)) {
+      setError('Quantity remaining must be a number of 0 or more');
+      return;
+    }
+    if (Number(form.quantity_remaining) > Number(form.quantity_received)) {
+      setError('Quantity remaining cannot exceed quantity received');
+      return;
+    }
+    if (form.cost_price !== '' && !isNonNegativeNumber(form.cost_price)) {
+      setError('Cost price must be a number of 0 or more');
+      return;
+    }
+    if (form.selling_price !== '' && !isNonNegativeNumber(form.selling_price)) {
+      setError('Selling price must be a number of 0 or more');
+      return;
+    }
+    if (!form.expiry_date) {
+      setError('Expiry date is required');
+      return;
+    }
+    if (form.manufacture_date && form.manufacture_date > form.expiry_date) {
+      setError('Manufacture date must be before the expiry date');
+      return;
+    }
     try {
       if (editingId) {
         await api.put(`/batches/${editingId}`, form);
@@ -198,7 +237,7 @@ export default function Batches() {
   }
 
   async function handleRemoveDepleted() {
-    if (!window.confirm('Remove all batches that are already depleted?')) return;
+    if (!(await confirm({ title: 'Remove depleted batches', message: 'Remove all batches that are already depleted?', confirmLabel: 'Remove', danger: true }))) return;
     try {
       const res = await api.delete('/batches/depleted');
       api.invalidateCache('/batches');

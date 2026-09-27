@@ -7,8 +7,10 @@ import { useSearchParams } from 'react-router-dom';
 import api, { resolveFileUrl } from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useDialog } from '../context/DialogContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
+import { isValidName, isValidCode, isPositiveInteger, isNonNegativeNumber } from '../utils/validation';
 import CsvImport from '../components/CsvImport';
 import AnimatedModal from '../components/AnimatedModal';
 import QRCodeDisplay from '../components/QRCode';
@@ -166,6 +168,7 @@ function batchStatusPill(batch) {
 export default function Medicines() {
   const { user } = useAuth();
   const { addToast } = useToast();
+  const { confirm } = useDialog();
   const [medicines, setMedicines] = useState([]);
   const [medicineStatusById, setMedicineStatusById] = useState({});
   const [batches, setBatches] = useState([]);
@@ -433,7 +436,7 @@ export default function Medicines() {
 
   async function removeExistingImage() {
     if (!editingId) { clearImageSelection(); return; }
-    if (!window.confirm('Remove this medicine’s photo?')) return;
+    if (!(await confirm({ title: 'Remove photo', message: 'Remove this medicine’s photo?', confirmLabel: 'Remove', danger: true }))) return;
     try {
       await api.delete(`/medicines/${editingId}/image`);
       api.invalidateCache('/medicines');
@@ -462,6 +465,22 @@ export default function Medicines() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    if (!isValidName(form.name)) {
+      setError('Medicine name can only contain letters, numbers, spaces and . , \' & / ( ) -');
+      return;
+    }
+    if (form.generic_name && !isValidName(form.generic_name)) {
+      setError('Generic name can only contain letters, numbers, spaces and . , \' & / ( ) -');
+      return;
+    }
+    if (!form.unit.trim()) {
+      setError('Unit is required');
+      return;
+    }
+    if (!isNonNegativeNumber(form.reorder_level)) {
+      setError('Reorder level must be a number of 0 or more');
+      return;
+    }
     try {
       let medicineId = editingId;
       if (editingId) {
@@ -485,7 +504,7 @@ export default function Medicines() {
   }
 
   async function handleDelete(id) {
-    if (!window.confirm('Delete this medicine from the catalog?')) return;
+    if (!(await confirm({ title: 'Delete medicine', message: 'Delete this medicine from the catalog?', confirmLabel: 'Delete', danger: true }))) return;
     try {
       await api.delete(`/medicines/${id}`);
       api.invalidateCache('/medicines');
@@ -595,6 +614,30 @@ export default function Medicines() {
   async function handleBatchSubmit(e) {
     e.preventDefault();
     setBatchError('');
+    if (!isValidCode(batchForm.batch_number)) {
+      setBatchError('Batch number can only contain letters, numbers, - and _');
+      return;
+    }
+    if (!isPositiveInteger(batchForm.quantity_received)) {
+      setBatchError('Quantity received must be a whole number greater than 0');
+      return;
+    }
+    if (batchForm.cost_price !== '' && !isNonNegativeNumber(batchForm.cost_price)) {
+      setBatchError('Cost price must be a number of 0 or more');
+      return;
+    }
+    if (batchForm.selling_price !== '' && !isNonNegativeNumber(batchForm.selling_price)) {
+      setBatchError('Selling price must be a number of 0 or more');
+      return;
+    }
+    if (!batchForm.expiry_date) {
+      setBatchError('Expiry date is required');
+      return;
+    }
+    if (batchForm.manufacture_date && batchForm.manufacture_date > batchForm.expiry_date) {
+      setBatchError('Manufacture date must be before the expiry date');
+      return;
+    }
     const payload = { ...batchForm, medicine_id: detailMedicine.id };
     try {
       if (editingBatchId) {
@@ -620,7 +663,7 @@ export default function Medicines() {
   }
 
   async function handleBatchDelete(batch) {
-    if (!window.confirm(`Delete batch ${batch.batch_number || batch.id}?`)) return;
+    if (!(await confirm({ title: 'Delete batch', message: `Delete batch ${batch.batch_number || batch.id}?`, confirmLabel: 'Delete', danger: true }))) return;
     try {
       await api.delete(`/batches/${batch.id}`);
       api.invalidateCache('/batches');
@@ -694,8 +737,14 @@ export default function Medicines() {
         </button>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="flat-card" style={{ marginBottom: 0, padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
+      <AnimatedModal isOpen={showForm} onClose={resetForm} className="medicine-form-modal">
+        {showForm && (
+        <div className="medicine-form-modal__body">
+        <div className="medicine-form-modal__header">
+          <h2 style={{ margin: 0 }}>{editingId ? 'Edit medicine' : 'Add medicine'}</h2>
+          <button type="button" className="btn-icon" onClick={resetForm} title="Close"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
           <div className="field" style={{ gridColumn: '1 / -1' }}>
             <label>Photo</label>
             <div className="flat-photo-picker">
@@ -736,7 +785,9 @@ export default function Medicines() {
           </div>
           {error && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{error}</p>}
         </form>
-      )}
+        </div>
+        )}
+      </AnimatedModal>
 
       <div className="flat-card" style={{ padding: '16px' }}>
         <div className="filter-bar" style={{ margin: 0, background: 'none', border: 'none', padding: 0 }}>

@@ -2,6 +2,7 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Suspense, lazy } from 'react';
 import { useAuth, AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { DialogProvider } from './context/DialogContext';
 import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
@@ -35,6 +36,7 @@ export default function App() {
       <ThemeProvider>
       <AuthProvider>
         <ToastProvider>
+        <DialogProvider>
           <Router>
             <ScrollToTop />
             <Suspense fallback={<div className="page-loader">Loading your workspace…</div>}>
@@ -57,6 +59,7 @@ export default function App() {
               </Routes>
             </Suspense>
           </Router>
+        </DialogProvider>
         </ToastProvider>
       </AuthProvider>
       </ThemeProvider>

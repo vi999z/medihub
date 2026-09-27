@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
+import { isPositiveInteger } from '../utils/validation';
 
 // ── Transactions export dropdown ──────────────────────────────────────────────
 function TransactionExportDropdown({ onExport }) {
@@ -129,6 +130,14 @@ export default function Transactions() {
   async function handleSubmit(e) {
     e.preventDefault();
     setFormError('');
+    if (!form.batch_id) {
+      setFormError('Select a batch');
+      return;
+    }
+    if (!isPositiveInteger(form.quantity)) {
+      setFormError('Quantity must be a whole number greater than 0');
+      return;
+    }
     try {
       await api.post('/transactions', form);
       api.invalidateCache('/transactions/recent');

@@ -3,11 +3,14 @@ import { Plus, Trash2, RefreshCw, Pencil, Download, Search, X, Building2 } from 
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useDialog } from '../context/DialogContext';
 import { downloadCsv } from '../utils/csv';
+import { isValidName, isValidEmail, isValidPhone } from '../utils/validation';
 
 export default function Suppliers() {
   const { user } = useAuth();
   const { addToast } = useToast();
+  const { confirm } = useDialog();
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -57,6 +60,22 @@ export default function Suppliers() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!isValidName(form.name)) {
+      addToast('Supplier name can only contain letters, numbers, spaces and . , \' & / ( ) -', 'error');
+      return;
+    }
+    if (form.contact_person && !isValidName(form.contact_person)) {
+      addToast('Contact person can only contain letters, numbers, spaces and . , \' & / ( ) -', 'error');
+      return;
+    }
+    if (form.phone && !isValidPhone(form.phone)) {
+      addToast('Phone can only contain digits, spaces, + - ( )', 'error');
+      return;
+    }
+    if (form.email && !isValidEmail(form.email)) {
+      addToast('Enter a valid email address', 'error');
+      return;
+    }
     try {
       if (editingId) {
         await api.put(`/suppliers/${editingId}`, form);
@@ -74,7 +93,7 @@ export default function Suppliers() {
   }
 
   async function handleDelete(id) {
-    if (!window.confirm('Remove this supplier?')) return;
+    if (!(await confirm({ title: 'Remove supplier', message: 'Remove this supplier?', confirmLabel: 'Remove', danger: true }))) return;
     try {
       await api.delete(`/suppliers/${id}`);
       api.invalidateCache('/suppliers');
