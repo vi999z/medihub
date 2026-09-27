@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
-import { isPositiveInteger } from '../utils/validation';
+import StockMovementModal from '../components/StockMovementModal';
 
 // ── Transactions export dropdown ──────────────────────────────────────────────
 function TransactionExportDropdown({ onExport }) {
@@ -75,7 +75,6 @@ export default function Transactions() {
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ batch_id: '', transaction_type: 'sale', quantity: '', reason: '' });
   const [error, setError] = useState('');
   const [formError, setFormError] = useState('');
   const [search, setSearch] = useState('');
@@ -127,27 +126,17 @@ export default function Transactions() {
     setDateFilter('');
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function handleSubmit(form) {
     setFormError('');
-    if (!form.batch_id) {
-      setFormError('Select a batch');
-      return;
-    }
-    if (!isPositiveInteger(form.quantity)) {
-      setFormError('Quantity must be a whole number greater than 0');
-      return;
-    }
     try {
       await api.post('/transactions', form);
       api.invalidateCache('/transactions/recent');
       api.invalidateCache('/batches');
-      setForm({ batch_id: '', transaction_type: 'sale', quantity: '', reason: '' });
-      setShowForm(false);
       await fetchAll();
       addToast('Transaction recorded', 'success');
     } catch (err) {
       setFormError(err.response?.data?.error || 'Transaction failed');
+      throw err;
     }
   }
 
@@ -185,42 +174,19 @@ export default function Transactions() {
       <div className="page-actions-only">
         <div className="page-header-actions">
           <TransactionExportDropdown onExport={handleExport} />
-          <button type="button" className="flat-btn-primary" onClick={() => setShowForm(!showForm)}>
-            <Plus size={15} /> {showForm ? 'Close form' : 'New transaction'}
+          <button type="button" className="flat-btn-primary" onClick={() => setShowForm(true)}>
+            <Plus size={15} /> New transaction
           </button>
         </div>
       </div>
 
-      {showForm && (
-        <form
-          onSubmit={handleSubmit}
-          className="flat-card"
-          style={{ padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
-        >
-          <div className="field">
-            <label>Batch</label>
-            <select value={form.batch_id} onChange={(e) => setForm({ ...form, batch_id: e.target.value })} required>
-              <option value="">Select a batch</option>
-              {batches.map((b) => (
-                <option key={b.id} value={b.id}>{b.medicine_name} — {b.batch_number} ({b.quantity_remaining} left)</option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>Type</label>
-            <select value={form.transaction_type} onChange={(e) => setForm({ ...form, transaction_type: e.target.value })}>
-              {TYPES.map((t) => <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>)}
-            </select>
-          </div>
-          <div className="field"><label>Quantity</label><input type="number" min="1" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required /></div>
-          <div className="field"><label>Reason (optional)</label><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
-          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
-            <button type="submit" className="flat-btn-primary">Save transaction</button>
-            <button type="button" className="flat-action-btn" onClick={() => setShowForm(false)}>Cancel</button>
-          </div>
-          {formError && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{formError}</p>}
-        </form>
-      )}
+      <StockMovementModal
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        batches={batches}
+        onSubmit={handleSubmit}
+        error={formError}
+      />
 
       <div className="flat-card" style={{ padding: 16 }}>
         <div className="filter-bar" style={{ margin: 0, background: 'none', border: 'none', padding: 0 }}>

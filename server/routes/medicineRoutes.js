@@ -3,9 +3,8 @@ const router = express.Router();
 const ctrl = require('../controllers/medicineController');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
-const { MEDICINE_IMAGE_DIR } = require('../config/uploadPaths');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('../config/cloudinary');
 
 const upload = multer({
   dest: 'uploads/',
@@ -16,15 +15,16 @@ const upload = multer({
   }
 });
 
-// Medicine photos — kept in their own subfolder with real extensions (unlike
-// the CSV upload above, these files persist and get served back over HTTP).
-fs.mkdirSync(MEDICINE_IMAGE_DIR, { recursive: true });
+// Medicine photos — uploaded straight to Cloudinary instead of local disk,
+// so they survive Render deploys/restarts (which wipe local, unmounted
+// storage) without needing a paid persistent disk.
 const imageUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, MEDICINE_IMAGE_DIR),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-      cb(null, `medicine-${req.params.id}-${Date.now()}${ext}`);
+  storage: new CloudinaryStorage({
+    cloudinary,
+    params: {
+      folder: 'medihub/medicines',
+      public_id: (req) => `medicine-${req.params.id}-${Date.now()}`,
+      allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif']
     }
   }),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB

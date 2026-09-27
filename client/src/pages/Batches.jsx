@@ -6,8 +6,8 @@ import { useToast } from '../context/ToastContext';
 import { useDialog } from '../context/DialogContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
-import { isValidCode, isPositiveInteger, isNonNegativeNumber } from '../utils/validation';
 import QRCodeDisplay from '../components/QRCode';
+import ReceiveStockModal from '../components/ReceiveStockModal';
 
 // ── Export dropdown button ────────────────────────────────────────────────────
 function ExportDropdown({ onExport }) {
@@ -104,12 +104,9 @@ export default function Batches() {
   const [medicines, setMedicines] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({
-    medicine_id: '', supplier_id: '', batch_number: '', quantity_received: '',
-    quantity_remaining: '', cost_price: '', selling_price: '', manufacture_date: '', expiry_date: '', status: 'active'
-  });
+  const [editingBatch, setEditingBatch] = useState(null);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -156,72 +153,20 @@ export default function Batches() {
 
   function resetForm() {
     setShowForm(false);
-    setEditingId(null);
-    setForm({
-      medicine_id: '', supplier_id: '', batch_number: '', quantity_received: '',
-      quantity_remaining: '', cost_price: '', selling_price: '', manufacture_date: '', expiry_date: '', status: 'active'
-    });
+    setEditingBatch(null);
+    setFormError('');
   }
 
   function openEdit(batch) {
-    setEditingId(batch.id);
-    setForm({
-      medicine_id: batch.medicine_id || '',
-      supplier_id: batch.supplier_id || '',
-      batch_number: batch.batch_number || '',
-      quantity_received: batch.quantity_received ?? '',
-      quantity_remaining: batch.quantity_remaining ?? '',
-      cost_price: batch.cost_price ?? '',
-      selling_price: batch.selling_price ?? '',
-      manufacture_date: batch.manufacture_date ? String(batch.manufacture_date).slice(0, 10) : '',
-      expiry_date: batch.expiry_date ? String(batch.expiry_date).slice(0, 10) : '',
-      status: batch.status || 'active'
-    });
+    setEditingBatch(batch);
     setShowForm(true);
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError('');
-    if (!form.medicine_id) {
-      setError('Select a medicine');
-      return;
-    }
-    if (!isValidCode(form.batch_number)) {
-      setError('Batch number can only contain letters, numbers, - and _');
-      return;
-    }
-    if (!isPositiveInteger(form.quantity_received)) {
-      setError('Quantity received must be a whole number greater than 0');
-      return;
-    }
-    if (!isNonNegativeNumber(form.quantity_remaining)) {
-      setError('Quantity remaining must be a number of 0 or more');
-      return;
-    }
-    if (Number(form.quantity_remaining) > Number(form.quantity_received)) {
-      setError('Quantity remaining cannot exceed quantity received');
-      return;
-    }
-    if (form.cost_price !== '' && !isNonNegativeNumber(form.cost_price)) {
-      setError('Cost price must be a number of 0 or more');
-      return;
-    }
-    if (form.selling_price !== '' && !isNonNegativeNumber(form.selling_price)) {
-      setError('Selling price must be a number of 0 or more');
-      return;
-    }
-    if (!form.expiry_date) {
-      setError('Expiry date is required');
-      return;
-    }
-    if (form.manufacture_date && form.manufacture_date > form.expiry_date) {
-      setError('Manufacture date must be before the expiry date');
-      return;
-    }
+  async function handleBatchSubmit(form) {
+    setFormError('');
     try {
-      if (editingId) {
-        await api.put(`/batches/${editingId}`, form);
+      if (editingBatch) {
+        await api.put(`/batches/${editingBatch.id}`, form);
         addToast('Batch updated', 'success');
       } else {
         await api.post('/batches', form);
@@ -232,7 +177,8 @@ export default function Batches() {
       resetForm();
       await fetchAll();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save batch');
+      setFormError(err.response?.data?.error || 'Failed to save batch');
+      throw err;
     }
   }
 
@@ -293,51 +239,21 @@ export default function Batches() {
               <Trash2 size={15} /> Remove depleted
             </button>
           )}
-          <button type="button" className="flat-btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}>
-            <Plus size={15} /> {showForm ? 'Close form' : 'Receive stock'}
+          <button type="button" className="flat-btn-primary" onClick={() => { setEditingBatch(null); setShowForm(true); }}>
+            <Plus size={15} /> Receive stock
           </button>
         </div>
       </div>
 
-      {showForm && (
-        <form
-          onSubmit={handleSubmit}
-          className="flat-card"
-          style={{ padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
-        >
-          <div className="field">
-            <label>Medicine</label>
-            <select value={form.medicine_id} onChange={(e) => setForm({ ...form, medicine_id: e.target.value })} required>
-              <option value="">Select a medicine</option>
-              {medicines.map((m) => (
-                <option key={m.id} value={m.id}>{m.name} {m.strength ? `(${m.strength})` : ''}</option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>Supplier</label>
-            <select value={form.supplier_id} onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}>
-              <option value="">No supplier</option>
-              {suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="field"><label>Batch number</label><input value={form.batch_number} onChange={(e) => setForm({ ...form, batch_number: e.target.value })} required /></div>
-          <div className="field"><label>Quantity received</label><input type="number" min="1" value={form.quantity_received} onChange={(e) => setForm({ ...form, quantity_received: e.target.value })} required /></div>
-          <div className="field"><label>Remaining quantity</label><input type="number" min="0" value={form.quantity_remaining} onChange={(e) => setForm({ ...form, quantity_remaining: e.target.value })} /></div>
-          <div className="field"><label>Expiry date</label><input type="date" value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} required /></div>
-          <div className="field"><label>Manufacture date</label><input type="date" value={form.manufacture_date} onChange={(e) => setForm({ ...form, manufacture_date: e.target.value })} /></div>
-          <div className="field"><label>Cost price</label><input type="number" step="0.01" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} /></div>
-          <div className="field"><label>Selling price</label><input type="number" step="0.01" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} /></div>
-          <div className="field"><label>Status</label><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="active">Active</option><option value="recalled">Recalled</option><option value="depleted">Depleted</option><option value="expired">Expired</option></select></div>
-          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
-            <button type="submit" className="flat-btn-primary">{editingId ? 'Update batch' : 'Save batch'}</button>
-            <button type="button" className="flat-action-btn" onClick={resetForm}>Cancel</button>
-          </div>
-          {error && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{error}</p>}
-        </form>
-      )}
+      <ReceiveStockModal
+        isOpen={showForm}
+        onClose={resetForm}
+        medicines={medicines}
+        suppliers={suppliers}
+        editingBatch={editingBatch}
+        onSubmit={handleBatchSubmit}
+        error={formError}
+      />
 
       <div className="flat-card" style={{ padding: 16 }}>
         <div className="filter-bar" style={{ margin: 0, background: 'none', border: 'none', padding: 0 }}>

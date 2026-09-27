@@ -5,6 +5,7 @@ const { parse } = require('csv-parse');
 const fs = require('fs');
 const path = require('path');
 const { UPLOADS_ROOT } = require('../config/uploadPaths');
+const cloudinary = require('../config/cloudinary');
 const {
   createNearExpiryAlert,
   createExpiredAlert,
@@ -76,12 +77,19 @@ async function remove(req, res) {
 }
 
 // Best-effort cleanup of a previously-uploaded photo when it's replaced or
-// removed — only touches files under our own uploads/medicines/ folder.
-// Resolved against UPLOADS_ROOT (not the app checkout) since that's where
-// files actually live once UPLOADS_DIR points at a mounted disk.
-function deleteImageFileIfLocal(imageUrl) {
-  if (!imageUrl || !imageUrl.startsWith('/uploads/medicines/')) return;
-  fs.unlink(path.join(UPLOADS_ROOT, imageUrl.replace(/^\/uploads\//, '')), () => {});
+// removed. Medicine photos now live on Cloudinary (see medicineRoutes.js) so
+// they survive Render deploys/restarts; this also still handles the old
+// local-disk path format for any medicine photographed before that change.
+function deleteOldImage(imageUrl) {
+  if (!imageUrl) return;
+  if (imageUrl.startsWith('/uploads/medicines/')) {
+    fs.unlink(path.join(UPLOADS_ROOT, imageUrl.replace(/^\/uploads\//, '')), () => {});
+    return;
+  }
+  const match = imageUrl.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[a-zA-Z0-9]+)?$/);
+  if (match) {
+    cloudinary.uploader.destroy(match[1]).catch(() => {});
+  }
 }
 
 async function uploadImage(req, res) {
@@ -89,9 +97,9 @@ async function uploadImage(req, res) {
   if (!existing) return res.status(404).json({ error: 'Medicine not found' });
   if (!req.file) return res.status(400).json({ error: 'No image file uploaded' });
 
-  const imageUrl = `/uploads/medicines/${req.file.filename}`;
+  const imageUrl = req.file.path;
   await medicineModel.setImage(req.params.id, imageUrl);
-  deleteImageFileIfLocal(existing.image_url);
+  deleteOldImage(existing.image_url);
   await logAudit(req.user.id, 'updated_medicine_image', `Updated photo for medicine: ${existing.name}`, req);
   res.json({ id: req.params.id, image_url: imageUrl });
 }
@@ -101,7 +109,7 @@ async function removeImage(req, res) {
   if (!existing) return res.status(404).json({ error: 'Medicine not found' });
 
   await medicineModel.setImage(req.params.id, null);
-  deleteImageFileIfLocal(existing.image_url);
+  deleteOldImage(existing.image_url);
   await logAudit(req.user.id, 'updated_medicine_image', `Removed photo for medicine: ${existing.name}`, req);
   res.json({ id: req.params.id, image_url: null });
 }

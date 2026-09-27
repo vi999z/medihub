@@ -10,7 +10,7 @@ import { useToast } from '../context/ToastContext';
 import { useDialog } from '../context/DialogContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
-import { isValidName, isValidCode, isPositiveInteger, isNonNegativeNumber } from '../utils/validation';
+import { isValidName, isNonNegativeNumber } from '../utils/validation';
 import CsvImport from '../components/CsvImport';
 import AnimatedModal from '../components/AnimatedModal';
 import QRCodeDisplay from '../components/QRCode';
@@ -95,11 +95,6 @@ const SORT_OPTIONS = [
 const emptyForm = {
   name: '', generic_name: '', category: 'Other', dosage_form: '',
   strength: '', unit: '', reorder_level: 10, requires_prescription: false
-};
-
-const emptyBatchForm = {
-  supplier_id: '', batch_number: '', quantity_received: '',
-  quantity_remaining: '', cost_price: '', selling_price: '', manufacture_date: '', expiry_date: '', status: 'active'
 };
 
 function categoryOf(medicine) {
@@ -194,8 +189,7 @@ export default function Medicines() {
   // Medicine detail modal state
   const [detailMedicine, setDetailMedicine] = useState(null);
   const [showBatchForm, setShowBatchForm] = useState(false);
-  const [editingBatchId, setEditingBatchId] = useState(null);
-  const [batchForm, setBatchForm] = useState(emptyBatchForm);
+  const [editingBatch, setEditingBatch] = useState(null);
   const [batchError, setBatchError] = useState('');
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrBatch, setQrBatch] = useState(null);
@@ -216,8 +210,7 @@ export default function Medicines() {
   }
 
   function resetBatchForm() {
-    setBatchForm(emptyBatchForm);
-    setEditingBatchId(null);
+    setEditingBatch(null);
     setShowBatchForm(false);
     setBatchError('');
   }
@@ -588,60 +581,23 @@ export default function Medicines() {
   }, [batches, detailMedicine]);
 
   function openBatchCreate() {
-    setEditingBatchId(null);
-    setBatchForm(emptyBatchForm);
+    setEditingBatch(null);
     setShowBatchForm(true);
     setBatchError('');
   }
 
   function openBatchEdit(batch) {
-    setEditingBatchId(batch.id);
-    setBatchForm({
-      supplier_id: batch.supplier_id || '',
-      batch_number: batch.batch_number || '',
-      quantity_received: batch.quantity_received ?? '',
-      quantity_remaining: batch.quantity_remaining ?? '',
-      cost_price: batch.cost_price ?? '',
-      selling_price: batch.selling_price ?? '',
-      manufacture_date: batch.manufacture_date ? String(batch.manufacture_date).slice(0, 10) : '',
-      expiry_date: batch.expiry_date ? String(batch.expiry_date).slice(0, 10) : '',
-      status: batch.status || 'active'
-    });
+    setEditingBatch(batch);
     setShowBatchForm(true);
     setBatchError('');
   }
 
-  async function handleBatchSubmit(e) {
-    e.preventDefault();
+  async function handleBatchSubmit(form) {
     setBatchError('');
-    if (!isValidCode(batchForm.batch_number)) {
-      setBatchError('Batch number can only contain letters, numbers, - and _');
-      return;
-    }
-    if (!isPositiveInteger(batchForm.quantity_received)) {
-      setBatchError('Quantity received must be a whole number greater than 0');
-      return;
-    }
-    if (batchForm.cost_price !== '' && !isNonNegativeNumber(batchForm.cost_price)) {
-      setBatchError('Cost price must be a number of 0 or more');
-      return;
-    }
-    if (batchForm.selling_price !== '' && !isNonNegativeNumber(batchForm.selling_price)) {
-      setBatchError('Selling price must be a number of 0 or more');
-      return;
-    }
-    if (!batchForm.expiry_date) {
-      setBatchError('Expiry date is required');
-      return;
-    }
-    if (batchForm.manufacture_date && batchForm.manufacture_date > batchForm.expiry_date) {
-      setBatchError('Manufacture date must be before the expiry date');
-      return;
-    }
-    const payload = { ...batchForm, medicine_id: detailMedicine.id };
+    const payload = { ...form, medicine_id: detailMedicine.id };
     try {
-      if (editingBatchId) {
-        await api.put(`/batches/${editingBatchId}`, payload);
+      if (editingBatch) {
+        await api.put(`/batches/${editingBatch.id}`, payload);
         addToast('Batch updated', 'success');
       } else {
         await api.post('/batches', payload);
@@ -659,6 +615,7 @@ export default function Medicines() {
       if (updated) setDetailMedicine(updated);
     } catch (err) {
       setBatchError(err.response?.data?.error || 'Failed to save batch');
+      throw err;
     }
   }
 
@@ -967,34 +924,7 @@ export default function Medicines() {
               </div>
             </div>
 
-            {showBatchForm && (
-              <form onSubmit={handleBatchSubmit} className="card" style={{ marginBottom: 16, padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                <div className="field">
-                  <label>Supplier</label>
-                  <select value={batchForm.supplier_id} onChange={(e) => setBatchForm({ ...batchForm, supplier_id: e.target.value })}>
-                    <option value="">No supplier</option>
-                    {suppliers.map((supplier) => (
-                      <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field"><label>Batch number</label><input value={batchForm.batch_number} onChange={(e) => setBatchForm({ ...batchForm, batch_number: e.target.value })} required /></div>
-                <div className="field"><label>Quantity received</label><input type="number" min="1" value={batchForm.quantity_received} onChange={(e) => setBatchForm({ ...batchForm, quantity_received: e.target.value })} required /></div>
-                <div className="field"><label>Remaining quantity</label><input type="number" min="0" value={batchForm.quantity_remaining} onChange={(e) => setBatchForm({ ...batchForm, quantity_remaining: e.target.value })} /></div>
-                <div className="field"><label>Expiry date</label><input type="date" value={batchForm.expiry_date} onChange={(e) => setBatchForm({ ...batchForm, expiry_date: e.target.value })} required /></div>
-                <div className="field"><label>Manufacture date</label><input type="date" value={batchForm.manufacture_date} onChange={(e) => setBatchForm({ ...batchForm, manufacture_date: e.target.value })} /></div>
-                <div className="field"><label>Cost price</label><input type="number" step="0.01" value={batchForm.cost_price} onChange={(e) => setBatchForm({ ...batchForm, cost_price: e.target.value })} /></div>
-                <div className="field"><label>Selling price</label><input type="number" step="0.01" value={batchForm.selling_price} onChange={(e) => setBatchForm({ ...batchForm, selling_price: e.target.value })} /></div>
-                <div className="field"><label>Status</label><select value={batchForm.status} onChange={(e) => setBatchForm({ ...batchForm, status: e.target.value })}><option value="active">Active</option><option value="recalled">Recalled</option><option value="depleted">Depleted</option><option value="expired">Expired</option></select></div>
-                <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
-                  <button type="submit" className="btn btn-primary">{editingBatchId ? 'Update batch' : 'Save batch'}</button>
-                  <button type="button" className="btn btn-secondary" onClick={resetBatchForm}>Cancel</button>
-                </div>
-                {batchError && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{batchError}</p>}
-              </form>
-            )}
-
-            {detailBatches.length === 0 && !showBatchForm && (
+            {detailBatches.length === 0 && (
               <div className="empty-state" style={{ padding: '24px' }}>
                 <strong>No batches for this medicine</strong>
                 <p style={{ margin: '6px 0 0' }}>Receive stock to add a batch.</p>
@@ -1142,6 +1072,18 @@ export default function Medicines() {
           batches={detailBatches.filter((batch) => batch.status === 'active' || batch.status === 'depleted')}
           onSubmit={handleStockMovement}
           error={stockMovementError}
+        />
+      )}
+
+      {detailMedicine && (
+        <ReceiveStockModal
+          isOpen={showBatchForm}
+          onClose={resetBatchForm}
+          lockedMedicine={detailMedicine}
+          suppliers={suppliers}
+          editingBatch={editingBatch}
+          onSubmit={handleBatchSubmit}
+          error={batchError}
         />
       )}
     </div>
