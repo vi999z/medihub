@@ -29,6 +29,13 @@ function normalizeCategory(value) {
   return trimmed;
 }
 
+const BRANCH_OPTIONS = ['QMC', 'MT Carmel'];
+
+function normalizeBranch(value) {
+  const match = BRANCH_OPTIONS.find((option) => option.toLowerCase() === String(value || '').trim().toLowerCase());
+  return match || 'QMC';
+}
+
 async function getAll() {
   const [rows] = await pool.query(
     `SELECT m.*,
@@ -59,23 +66,25 @@ async function getById(id) {
 }
 
 async function create(data) {
-  const { name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription } = data;
+  const { name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch } = data;
   const normalizedCategory = normalizeCategory(category);
+  const normalizedBranch = normalizeBranch(branch);
   const [result] = await pool.query(
-    `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, generic_name, normalizedCategory, dosage_form, strength, unit, reorder_level || 10, !!requires_prescription]
+    `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, generic_name, normalizedCategory, dosage_form, strength, unit, reorder_level || 10, !!requires_prescription, normalizedBranch]
   );
   return result.insertId;
 }
 
 async function update(id, data) {
-  const { name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription } = data;
+  const { name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch } = data;
   const normalizedCategory = normalizeCategory(category);
+  const normalizedBranch = normalizeBranch(branch);
   await pool.query(
-    `UPDATE medicines SET name=?, generic_name=?, category=?, dosage_form=?, strength=?, unit=?, reorder_level=?, requires_prescription=?
+    `UPDATE medicines SET name=?, generic_name=?, category=?, dosage_form=?, strength=?, unit=?, reorder_level=?, requires_prescription=?, branch=?
      WHERE id=?`,
-    [name, generic_name, normalizedCategory, dosage_form, strength, unit, reorder_level, !!requires_prescription, id]
+    [name, generic_name, normalizedCategory, dosage_form, strength, unit, reorder_level, !!requires_prescription, normalizedBranch, id]
   );
 }
 
@@ -87,4 +96,4 @@ async function setImage(id, imageUrl) {
   await pool.query('UPDATE medicines SET image_url = ? WHERE id = ?', [imageUrl, id]);
 }
 
-module.exports = { getAll, getById, create, update, remove, setImage, CATEGORY_OPTIONS, normalizeCategory };
+module.exports = { getAll, getById, create, update, remove, setImage, CATEGORY_OPTIONS, normalizeCategory, BRANCH_OPTIONS, normalizeBranch };

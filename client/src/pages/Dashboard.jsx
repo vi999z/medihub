@@ -86,7 +86,7 @@ export default function Dashboard() {
   const [topSellers, setTopSellers] = useState([]);
   const [error, setError] = useState('');
 
-  const [branchFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('30d');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -124,13 +124,19 @@ export default function Dashboard() {
     return [{ value: 'all', label: 'All categories' }, ...[...names].sort().map((c) => ({ value: c, label: c }))];
   }, [needsAttention]);
 
+  const branchOptions = useMemo(() => {
+    const names = new Set((needsAttention?.items || []).map((i) => i.branch || 'QMC'));
+    return [{ value: 'all', label: 'All branches' }, ...[...names].sort().map((b) => ({ value: b, label: b }))];
+  }, [needsAttention]);
+
   const filteredItems = useMemo(() => {
     const items = needsAttention?.items || [];
     return items.filter((i) =>
       (statusFilter === 'all' ? i.status !== 'healthy' : i.status === statusFilter) &&
-      (categoryFilter === 'all' || (i.category || 'Uncategorized') === categoryFilter)
+      (categoryFilter === 'all' || (i.category || 'Uncategorized') === categoryFilter) &&
+      (branchFilter === 'all' || (i.branch || 'QMC') === branchFilter)
     );
-  }, [needsAttention, categoryFilter, statusFilter]);
+  }, [needsAttention, categoryFilter, branchFilter, statusFilter]);
 
   function toggleStockFilter(status) {
     setStatusFilter((current) => (current === status ? 'all' : status));
@@ -142,6 +148,7 @@ export default function Dashboard() {
       filename,
       filteredItems.map((i) => ({
         name: i.name,
+        branch: i.branch || 'QMC',
         category: i.category || '',
         dosage_form: i.dosage_form || '',
         in_stock: i.total_remaining,
@@ -149,7 +156,7 @@ export default function Dashboard() {
         expires: i.nearest_expiry ? i.nearest_expiry.slice(0, 10) : '',
         status: STATUS_META[i.status]?.label || i.status,
       })),
-      ['name', 'category', 'dosage_form', 'in_stock', 'unit', 'expires', 'status']
+      ['name', 'branch', 'category', 'dosage_form', 'in_stock', 'unit', 'expires', 'status']
     );
   }
 
@@ -210,7 +217,7 @@ export default function Dashboard() {
         <>
           {/* a. Filter row */}
           <div className="flat-filter-row">
-            <FlatDropdown label="All branches" options={[{ value: 'all', label: 'All branches' }]} value={branchFilter} onChange={() => {}} />
+            <FlatDropdown label="All branches" options={branchOptions} value={branchFilter} onChange={setBranchFilter} />
             <FlatDropdown label="All categories" options={categoryOptions} value={categoryFilter} onChange={setCategoryFilter} />
             <FlatDropdown label="Today" options={DATE_FILTERS} value={dateFilter} onChange={setDateFilter} />
             <div className="flat-filter-spacer" />
@@ -361,7 +368,7 @@ export default function Dashboard() {
                       <tr key={item.id}>
                         <td>
                           <div className="flat-med-name">{item.name}</div>
-                          <div className="flat-med-meta">{[item.category, item.dosage_form].filter(Boolean).join(' · ')}</div>
+                          <div className="flat-med-meta">{[item.branch || 'QMC', item.category, item.dosage_form].filter(Boolean).join(' · ')}</div>
                         </td>
                         <td className="flat-col-right">{item.total_remaining} {item.unit}</td>
                         <td>{item.nearest_expiry ? item.nearest_expiry.slice(0, 10) : '—'}</td>

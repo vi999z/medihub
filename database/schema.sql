@@ -35,6 +35,7 @@ CREATE TABLE medicines (
   reorder_level INT DEFAULT 10,   -- threshold for low-stock alerts
   requires_prescription BOOLEAN DEFAULT FALSE,
   image_url VARCHAR(255),         -- served from /uploads, e.g. /uploads/medicines/<file>
+  branch ENUM('QMC', 'MT Carmel') NOT NULL DEFAULT 'QMC', -- which pharmacy branch stocks this
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

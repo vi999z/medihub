@@ -73,6 +73,8 @@ const CATEGORY_OPTIONS = [
   'Vitamins & Supplements', 'Hormonal', 'Diagnostic', 'Other'
 ];
 
+const BRANCH_OPTIONS = ['QMC', 'MT Carmel'];
+
 const STOCK_FILTERS = [
   { value: 'all', label: 'All stock levels' },
   { value: 'out', label: 'Out of stock' },
@@ -94,7 +96,7 @@ const SORT_OPTIONS = [
 
 const emptyForm = {
   name: '', generic_name: '', category: 'Other', dosage_form: '',
-  strength: '', unit: '', reorder_level: 10, requires_prescription: false
+  strength: '', unit: '', reorder_level: 10, requires_prescription: false, branch: 'QMC'
 };
 
 function categoryOf(medicine) {
@@ -198,6 +200,7 @@ export default function Medicines() {
   const search = searchParams.get('q') || '';
   const [activeCategory, setActiveCategory] = useState('All');
   const [stockFilter, setStockFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState('all');
   const [prescriptionOnly, setPrescriptionOnly] = useState(false);
   const [sortBy, setSortBy] = useState(() => searchParams.get('sort') || 'name-asc');
 
@@ -360,6 +363,7 @@ export default function Medicines() {
       if (activeCategory !== 'All' && categoryOf(medicine) !== activeCategory) return false;
       if (prescriptionOnly && !medicine.requires_prescription) return false;
       if (stockFilter !== 'all' && stockStateOf(medicine).key !== stockFilter) return false;
+      if (branchFilter !== 'all' && (medicine.branch || 'QMC') !== branchFilter) return false;
       if (!term) return true;
       return [medicine.name, medicine.generic_name, medicine.category, medicine.dosage_form, medicine.strength]
         .some((value) => String(value || '').toLowerCase().includes(term));
@@ -382,9 +386,9 @@ export default function Medicines() {
       if (field === 'margin') return sign * (marginOf(a) - marginOf(b));
       return sign * String(a.name || '').localeCompare(String(b.name || ''));
     });
-  }, [medicines, search, activeCategory, stockFilter, prescriptionOnly, sortBy]);
+  }, [medicines, search, activeCategory, stockFilter, branchFilter, prescriptionOnly, sortBy]);
 
-  const filtersActive = search || activeCategory !== 'All' || stockFilter !== 'all' || prescriptionOnly;
+  const filtersActive = search || activeCategory !== 'All' || stockFilter !== 'all' || branchFilter !== 'all' || prescriptionOnly;
 
   function updateSearch(value) {
     setSearchParams(value ? { q: value } : {}, { replace: true });
@@ -394,6 +398,7 @@ export default function Medicines() {
     updateSearch('');
     setActiveCategory('All');
     setStockFilter('all');
+    setBranchFilter('all');
     setPrescriptionOnly(false);
   }
 
@@ -407,7 +412,8 @@ export default function Medicines() {
       strength: medicine.strength || '',
       unit: medicine.unit || '',
       reorder_level: medicine.reorder_level || 10,
-      requires_prescription: Boolean(medicine.requires_prescription)
+      requires_prescription: Boolean(medicine.requires_prescription),
+      branch: medicine.branch || 'QMC'
     });
     setImageFile(null);
     setImagePreview(resolveFileUrl(medicine.image_url) || '');
@@ -732,6 +738,12 @@ export default function Medicines() {
           <div className="field"><label>Strength</label><input value={form.strength} onChange={(e) => setForm({ ...form, strength: e.target.value })} /></div>
           <div className="field"><label>Unit</label><input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required /></div>
           <div className="field"><label>Reorder level</label><input type="number" value={form.reorder_level} onChange={(e) => setForm({ ...form, reorder_level: e.target.value })} /></div>
+          <div className="field">
+            <label>Branch</label>
+            <select value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })}>
+              {BRANCH_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
             <input type="checkbox" checked={form.requires_prescription} onChange={(e) => setForm({ ...form, requires_prescription: e.target.checked })} />
             Requires prescription
@@ -765,6 +777,12 @@ export default function Medicines() {
           <div className="field filter-select">
             <select value={stockFilter} onChange={(e) => setStockFilter(e.target.value)} aria-label="Filter by stock level">
               {STOCK_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </div>
+          <div className="field filter-select">
+            <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} aria-label="Filter by branch">
+              <option value="all">All branches</option>
+              {BRANCH_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </div>
           <div className="field filter-select">
@@ -850,7 +868,10 @@ export default function Medicines() {
                         {m.generic_name || '—'}
                         {m.requires_prescription ? ' · Rx' : ''}
                       </div>
-                      <span className="flat-tag">{categoryOf(m)}</span>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <span className="flat-tag">{categoryOf(m)}</span>
+                        <span className="flat-tag">{m.branch || 'QMC'}</span>
+                      </div>
                       <div className="flat-item-row">
                         <span>Stock</span>
                         <strong>{m.total_stock ?? 0} {m.unit}</strong>
@@ -889,6 +910,7 @@ export default function Medicines() {
                   <p style={{ margin: '4px 0 0', color: 'var(--steel)', fontSize: 13 }}>
                     {[detailMedicine.generic_name, detailMedicine.dosage_form, detailMedicine.strength].filter(Boolean).join(' · ') || '—'}
                   </p>
+                  <span className="flat-tag" style={{ marginTop: 6 }}>{detailMedicine.branch || 'QMC'}</span>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

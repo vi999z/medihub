@@ -77,13 +77,13 @@ async function getTodaySales() {
 
 async function getNeedsAttention(days = 14) {
   const [rows] = await pool.query(
-    `SELECT m.id, m.name, m.category, m.dosage_form, m.unit, m.reorder_level,
+    `SELECT m.id, m.name, m.category, m.dosage_form, m.unit, m.reorder_level, m.branch,
             COALESCE(SUM(b.quantity_remaining), 0) AS total_remaining,
             MIN(CASE WHEN b.status = 'active' AND b.expiry_date BETWEEN CURDATE() AND (CURDATE() + INTERVAL ? DAY)
                 THEN b.expiry_date END) AS nearest_expiry
      FROM medicines m
      LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active'
-     GROUP BY m.id, m.name, m.category, m.dosage_form, m.unit, m.reorder_level`,
+     GROUP BY m.id, m.name, m.category, m.dosage_form, m.unit, m.reorder_level, m.branch`,
     [days]
   );
 
