@@ -787,9 +787,25 @@ input, select, textarea { font-family: var(--font-body); }
 }
 
 @media (max-width: 900px) {
-  .sidebar { width: 72px; padding: 14px 8px; margin: 0; }
-  .sidebar-logo, .nav-link-content span { display: none; }
-  .nav-link-content { justify-content: center; }
+  /* Tablets and below: sidebar becomes a horizontal, scrollable nav strip on top */
+  .app-shell { flex-direction: column; }
+  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 12px 16px; margin: 0; }
+  .sidebar-logo { padding: 0 0 10px; }
+  nav {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  nav .nav-link-wrapper { flex: 0 0 auto; margin-bottom: 0; }
+  nav .nav-icon-pill { display: inline-flex; }
+  nav .nav-divider { flex: 0 0 1px; width: 1px; height: 24px; align-self: center; margin: 0 4px; }
+  .nav-link-content { white-space: nowrap; }
+  .nav-label { display: inline; white-space: nowrap; }
   .search-bar { display: none; }
   .avatar-name { display: none; }
   .main-content { padding: 18px; }
@@ -800,8 +816,6 @@ input, select, textarea { font-family: var(--font-body); }
   .app-shell { flex-direction: column; }
   .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 14px 16px; }
   .sidebar-logo { padding: 0 0 12px; }
-  nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-  .nav-link-content span { display: inline; }
   .topbar { height: auto; padding: 12px 16px; flex-wrap: wrap; gap: 10px; }
   .topbar-actions { justify-content: space-between; width: 100%; }
   .kpi-grid, .stat-grid { grid-template-columns: 1fr; }
@@ -1484,4 +1498,103 @@ input, select, textarea { font-family: var(--font-body); }
   .flat-summary-strip, .flat-stock-strip { grid-template-columns: repeat(2, 1fr); }
   .flat-stock-col:nth-child(3) { border-left: none; }
   .flat-bottom-row { grid-template-columns: 1fr; }
+}
+/* ============================================================
+   Mobile pass — phones (≤ 640px) and small tablets (≤ 900px).
+   Consolidates fixed-width layouts that previously overflowed
+   narrow screens. Desktop layouts are unchanged.
+   ============================================================ */
+@media (max-width: 900px) {
+  .ai-chat-layout { display: flex; gap: 16px; align-items: flex-start; }
+  .ai-chat-sidebar { height: 260px !important; min-height: 0 !important; }
+  .medicine-detail-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .medicine-detail-batches { grid-template-columns: minmax(0, 1fr); }
+  .flat-attention-scroll { max-height: 360px; }
+}
+
+@media (max-width: 700px) {
+
+  /* Topbar: keep the essentials, drop the date line noise */
+  .breadcrumb-group--date-only .topbar-date { display: none; }
+  .topbar-actions .icon-btn { width: 38px; height: 38px; padding: 0; justify-content: center; align-items: center; }
+
+  /* Page & filter chrome stacks cleanly */
+  .page-header h1 { font-size: 1.25rem; }
+  .flat-filter-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .flat-filter-row > .flat-filter-wrapper:first-child { grid-column: 1 / -1; }
+  .flat-filter-row > .flat-export-btn { grid-column: 1 / -1; }
+  .flat-filter-wrapper, .flat-filter-btn, .flat-export-btn, .flat-filter-spacer { width: 100%; }
+  .flat-filter-spacer { display: none; }
+  .filter-bar { gap: 10px; }
+  .filter-search { flex: 0 0 auto; min-width: 0; width: 100%; }
+  .filter-select, .filter-select select { width: 100%; min-width: 0; }
+  .filter-toggle { width: 100%; justify-content: center; }
+  .flat-table-header { flex-wrap: wrap; gap: 8px; padding: 14px 16px; }
+
+  /* Summary & stock strips: two compact columns */
+  .flat-summary-strip, .flat-stock-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .flat-summary-col, .flat-stock-col { padding: 12px 14px; min-width: 0; }
+  .flat-summary-value { font-size: 22px; }
+  .flat-stock-number { font-size: 17px; }
+  .flat-stock-label { font-size: 12px; }
+  .flat-stock-col:nth-child(3) { border-left: 1px solid var(--flat-border-strong); }
+
+  /* Cards & catalogs */
+  .flat-card-grid { grid-template-columns: minmax(0, 1fr); }
+  .flat-item-card__actions { flex-wrap: wrap; }
+  .flat-item-card__actions .flat-action-btn { min-height: 40px; }
+
+  /* Tables scroll inside their card instead of pushing the page wide */
+  .table-scroll, .flat-attention-scroll { max-width: 100%; }
+  .data-table th, .data-table td { white-space: nowrap; }
+  .data-table td:first-child, .data-table th:first-child { white-space: normal; min-width: 140px; }
+
+  /* Modals fill the screen width with breathing room */
+  .modal-overlay { padding: 12px; align-items: flex-end; }
+  .modal-content { max-width: 100%; max-height: 92vh; border-radius: 14px 14px 8px 8px; }
+  .medicine-form-modal__body,
+  .medicine-detail-modal__body,
+  .tile-breakdown-modal__body,
+  .confirm-modal__body { padding: 18px; }
+  .medicine-form-modal form { grid-template-columns: minmax(0, 1fr) !important; }
+  .medicine-detail-modal__header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .medicine-detail-modal__section-header { flex-direction: column; align-items: stretch; gap: 10px; }
+  .medicine-detail-modal__section-header > div { flex-wrap: wrap; }
+  .medicine-detail-modal__section-header .btn { flex: 1 1 auto; }
+
+  /* Toasts sit above the bottom edge, full width */
+  .toast-stack { right: 12px; left: 12px; width: auto; bottom: 12px; }
+
+  /* AI assistant tab strip scrolls rather than wrapping */
+  .ai-assistant-tabs { overflow-x: auto; scrollbar-width: none; }
+  .ai-assistant-tabs::-webkit-scrollbar { display: none; }
+  .ai-assistant-tab { flex: 0 0 auto; white-space: nowrap; }
+
+  /* AI chat: full-width messages, taller on phones */
+  .ai-chat-card { height: auto !important; min-height: 0 !important; }
+  .ai-chat-messages { flex: none !important; max-height: 52vh; min-height: 260px; padding: 14px !important; }
+  .ai-chat-layout { flex-direction: column; }
+  .ai-chat-panel { width: 100%; min-width: 0; }
+  .ai-chat-sidebar { width: 100% !important; }
+  .markdown-message { max-width: 88% !important; }
+  .ai-chat-card form { flex-wrap: wrap; }
+  .ai-chat-card form input[type="text"] { flex: 1 1 100%; order: -1; }
+
+}
+
+@media (max-width: 480px) {
+  .main-content { padding: 12px; }
+  .flat-summary-value { font-size: 20px; }
+  .flat-summary-label, .flat-summary-sub { font-size: 12px; }
+  .flat-item-card__body { padding: 12px 14px 14px; }
+  .flat-item-photo { aspect-ratio: 4 / 3; }
+  .flat-action-btn, .flat-btn-primary, .flat-btn-danger { font-size: 13px; padding: 0 12px; }
+  .btn { font-size: 13px; }
+  .medicine-detail-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .medicine-detail-stat { padding: 10px 10px; }
+  .medicine-detail-stat > div:first-child { font-size: 10px; }
+  .medicine-detail-stat > div:last-child { font-size: 15px !important; }
+  .page-actions-only .page-header-actions { flex-direction: column; }
+  .avatar-info { display: none; }
+  .breadcrumb { font-size: 13px; }
 }

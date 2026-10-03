@@ -33,7 +33,7 @@ function NavItem({ to, label, icon: Icon, isActive, showLabel }) {
     <NavLink to={to} className={`nav-link-wrapper${isActive ? ' active' : ''}`}>
       <span className="nav-link-content">
         <span className="nav-icon-pill"><Icon size={14} stroke={1.8} /></span>
-        {showLabel && label}
+        {showLabel && <span className="nav-label">{label}</span>}
       </span>
     </NavLink>
   );

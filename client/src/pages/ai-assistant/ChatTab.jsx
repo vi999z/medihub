@@ -498,11 +498,11 @@ export default function ChatTab() {
       </div>
 
       {/* Main layout: sidebar + chat */}
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      <div className="ai-chat-layout">
 
         {/* ── Conversation History Sidebar ── */}
         {sidebarOpen && (
-          <div style={{
+          <div className="ai-chat-sidebar" style={{
             width: 220, flexShrink: 0,
             background: 'var(--color-surface)',
             border: '1px solid var(--border)',
@@ -576,11 +576,11 @@ export default function ChatTab() {
         )}
 
         {/* ── Chat Panel ── */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="ai-chat-panel" style={{ flex: 1, minWidth: 0 }}>
 
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 210px)', minHeight: 460 }}>
+      <div className="card ai-chat-card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 210px)', minHeight: 460 }}>
         {/* Messages Area */}
-        <div style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="ai-chat-messages" style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {messages.map((msg, index) => (
             <div
               key={index}
