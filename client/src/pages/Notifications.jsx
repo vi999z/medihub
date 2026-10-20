@@ -223,7 +223,7 @@ export default function Notifications() {
 
       {/* Loading skeletons */}
       {loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: '16px' }}>
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="card" style={{ height: '200px', padding: '16px' }}>
               <Skeleton height={14} style={{ marginBottom: '12px', width: '40%' }} />
@@ -238,7 +238,7 @@ export default function Notifications() {
 
       {/* Cards grid */}
       {!loading && !error && visibleNotifications.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: '16px' }}>
             {visibleNotifications.map((n) => {
               const cfg = severityConfig(n.severity);
               const SevIcon = cfg.icon;

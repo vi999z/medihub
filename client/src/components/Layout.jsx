@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import {
   IconLayoutDashboard, IconPill, IconReceipt, IconBellRinging, IconBox,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
-  IconTools, IconQrcode, IconSun, IconMoon, IconHelpCircle
+  IconTools, IconQrcode, IconSun, IconMoon, IconHelpCircle, IconMenu2, IconX
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -43,7 +43,7 @@ function initials(name = '') {
   return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 }
 
-function TopBar({ pageTitle }) {
+function TopBar({ pageTitle, onOpenNav }) {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
@@ -80,10 +80,12 @@ function TopBar({ pageTitle }) {
       setMenuOpen(false);
       setSearchOpen(false);
     }
-    document.addEventListener('mousedown', handleClick);
+    // pointerdown (not mousedown) so taps on non-interactive areas close the
+    // menus on iOS Safari, which doesn't emit mousedown for those.
+    document.addEventListener('pointerdown', handleClick);
     document.addEventListener('keydown', handleKey);
     return () => {
-      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('pointerdown', handleClick);
       document.removeEventListener('keydown', handleKey);
     };
   }, []);
@@ -114,6 +116,10 @@ function TopBar({ pageTitle }) {
 
   return (
     <header className="topbar">
+      {/* Only visible on narrow screens, where the sidebar becomes a drawer */}
+      <button className="icon-btn nav-toggle" onClick={onOpenNav} aria-label="Open navigation">
+        <IconMenu2 size={20} stroke={1.8} />
+      </button>
       <div className={`breadcrumb-group${pageTitle ? '' : ' breadcrumb-group--date-only'}`}>
         {pageTitle && <div className="breadcrumb">{pageTitle}</div>}
         <div className="topbar-date">{today}</div>
@@ -142,16 +148,21 @@ function TopBar({ pageTitle }) {
           )}
         </form>
 
+        {/* The search bar is hidden on narrow screens; jump to the Medicines search instead */}
+        <button className="icon-btn mobile-only" onClick={() => navigate('/medicines')} aria-label="Search medicines">
+          <IconSearch size={18} stroke={1.8} />
+        </button>
+
         <button className="icon-btn" onClick={() => navigate('/notifications')} aria-label="Notifications">
           <IconBellRinging size={18} stroke={1.8} />
           {unread > 0 && <span className="dot-badge" />}
         </button>
 
-        <button className="icon-btn" onClick={() => setHelpOpen(true)} aria-label="Help">
+        <button className="icon-btn desktop-only" onClick={() => setHelpOpen(true)} aria-label="Help">
           <IconHelpCircle size={18} stroke={1.8} />
         </button>
 
-        <button className="icon-btn" onClick={toggle} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
+        <button className="icon-btn desktop-only" onClick={toggle} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
           {dark ? <IconSun size={18} stroke={1.8} /> : <IconMoon size={18} stroke={1.8} />}
         </button>
 
@@ -176,6 +187,13 @@ function TopBar({ pageTitle }) {
                 <strong>{user?.full_name}</strong>
                 <span>{user?.role}</span>
               </div>
+              {/* Phones drop these from the topbar to save room, so offer them here */}
+              <button className="avatar-menu-item mobile-only" onClick={() => { setMenuOpen(false); setHelpOpen(true); }}>
+                <IconHelpCircle size={15} stroke={1.8} /> Help &amp; support
+              </button>
+              <button className="avatar-menu-item mobile-only" onClick={() => { setMenuOpen(false); toggle(); }}>
+                {dark ? <IconSun size={15} stroke={1.8} /> : <IconMoon size={15} stroke={1.8} />} {dark ? 'Light mode' : 'Dark mode'}
+              </button>
               <button className="avatar-menu-item danger" onClick={handleLogout}>
                 <IconLogout size={15} stroke={1.8} /> Log out
               </button>
@@ -206,17 +224,39 @@ export default function Layout({ children }) {
     return ALL_ITEMS.find((i) => i.to === location.pathname)?.label || 'MediHub';
   }, [location.pathname]);
   const secondaryItems = NAV_GROUP_SECONDARY.filter((item) => !item.adminOnly || user?.role === 'admin');
+  // Off-canvas sidebar state — only has an effect on narrow screens (see theme.css).
+  // Remembering the path it was opened on closes it on any route change
+  // (including browser back) without a state-resetting effect.
+  const [navOpenPath, setNavOpenPath] = useState(null);
+  const navOpen = navOpenPath === location.pathname;
+  const setNavOpen = (open) => setNavOpenPath(open ? location.pathname : null);
 
   useEffect(() => {
     const title = pageTitle === 'MediHub' ? 'MediHub' : `${pageTitle} · MediHub`;
     document.title = title;
   }, [pageTitle]);
 
+  useEffect(() => {
+    if (!navOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setNavOpenPath(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [navOpen]);
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar-logo"><span className="dot" />MEDI<span>HUB</span></div>
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <div className={`app-shell${navOpen ? ' nav-open' : ''}`}>
+      <div className="sidebar-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />
+      <aside className="sidebar" id="app-sidebar">
+        <div className="sidebar-logo">
+          <span className="dot" />MEDI<span>HUB</span>
+          <button className="icon-btn nav-close" onClick={() => setNavOpen(false)} aria-label="Close navigation">
+            <IconX size={18} stroke={1.8} />
+          </button>
+        </div>
+        <nav
+          style={{ display: 'flex', flexDirection: 'column', gap: 0 }}
+          onClick={(e) => { if (e.target.closest('a')) setNavOpen(false); }}
+        >
           {NAV_GROUP_PRIMARY.map((item) => (
             <NavItem
               key={item.to}
@@ -237,7 +277,7 @@ export default function Layout({ children }) {
         </nav>
       </aside>
       <div className="shell-main">
-        <TopBar pageTitle={pageTitle} />
+        <TopBar pageTitle={pageTitle} onOpenNav={() => setNavOpen(true)} />
         <main className="main-content" style={{ position: 'relative' }}>
           {children}
         </main>

@@ -707,7 +707,7 @@ export default function Medicines() {
           <h2 style={{ margin: 0 }}>{editingId ? 'Edit medicine' : 'Add medicine'}</h2>
           <button type="button" className="btn-icon" onClick={resetForm} title="Close"><X size={18} /></button>
         </div>
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))' }}>
           <div className="field" style={{ gridColumn: '1 / -1' }}>
             <label>Photo</label>
             <div className="flat-photo-picker">

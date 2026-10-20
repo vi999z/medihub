@@ -515,6 +515,8 @@ export default function ChatTab() {
               <span style={{ fontWeight: 600, fontSize: 13 }}>Conversations</span>
               <button
                 onClick={() => setSidebarOpen(false)}
+                className="chat-x-btn"
+                aria-label="Hide sidebar"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--steel)', fontSize: 16, lineHeight: 1, padding: 2 }}
                 title="Hide sidebar"
               >×</button>
@@ -552,6 +554,8 @@ export default function ChatTab() {
                     <button
                       onClick={(e) => deleteSavedConversation(conv.id, e)}
                       title="Delete"
+                      className="chat-x-btn"
+                      aria-label="Delete conversation"
                       style={{
                         background: 'none', border: 'none', cursor: 'pointer',
                         color: activeConvId === conv.id ? 'color-mix(in srgb, var(--color-primary-foreground) 70%, transparent)' : 'var(--color-text-muted)',
@@ -680,7 +684,7 @@ export default function ChatTab() {
 
         {/* Starter Prompts */}
         {messages.length === 1 && (
-        <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+        <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 8 }}>
           {STARTER_PROMPTS.map((prompt, idx) => (
             <StarterPromptButton key={idx} prompt={prompt} onClick={() => handleStarterPrompt(prompt)} />
           ))}

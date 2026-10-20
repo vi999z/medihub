@@ -370,7 +370,12 @@ input, select, textarea { font-family: var(--font-body); }
 .nav-link-wrapper:hover .nav-icon-pill { color: var(--ink); }
 .nav-link-wrapper.active .nav-icon-pill { background: var(--color-surface-elevated); color: var(--primary); }
 
-.shell-main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--color-surface-elevated); }
+/* min-height: 0 lets .main-content be the scroll container; without it the
+   column grows to its content and the clipped #root makes it unscrollable. */
+.shell-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--color-surface-elevated); }
+
+/* Drawer-only chrome — shown by the ≤900px block below */
+.nav-toggle, .nav-close, .sidebar-backdrop, .mobile-only { display: none; }
 
 .topbar {
   height: 76px; flex-shrink: 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; background: var(--surface); z-index: 30;
@@ -462,14 +467,10 @@ input, select, textarea { font-family: var(--font-body); }
 }
 
 @media (max-width: 768px) {
-  .app-shell { flex-direction: column; }
-  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 16px; }
   .topbar { padding: 0 16px; height: 64px; }
   .main-content { padding: 16px; }
   .kpi-grid { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: 1fr; }
-  .sidebar-logo { padding: 8px 12px 16px; margin-bottom: 8px; }
-  .nav-section-label { padding: 12px 12px 8px; margin-top: 8px; }
   .page-header { gap: 12px; }
   .page-header-actions { width: 100%; flex-direction: column; align-items: stretch; }
   .filter-bar { flex-direction: column; align-items: stretch; }
@@ -567,7 +568,7 @@ input, select, textarea { font-family: var(--font-body); }
 
 .icon-badge { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 999px; background: var(--bg-subtle); color: var(--ink); }
 
-.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 16px; margin-bottom: 24px; }
 .stat-card { padding: 20px 24px; min-height: 100px; display: flex; flex-direction: column; justify-content: center; }
 .stat-card .value { font-family: var(--font-display); font-size: 1.4rem; font-weight: 800; line-height: 1.2; color: var(--color-text-primary); }
 .stat-card .label { font-size: 13px; color: var(--steel); margin-top: 4px; line-height: 1.4; }
@@ -779,45 +780,55 @@ input, select, textarea { font-family: var(--font-body); }
 .toast-info { background: var(--color-primary); }
 .toast-progress { position: absolute; inset: auto 0 0 0; height: 4px; background: rgba(255,255,255,0.4); transform-origin: left; }
 
-.auth-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--color-page); }
-.auth-card { width: min(420px, 100%); padding: 36px 32px; border-radius: 8px; background: var(--color-surface-elevated); border: 1px solid var(--border); }
+/* #root clips overflow, so the login screen scrolls itself (short / landscape phones) */
+.auth-shell { height: 100%; overflow-y: auto; display: flex; padding: 24px; background: var(--color-page); }
+.auth-card { width: min(420px, 100%); margin: auto; padding: 36px 32px; border-radius: 8px; background: var(--color-surface-elevated); border: 1px solid var(--border); }
 
 @media (max-width: 1100px) {
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 900px) {
-  /* Tablets and below: sidebar becomes a horizontal, scrollable nav strip on top */
-  .app-shell { flex-direction: column; }
-  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 12px 16px; margin: 0; }
-  .sidebar-logo { padding: 0 0 10px; }
-  nav {
-    display: flex !important;
-    flex-direction: row !important;
-    overflow-x: auto;
-    gap: 6px;
-    padding-bottom: 4px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+  /* Tablets and phones: the sidebar becomes an off-canvas drawer opened from
+     the topbar, so the page keeps the full screen height and scrolls. */
+  .sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 90;
+    width: min(290px, 84vw); padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+    transform: translateX(-100%); visibility: hidden;
+    transition: transform 0.22s ease, visibility 0s linear 0.22s;
+    box-shadow: var(--shadow-2xl);
+    overscroll-behavior: contain;
   }
-  nav::-webkit-scrollbar { display: none; }
-  nav .nav-link-wrapper { flex: 0 0 auto; margin-bottom: 0; }
-  nav .nav-icon-pill { display: inline-flex; }
-  nav .nav-divider { flex: 0 0 1px; width: 1px; height: 24px; align-self: center; margin: 0 4px; }
-  .nav-link-content { white-space: nowrap; }
-  .nav-label { display: inline; white-space: nowrap; }
+  .nav-open .sidebar { transform: none; visibility: visible; transition: transform 0.22s ease; }
+  .sidebar-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 89;
+    background: rgba(15, 23, 42, 0.45);
+    opacity: 0; pointer-events: none; transition: opacity 0.22s ease;
+  }
+  .nav-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
+  .sidebar-logo { padding: 4px 4px 16px 12px; margin-bottom: 4px; }
+  .nav-close { display: flex; margin-left: auto; padding: 10px; }
+  .nav-toggle { display: flex; margin-right: 4px; margin-left: -8px; }
+  .nav-link-content { padding: 12px 14px; }
+  .mobile-only { display: flex; }
+  .icon-btn.desktop-only { display: none; }
   .search-bar { display: none; }
-  .avatar-name { display: none; }
+  .avatar-info { display: none; }
+  .avatar-trigger { padding-right: 10px; }
+  .topbar-date { white-space: nowrap; }
+  /* Comfortable touch targets (~36–40px) for small icon controls */
+  .btn-icon { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  .chip { min-height: 36px; }
+  .chat-x-btn { min-width: 36px; min-height: 36px; }
+  /* iOS Safari zooms the page when focusing a field under 16px */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: 16px !important; }
   .main-content { padding: 18px; }
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 700px) {
-  .app-shell { flex-direction: column; }
-  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 14px 16px; }
-  .sidebar-logo { padding: 0 0 12px; }
-  .topbar { height: auto; padding: 12px 16px; flex-wrap: wrap; gap: 10px; }
-  .topbar-actions { justify-content: space-between; width: 100%; }
+  .topbar { height: 60px; padding: 0 12px 0 16px; gap: 8px; }
+  .topbar-actions { gap: 4px; }
   .kpi-grid, .stat-grid { grid-template-columns: 1fr; }
   .page-header { align-items: flex-start; }
   .section-title { flex-direction: column; align-items: flex-start; }
@@ -840,7 +851,8 @@ input, select, textarea { font-family: var(--font-body); }
 }
 
 .modal-content {
-  max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto;
+  max-width: 600px; width: 100%; max-height: 90vh; max-height: 90dvh; overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -910,7 +922,7 @@ input, select, textarea { font-family: var(--font-body); }
 }
 .medicine-detail-batches {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 14px;
 }
 
@@ -1376,7 +1388,7 @@ input, select, textarea { font-family: var(--font-body); }
 
 /* Generic flat card grid — used by the Medicines, Batches, Suppliers and
    Transactions catalogs so every list page shares one visual system. */
-.flat-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.flat-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 16px; }
 .flat-item-card {
   padding: 18px 18px 18px 16px; display: flex; flex-direction: column; gap: 8px; cursor: pointer;
   border: 1px solid var(--flat-border-strong);
@@ -1551,7 +1563,7 @@ input, select, textarea { font-family: var(--font-body); }
 
   /* Modals fill the screen width with breathing room */
   .modal-overlay { padding: 12px; align-items: flex-end; }
-  .modal-content { max-width: 100%; max-height: 92vh; border-radius: 14px 14px 8px 8px; }
+  .modal-content { max-width: 100%; max-height: 92vh; max-height: 92dvh; border-radius: 14px 14px 8px 8px; }
   .medicine-form-modal__body,
   .medicine-detail-modal__body,
   .tile-breakdown-modal__body,

@@ -113,7 +113,7 @@ export default function Users() {
         <form
           onSubmit={handleSubmit}
           className="card"
-          style={{ marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
+          style={{ marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))' }}
         >
           <div className="field"><label>Full name</label><input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} required /></div>
           <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
@@ -166,7 +166,7 @@ export default function Users() {
         )}
 
         {loading && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="card" style={{ minHeight: 210, padding: 16 }}>
                 <Skeleton height={14} style={{ marginBottom: 14, width: '35%' }} />
@@ -180,7 +180,7 @@ export default function Users() {
         )}
 
         {!loading && !error && visibleUsers.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
             {visibleUsers.map((u) => (
               <div key={u.id} className={`card user-card ${u.is_active ? 'user-card--active' : 'user-card--inactive'}`} style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 205 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

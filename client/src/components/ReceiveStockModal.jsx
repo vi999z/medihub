@@ -108,7 +108,7 @@ export default function ReceiveStockModal({ isOpen, onClose, medicines, supplier
           </button>
         </div>
 
-        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
+        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 1fr))' }}>
           {!lockedMedicine && (
             <div className="field" style={{ gridColumn: '1 / -1' }}>
               <label>Medicine</label>

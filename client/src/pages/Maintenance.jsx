@@ -36,7 +36,7 @@ export default function Maintenance() {
     <div>
       <div
         className="card"
-        style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', padding: 18 }}
+        style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', padding: 18 }}
       >
         {ACTIONS.map((action) => (
           <button

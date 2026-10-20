@@ -67,7 +67,7 @@ export default function AuditLog() {
       )}
 
       {loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: '16px' }}>
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="card" style={{ height: '220px' }}>
               <Skeleton height={16} style={{ marginBottom: '12px' }} />
@@ -80,7 +80,7 @@ export default function AuditLog() {
       )}
 
       {!loading && !error && visibleLogs.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: '16px' }}>
             {visibleLogs.map((l) => {
               const actionColorMap = { 'create': 'var(--green)', 'update': 'var(--amber)', 'delete': 'var(--red)', 'login': 'var(--green)', 'logout': 'var(--steel)', 'export': 'var(--gold)', 'ai': 'var(--info)' };
               const actionKey = l.action.split('_')[0].toLowerCase();
