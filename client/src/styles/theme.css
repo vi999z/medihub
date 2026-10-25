@@ -642,7 +642,7 @@ input, select, textarea { font-family: var(--font-body); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.empty-state { padding: 40px 20px; border-radius: 14px; color: var(--steel); background: transparent; text-align: center; }
+.empty-state { display: flex; flex-direction: column; align-items: center; padding: 40px 20px; border-radius: 14px; color: var(--steel); background: transparent; text-align: center; }
 .compact-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 180px; padding: 28px 20px; }
 .empty-row td { background: var(--surface); }
 
@@ -1516,8 +1516,9 @@ input, select, textarea { font-family: var(--font-body); }
    Consolidates fixed-width layouts that previously overflowed
    narrow screens. Desktop layouts are unchanged.
    ============================================================ */
+.ai-chat-layout { display: flex; gap: 16px; align-items: flex-start; }
+
 @media (max-width: 900px) {
-  .ai-chat-layout { display: flex; gap: 16px; align-items: flex-start; }
   .ai-chat-sidebar { height: 260px !important; min-height: 0 !important; }
   .medicine-detail-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .medicine-detail-batches { grid-template-columns: minmax(0, 1fr); }

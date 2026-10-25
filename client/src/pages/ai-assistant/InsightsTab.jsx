@@ -258,12 +258,27 @@ export default function InsightsTab({ onBadgeChange }) {
       </div>
 
       {tab === 'risk' && (
-        <div className="card table-card">
-          <div className="table-scroll">
-            <table className="data-table">
+        <div className="flat-card flat-attention-card">
+          <div className="flat-table-header">
+            <span className="flat-table-title">Expiry risk</span>
+            {!loading && !error && <span className="flat-med-meta">{risk.length} item{risk.length !== 1 ? 's' : ''}</span>}
+          </div>
+          <div className="flat-attention-scroll">
+            <table className="flat-table">
               <thead><tr><th>Medicine</th><th>Batch</th><th>Days left</th><th>Qty</th><th>Signal</th><th>Action</th></tr></thead>
               {loading ? <TableSkeleton cols={6} /> : (
                 <tbody>
+                  {error && (
+                    <tr><td colSpan={6} className="flat-empty">
+                      Unable to load insights — {error}
+                      <div style={{ marginTop: 10 }}>
+                        <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
+                      </div>
+                    </td></tr>
+                  )}
+                  {!error && risk.length === 0 && (
+                    <tr><td colSpan={6} className="flat-empty">No active batches to score.</td></tr>
+                  )}
                     {risk.map((d) => (
                       <tr key={d.batch_id}>
                         <td style={{ fontWeight: 500 }}>{d.medicine_name}</td>
@@ -288,24 +303,31 @@ export default function InsightsTab({ onBadgeChange }) {
               )}
             </table>
           </div>
-          {!loading && risk.length === 0 && !error && <p style={{ padding: 20, color: 'var(--steel)', fontSize: 13 }}>No active batches to score.</p>}
-          {error && (
-            <div className="empty-state" style={{ margin: 16 }}>
-              <strong>Unable to load insights</strong>
-              <p style={{ margin: '6px 0 0' }}>{error}</p>
-              <button className="btn btn-secondary" onClick={fetchAll} style={{ marginTop: 10 }}>Retry</button>
-            </div>
-          )}
         </div>
       )}
 
       {tab === 'reorder' && (
-        <div className="card table-card">
-          <div className="table-scroll">
-            <table className="data-table">
+        <div className="flat-card flat-attention-card">
+          <div className="flat-table-header">
+            <span className="flat-table-title">Reorder suggestions</span>
+            {!loading && !error && <span className="flat-med-meta">{reorder.length} item{reorder.length !== 1 ? 's' : ''}</span>}
+          </div>
+          <div className="flat-attention-scroll">
+            <table className="flat-table">
               <thead><tr><th>Medicine</th><th>Current stock</th><th>Avg demand/day</th><th>Days left</th><th>Signal</th><th>Suggested order</th></tr></thead>
               {loading ? <TableSkeleton cols={6} /> : (
                 <tbody>
+                  {error && (
+                    <tr><td colSpan={6} className="flat-empty">
+                      Unable to load insights — {error}
+                      <div style={{ marginTop: 10 }}>
+                        <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
+                      </div>
+                    </td></tr>
+                  )}
+                  {!error && reorder.length === 0 && (
+                    <tr><td colSpan={6} className="flat-empty">No medicines need reordering soon.</td></tr>
+                  )}
                     {reorder.map((r) => (
                       <tr key={r.medicine_id}>
                         <td style={{ fontWeight: 500 }}>{r.medicine_name}</td>
@@ -330,24 +352,31 @@ export default function InsightsTab({ onBadgeChange }) {
               )}
             </table>
           </div>
-          {!loading && reorder.length === 0 && !error && <p style={{ padding: 20, color: 'var(--steel)', fontSize: 13 }}>No medicines need reordering soon.</p>}
-          {error && (
-            <div className="empty-state" style={{ margin: 16 }}>
-              <strong>Unable to load insights</strong>
-              <p style={{ margin: '6px 0 0' }}>{error}</p>
-              <button className="btn btn-secondary" onClick={fetchAll} style={{ marginTop: 10 }}>Retry</button>
-            </div>
-          )}
         </div>
       )}
 
       {tab === 'anomalies' && (
-        <div className="card table-card">
-          <div className="table-scroll">
-            <table className="data-table">
+        <div className="flat-card flat-attention-card">
+          <div className="flat-table-header">
+            <span className="flat-table-title">Anomalies</span>
+            {!loading && !error && <span className="flat-med-meta">{anomalies.length} item{anomalies.length !== 1 ? 's' : ''}</span>}
+          </div>
+          <div className="flat-attention-scroll">
+            <table className="flat-table">
               <thead><tr><th>Medicine</th><th>Batch</th><th>Type</th><th>Qty</th><th>Signal</th><th>Action</th></tr></thead>
               {loading ? <TableSkeleton cols={6} /> : (
                 <tbody>
+                  {error && (
+                    <tr><td colSpan={6} className="flat-empty">
+                      Unable to load insights — {error}
+                      <div style={{ marginTop: 10 }}>
+                        <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
+                      </div>
+                    </td></tr>
+                  )}
+                  {!error && anomalies.length === 0 && (
+                    <tr><td colSpan={6} className="flat-empty">No anomalies detected in the last 30 days.</td></tr>
+                  )}
                     {anomalies.map((a) => (
                       <tr key={a.transaction_id}>
                         <td style={{ fontWeight: 500 }}>{a.medicine_name}</td>
@@ -372,14 +401,6 @@ export default function InsightsTab({ onBadgeChange }) {
               )}
             </table>
           </div>
-          {!loading && anomalies.length === 0 && !error && <p style={{ padding: 20, color: 'var(--steel)', fontSize: 13 }}>No anomalies detected in the last 30 days.</p>}
-          {error && (
-            <div className="empty-state" style={{ margin: 16 }}>
-              <strong>Unable to load insights</strong>
-              <p style={{ margin: '6px 0 0' }}>{error}</p>
-              <button className="btn btn-secondary" onClick={fetchAll} style={{ marginTop: 10 }}>Retry</button>
-            </div>
-          )}
         </div>
       )}
     </div>

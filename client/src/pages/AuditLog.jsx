@@ -32,22 +32,20 @@ export default function AuditLog() {
 
   return (
     <div>
-      <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
-        <div className="filter-bar" style={{ margin: 0 }}>
-          <div className="filter-search">
-            <Search size={15} className="filter-search-icon" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search user, action, details…"
-              aria-label="Search audit log"
-            />
-            {search && (
-              <button type="button" className="btn-icon filter-search-clear" onClick={() => setSearch('')} title="Clear search">
-                <X size={14} />
-              </button>
-            )}
-          </div>
+      <div className="filter-bar">
+        <div className="filter-search">
+          <Search size={15} className="filter-search-icon" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search user, action, details…"
+            aria-label="Search audit log"
+          />
+          {search && (
+            <button type="button" className="btn-icon filter-search-clear" onClick={() => setSearch('')} title="Clear search">
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
 

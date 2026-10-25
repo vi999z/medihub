@@ -168,32 +168,30 @@ export default function Notifications() {
       </div>
 
       {/* Filter bar */}
-      <div style={{ padding: '16px', background: 'var(--surface-strong)', borderRadius: 'var(--radius)', marginBottom: 4 }}>
-        <div className="filter-bar" style={{ margin: 0 }}>
-          <div className="filter-search">
-            <Search size={15} className="filter-search-icon" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search alert message or type…"
-              aria-label="Search alerts"
-            />
-            {search && (
-              <button type="button" className="btn-icon filter-search-clear" onClick={() => setSearch('')} title="Clear search">
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          <label className="filter-toggle">
-            <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />
-            Unread only
-          </label>
-          {filtersActive && (
-            <button type="button" className="btn btn-secondary" onClick={() => { setSearch(''); setUnreadOnly(false); }}>
-              <X size={15} /> Clear filters
+      <div className="filter-bar">
+        <div className="filter-search">
+          <Search size={15} className="filter-search-icon" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search alert message or type…"
+            aria-label="Search alerts"
+          />
+          {search && (
+            <button type="button" className="btn-icon filter-search-clear" onClick={() => setSearch('')} title="Clear search">
+              <X size={14} />
             </button>
           )}
         </div>
+        <label className="filter-toggle">
+          <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />
+          Unread only
+        </label>
+        {filtersActive && (
+          <button type="button" className="btn btn-secondary" onClick={() => { setSearch(''); setUnreadOnly(false); }}>
+            <X size={15} /> Clear filters
+          </button>
+        )}
       </div>
 
       {/* Error */}

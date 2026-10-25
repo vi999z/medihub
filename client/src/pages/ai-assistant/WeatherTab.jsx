@@ -485,10 +485,10 @@ export default function WeatherTab({ onBadgeChange }) {
 
       {/* Recommendations table */}
       {!error && (
-        <div className="card table-card">
-          {/* Filters */}
-          <div style={{ display: 'flex', gap: 10, padding: '14px 20px 0', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--steel)' }}>Filter:</span>
+        <div className="flat-card flat-attention-card">
+          {/* Title + filters */}
+          <div className="flat-table-header" style={{ gap: 10, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+            <span className="flat-table-title" style={{ marginRight: 8 }}>Weather restock</span>
             {/* Urgency filter */}
             <div style={{ display: 'flex', gap: 4 }}>
               {['all', 'critical', 'high', 'medium'].map(u => (
@@ -523,7 +523,7 @@ export default function WeatherTab({ onBadgeChange }) {
                 ))}
               </select>
             )}
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--steel)' }}>
+            <span className="flat-med-meta" style={{ marginLeft: 'auto', marginTop: 0 }}>
               {loading ? '…' : `${filtered.length} item${filtered.length !== 1 ? 's' : ''}`}
               {data?.generated_at && !loading && (
                 <span style={{ marginLeft: 8 }}>
@@ -533,8 +533,8 @@ export default function WeatherTab({ onBadgeChange }) {
             </span>
           </div>
 
-          <div className="table-scroll">
-            <table className="data-table">
+          <div className="flat-attention-scroll">
+            <table className="flat-table">
               <thead>
                 <tr>
                   <th>Medicine</th>
@@ -549,6 +549,15 @@ export default function WeatherTab({ onBadgeChange }) {
                 <TableSkeleton cols={6} rows={5} />
               ) : (
                 <tbody>
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="flat-empty">
+                        {recommendations.length === 0
+                          ? 'No medicines flagged for weather-driven restocking under current conditions.'
+                          : 'No matches for the current filter.'}
+                      </td>
+                    </tr>
+                  )}
                   {filtered.map((rec) => (
                     <RecommendationRow
                       key={rec.medicine_id}
@@ -560,15 +569,7 @@ export default function WeatherTab({ onBadgeChange }) {
             </table>
           </div>
 
-          {!loading && filtered.length === 0 && !error && (
-            <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--steel)', fontSize: 13 }}>
-              {recommendations.length === 0
-                ? 'No medicines flagged for weather-driven restocking under current conditions.'
-                : 'No matches for the current filter.'}
-            </div>
-          )}
-
-          <div style={{ padding: '10px 20px 14px', fontSize: 11, color: 'var(--steel)', borderTop: '1px solid var(--border)' }}>
+          <div style={{ padding: '10px 20px 14px', fontSize: 12, color: 'var(--flat-text-muted)', borderTop: '2px solid #F2C94C' }}>
             * Days of stock calculated using <em>weather-adjusted</em> daily demand velocity.
             {!data?.weather?.live_data && ' Live weather unavailable — using Philippine seasonal estimates.'}
           </div>
