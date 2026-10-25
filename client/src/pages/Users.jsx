@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { KeyRound, Plus, Pencil, Search, X } from 'lucide-react';
+import { KeyRound, Plus, Pencil, Search, X, UserX, UserCheck } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useDialog } from '../context/DialogContext';
-import Skeleton from '../components/Skeleton';
 import { isValidName, isValidEmail } from '../utils/validation';
 
 export default function Users() {
@@ -104,16 +103,20 @@ export default function Users() {
   }
 
   return (
-    <div>
+    <div className="flat-dashboard">
       <div className="page-actions-only">
-        <button className="btn btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}><Plus size={15} /> {showForm ? 'Close form' : 'Add account'}</button>
+        <div className="page-header-actions">
+          <button type="button" className="flat-btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}>
+            <Plus size={15} /> {showForm ? 'Close form' : 'Add account'}
+          </button>
+        </div>
       </div>
 
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="card"
-          style={{ marginBottom: 20, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))' }}
+          className="flat-card"
+          style={{ padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))' }}
         >
           <div className="field"><label>Full name</label><input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} required /></div>
           <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
@@ -127,16 +130,15 @@ export default function Users() {
               <option value="admin">Admin</option>
             </select>
           </div>
-          {error && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{error}</p>}
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary">{editingId ? 'Update account' : 'Create account'}</button>
-            <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
+            <button type="submit" className="flat-btn-primary">{editingId ? 'Update account' : 'Create account'}</button>
+            <button type="button" className="flat-action-btn" onClick={resetForm}>Cancel</button>
           </div>
         </form>
       )}
 
-      <div>
-        <div className="filter-bar" style={{ padding: 16, margin: 0, marginBottom: 16, background: 'var(--surface-strong)', borderRadius: 'var(--radius)' }}>
+      <div className="flat-card" style={{ padding: 16 }}>
+        <div className="filter-bar" style={{ margin: 0, background: 'none', border: 'none', padding: 0 }}>
           <div className="filter-search">
             <Search size={15} className="filter-search-icon" />
             <input
@@ -152,54 +154,79 @@ export default function Users() {
             )}
           </div>
         </div>
+      </div>
 
-        {error && (
-          <div className="empty-state">
-            <strong>Unable to load accounts</strong>
-            <p style={{ margin: '6px 0 0' }}>{error}</p>
-            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
-          </div>
-        )}
-
-        {!loading && !error && visibleUsers.length === 0 && (
-          <div className="empty-state compact-empty-state">No accounts match “{search}”.</div>
-        )}
-
-        {loading && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="card" style={{ minHeight: 210, padding: 16 }}>
-                <Skeleton height={14} style={{ marginBottom: 14, width: '35%' }} />
-                <Skeleton height={18} style={{ marginBottom: 10 }} />
-                <Skeleton height={14} style={{ marginBottom: 8, width: '75%' }} />
-                <Skeleton height={14} style={{ marginBottom: 18, width: '45%' }} />
-                <Skeleton height={32} style={{ borderRadius: 999 }} />
+      <div className="flat-card">
+        <div className="flat-table-header">
+          <span className="flat-table-title">Accounts</span>
+          {search && (
+            <button type="button" className="flat-table-link" onClick={() => setSearch('')}>Clear search</button>
+          )}
+        </div>
+        <div style={{ padding: 16 }}>
+          {error && (
+            <div className="flat-empty">
+              Unable to load accounts — {error}
+              <div style={{ marginTop: 10 }}>
+                <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
 
-        {!loading && !error && visibleUsers.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
-            {visibleUsers.map((u) => (
-              <div key={u.id} className={`card user-card ${u.is_active ? 'user-card--active' : 'user-card--inactive'}`} style={{ padding: 16, display: 'flex', flexDirection: 'column', minHeight: 205 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <span className="stamp">ID: {u.id}</span>
-                  <span className={`status-pill ${u.is_active ? 'safe' : 'critical'}`} style={{ fontSize: 10, padding: '3px 8px' }}>{u.is_active ? 'Active' : 'Inactive'}</span>
+          {!error && loading && (
+            <div className="flat-card-grid">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flat-card flat-item-card">
+                  <div className="flat-item-icon skeleton" style={{ border: 'none' }} />
+                  <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
+                  <div className="skeleton" style={{ height: 12, width: '50%' }} />
                 </div>
-                <div style={{ flex: 1, marginBottom: 14 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{u.full_name}</div>
-                  <div style={{ color: 'var(--steel)', fontSize: 12, marginBottom: 12, overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}><div style={{ color: 'var(--steel)', fontSize: 11 }}>Role</div><div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{u.role}</div></div>
+              ))}
+            </div>
+          )}
+
+          {!error && !loading && visibleUsers.length === 0 && (
+            <div className="flat-empty">{users.length === 0 ? 'No accounts yet. Add your first one above.' : `No accounts match "${search}".`}</div>
+          )}
+
+          {!error && !loading && visibleUsers.length > 0 && (
+            <div className="flat-card-grid">
+              {visibleUsers.map((u) => (
+                <div key={u.id} className={`flat-card flat-item-card flat-item-card--${u.is_active ? 'green' : 'red'}`} style={{ cursor: 'default' }}>
+                  <div className="flat-item-card__top">
+                    <div className="flat-item-icon" style={{ fontWeight: 700, fontSize: 18 }}>{(u.full_name || '?').charAt(0).toUpperCase()}</div>
+                    <span className={`flat-status-label ${u.is_active ? 'green' : 'red'}`}>{u.is_active ? 'Active' : 'Inactive'}</span>
+                  </div>
+                  <div className="flat-med-name">{u.full_name}{u.id === me.id ? ' (you)' : ''}</div>
+                  <div className="flat-med-meta" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
+                  <div className="flat-item-row">
+                    <span>Role</span>
+                    <strong style={{ textTransform: 'capitalize' }}>{u.role}</strong>
+                  </div>
+                  <div className="flat-item-row">
+                    <span>Account ID</span>
+                    <strong>{u.id}</strong>
+                  </div>
+                  <div className="flat-item-card__actions" style={{ flexWrap: 'wrap' }}>
+                    <button type="button" className="flat-action-btn" onClick={() => openEdit(u)}>
+                      <Pencil size={13} /> Edit
+                    </button>
+                    {u.id !== me.id && (
+                      <>
+                        <button type="button" className="flat-action-btn" onClick={() => resetPassword(u)} title="Generate temporary password">
+                          <KeyRound size={13} /> Reset
+                        </button>
+                        <button type="button" className="flat-action-btn" onClick={() => toggleActive(u)}>
+                          {u.is_active ? <><UserX size={13} /> Deactivate</> : <><UserCheck size={13} /> Reactivate</>}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{(u.full_name || '?').charAt(0).toUpperCase()}</div><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Account</span></div>
-                  <div style={{ display: 'flex', gap: 6 }}><button className="btn-icon" onClick={() => openEdit(u)} title="Edit account"><Pencil size={14} /></button>{u.id !== me.id && <><button className="btn-icon" onClick={() => resetPassword(u)} title="Generate temporary password"><KeyRound size={14} /></button><button className="btn-icon" onClick={() => toggleActive(u)} title={u.is_active ? 'Deactivate' : 'Reactivate'}>{u.is_active ? <X size={14} /> : <Plus size={14} />}</button></>}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

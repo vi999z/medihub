@@ -1,68 +1,32 @@
-import { useEffect, useRef, useState } from 'react';
-import { RefreshCw, AlertCircle, CheckCircle2, Info, Download, ChevronDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { RefreshCw, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { downloadBlob } from '../../utils/downloadFile';
 import TableSkeleton from '../../components/TableSkeleton';
+import ExportDropdown from '../../components/ExportDropdown';
 
-// ── AI Insights export dropdown ───────────────────────────────────────────────
-function InsightsExportDropdown({ onExport }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
+const EXPORT_OPTIONS = [
+  { label: 'Expiry risk (Excel)', key: 'risk', format: 'excel' },
+  { label: 'Reorder suggestions (Excel)', key: 'reorder', format: 'excel' },
+  { label: 'Anomalies (Excel)', key: 'anomalies', format: 'excel' },
+  null,
+  { label: 'Full AI Insights (PDF)', key: 'all', format: 'pdf' },
+  { label: 'Full AI Insights (Word)', key: 'all', format: 'docx' },
+];
 
-  const OPTIONS = [
-    { label: 'Expiry risk (Excel)', key: 'risk', format: 'excel' },
-    { label: 'Reorder suggestions (Excel)', key: 'reorder', format: 'excel' },
-    { label: 'Anomalies (Excel)', key: 'anomalies', format: 'excel' },
-    null,
-    { label: 'Full AI Insights (PDF)', key: 'all', format: 'pdf' },
-    { label: 'Full AI Insights (Word)', key: 'all', format: 'docx' },
-  ];
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button className="btn btn-secondary" onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Download size={15} /> Export <ChevronDown size={13} />
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 220,
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 12, boxShadow: 'var(--shadow-xl)', zIndex: 50, padding: '6px 0'
-        }}>
-          {OPTIONS.map((opt, idx) => opt === null ? (
-            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
-          ) : (
-            <button
-              key={idx}
-              onClick={() => { onExport(opt.key, opt.format); setOpen(false); }}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--ink)', transition: 'background 0.12s ease' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >{opt.label}</button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
+// Severity → flat-status-label colour, matching the Dashboard's table.
 function riskPill(score) {
-  if (score >= 0.66) return 'critical';
-  if (score >= 0.33) return 'warning';
-  return 'safe';
+  if (score >= 0.66) return 'red';
+  if (score >= 0.33) return 'amber';
+  return 'green';
 }
 
 function severityPill(severity) {
-  if (severity === 'critical') return 'critical';
-  if (severity === 'warning') return 'warning';
-  return 'safe';
+  if (severity === 'critical') return 'red';
+  if (severity === 'warning') return 'amber';
+  return 'green';
 }
 
 const TABS = [
@@ -75,11 +39,11 @@ function TrainBanner({ trainMsg, trainStatus }) {
   if (!trainMsg) return null;
 
   const config = {
-    success: { icon: CheckCircle2, color: 'var(--green)', bg: 'var(--green-tint)' },
-    error: { icon: AlertCircle, color: 'var(--red)', bg: 'var(--red-tint)' },
-    info: { icon: Info, color: 'var(--info)', bg: 'var(--color-info-bg)' },
+    success: { icon: CheckCircle2, color: 'var(--flat-green)' },
+    error: { icon: AlertCircle, color: 'var(--flat-red)' },
+    info: { icon: Info, color: 'var(--flat-accent)' },
   };
-  const { icon: Icon, color, bg } = config[trainStatus] || config.info;
+  const { icon: Icon, color } = config[trainStatus] || config.info;
 
   return (
     <div
@@ -88,12 +52,11 @@ function TrainBanner({ trainMsg, trainStatus }) {
         alignItems: 'flex-start',
         gap: 10,
         padding: '12px 16px',
-        marginBottom: 16,
-        borderRadius: 12,
-        background: bg,
+        borderRadius: 8,
+        background: `color-mix(in srgb, ${color} 10%, white)`,
         color,
         fontSize: 13,
-        border: `1px solid ${color}33`,
+        border: `1px solid color-mix(in srgb, ${color} 40%, white)`,
       }}
     >
       <Icon size={16} style={{ flexShrink: 0, marginTop: 1 }} />
@@ -219,12 +182,12 @@ export default function InsightsTab({ onBadgeChange }) {
   }
 
   return (
-    <div>
+    <div className="flat-stack">
       <div className="page-actions-only">
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <InsightsExportDropdown onExport={handleExport} />
+        <div className="page-header-actions">
+          <ExportDropdown options={EXPORT_OPTIONS} onSelect={({ key, format }) => handleExport(key, format)} />
           {user.role === 'admin' && (
-            <button className="btn btn-secondary" onClick={handleTrain} disabled={training}>
+            <button type="button" className="flat-action-btn" onClick={handleTrain} disabled={training}>
               <RefreshCw size={14} className={training ? 'spin' : ''} /> {training ? 'Training…' : 'Retrain model'}
             </button>
           )}
@@ -233,24 +196,20 @@ export default function InsightsTab({ onBadgeChange }) {
 
       <TrainBanner trainMsg={trainMsg} trainStatus={trainStatus} />
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>How these insights work</div>
-        <p style={{ margin: '6px 0 0', color: 'var(--ink-soft)', fontSize: 13 }}>
+      <div className="flat-card flat-info-card">
+        <div className="flat-info-card__title">How these insights work</div>
+        <p>
           These recommendations are based on real stock movement, expiry dates, and recent transaction patterns. They are meant to highlight what needs attention now, why it matters, and what action to take next.
         </p>
       </div>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)' }}>
+      <div className="ai-assistant-tabs">
         {TABS.map((t) => (
           <button
             key={t.key}
+            type="button"
             onClick={() => setTab(t.key)}
-            className="btn"
-            style={{
-              background: 'none', borderRadius: 0, padding: '10px 4px', marginRight: 20,
-              borderBottom: tab === t.key ? '2px solid var(--primary)' : '2px solid transparent',
-              color: tab === t.key ? 'var(--ink)' : 'var(--steel)', fontWeight: 600
-            }}
+            className={`ai-assistant-tab${tab === t.key ? ' active' : ''}`}
           >
             {t.label}
           </button>
@@ -287,14 +246,14 @@ export default function InsightsTab({ onBadgeChange }) {
                         <td>{d.quantity_remaining}</td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <span className={`status-pill ${riskPill(d.risk_score)}`}>{(d.risk_score * 100).toFixed(0)}% risk</span>
+                            <span className={`flat-status-label ${riskPill(d.risk_score)}`}>{(d.risk_score * 100).toFixed(0)}% risk</span>
                             <span style={{ fontSize: 12, color: 'var(--steel)' }}>{d.insight_label}</span>
                           </div>
                         </td>
                         <td style={{ maxWidth: 280 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                             <span style={{ fontSize: 12, color: 'var(--steel)' }}>{d.insight_message}</span>
-                            <span className={`status-pill ${severityPill(d.insight_severity)}`} style={{ width: 'fit-content' }}>{d.action}</span>
+                            <span className={`flat-status-label ${severityPill(d.insight_severity)}`} style={{ width: 'fit-content' }}>{d.action}</span>
                           </div>
                         </td>
                       </tr>
@@ -333,10 +292,10 @@ export default function InsightsTab({ onBadgeChange }) {
                         <td style={{ fontWeight: 500 }}>{r.medicine_name}</td>
                         <td>{r.current_stock}</td>
                         <td>{r.avg_daily_demand}</td>
-                        <td><span className={`status-pill ${r.days_of_stock_left <= 7 ? 'critical' : 'warning'}`}>{r.days_of_stock_left}d</span></td>
+                        <td><span className={`flat-status-label ${r.days_of_stock_left <= 7 ? 'red' : 'amber'}`}>{r.days_of_stock_left}d</span></td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <span className={`status-pill ${severityPill(r.insight_severity)}`}>{r.insight_label}</span>
+                            <span className={`flat-status-label ${severityPill(r.insight_severity)}`}>{r.insight_label}</span>
                             <span style={{ fontSize: 12, color: 'var(--steel)' }}>{r.insight_message}</span>
                           </div>
                         </td>
@@ -385,14 +344,14 @@ export default function InsightsTab({ onBadgeChange }) {
                         <td>{a.quantity}</td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <span className={`status-pill ${severityPill(a.severity)}`}>{a.insight_label}</span>
+                            <span className={`flat-status-label ${severityPill(a.severity)}`}>{a.insight_label}</span>
                             <span style={{ fontSize: 12, color: 'var(--steel)' }}>Z-score {a.z_score}σ vs typical {a.typical_magnitude}</span>
                           </div>
                         </td>
                         <td style={{ maxWidth: 280 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                             <span style={{ fontSize: 12, color: 'var(--steel)' }}>{a.insight_message}</span>
-                            <span className={`status-pill ${severityPill(a.severity)}`} style={{ width: 'fit-content' }}>{a.action}</span>
+                            <span className={`flat-status-label ${severityPill(a.severity)}`} style={{ width: 'fit-content' }}>{a.action}</span>
                           </div>
                         </td>
                       </tr>

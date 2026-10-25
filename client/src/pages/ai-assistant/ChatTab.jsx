@@ -1,36 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { IconSend, IconRobot, IconUser, IconRefresh, IconSparkles, IconPaperclip, IconX, IconDownload } from '@tabler/icons-react';
+import { IconSend, IconRobot, IconUser, IconRefresh, IconSparkles, IconPaperclip, IconX, IconDownload, IconPlus, IconDeviceFloppy, IconHistory } from '@tabler/icons-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import api from '../../api/axios';
 import { useToast } from '../../context/ToastContext';
 import { downloadBlob } from '../../utils/downloadFile';
-
-// ── Starter prompt button with proper hover state ─────────────────────────────
-function StarterPromptButton({ prompt, onClick }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        padding: '10px 12px',
-        border: `1px solid ${hovered ? 'var(--primary)' : 'var(--border)'}`,
-        borderRadius: 10,
-        background: hovered ? 'var(--bg-hover)' : 'var(--surface)',
-        cursor: 'pointer',
-        fontSize: 12,
-        color: hovered ? 'var(--primary)' : 'var(--ink-soft)',
-        fontWeight: hovered ? 600 : 500,
-        textAlign: 'left',
-        lineHeight: 1.4
-      }}
-    >
-      {prompt}
-    </button>
-  );
-}
 
 const STARTER_PROMPTS = [
   "What's expiring this week?",
@@ -409,6 +383,8 @@ export default function ChatTab() {
       ]);
       setConversationTurn(0);
       setIntention(null);
+      setActiveConvId(null);
+      setPendingImage(null);
       addToast('Conversation cleared', 'success');
     } catch (err) {
       addToast('Failed to clear conversation', 'error');
@@ -470,28 +446,28 @@ export default function ChatTab() {
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-        <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>
+    <div className="flat-stack">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <p className="flat-med-meta" style={{ margin: 0 }}>
           Turn {conversationTurn + 1} {intention && `· Discussing ${intention.replace(/_/g, ' ')}`}
         </p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={startNewConversation} title="Start a fresh conversation">
-            + New
+        <div className="page-header-actions">
+          <button type="button" className="flat-action-btn" onClick={startNewConversation} title="Start a fresh conversation">
+            <IconPlus size={15} /> New
           </button>
-          <button className="btn btn-secondary" onClick={saveCurrentConversation} disabled={loading || messages.length <= 1} title="Save this conversation">
-            💾 Save
+          <button type="button" className="flat-action-btn" onClick={saveCurrentConversation} disabled={loading || messages.length <= 1} title="Save this conversation">
+            <IconDeviceFloppy size={15} /> Save
           </button>
-          <button className="btn btn-secondary" onClick={getHealthReport} disabled={loading}>
-            <IconSparkles size={15} /> Health Report
+          <button type="button" className="flat-action-btn" onClick={getHealthReport} disabled={loading}>
+            <IconSparkles size={15} /> Health report
           </button>
-          <button className="btn btn-secondary" onClick={() => downloadAiReport('pdf')} disabled={loading} title="Export conversation report as PDF">
-            <IconDownload size={15} /> PDF Report
+          <button type="button" className="flat-action-btn" onClick={() => downloadAiReport('pdf')} disabled={loading} title="Export conversation report as PDF">
+            <IconDownload size={15} /> PDF report
           </button>
-          <button className="btn btn-secondary" onClick={() => downloadAiReport('docx')} disabled={loading} title="Export conversation report as Word document">
-            <IconDownload size={15} /> Word Report
+          <button type="button" className="flat-action-btn" onClick={() => downloadAiReport('docx')} disabled={loading} title="Export conversation report as Word document">
+            <IconDownload size={15} /> Word report
           </button>
-          <button className="btn btn-secondary" onClick={clearChat}>
+          <button type="button" className="flat-action-btn" onClick={clearChat}>
             <IconRefresh size={15} /> Clear
           </button>
         </div>
@@ -502,28 +478,25 @@ export default function ChatTab() {
 
         {/* ── Conversation History Sidebar ── */}
         {sidebarOpen && (
-          <div className="ai-chat-sidebar" style={{
+          <div className="flat-card ai-chat-sidebar" style={{
             width: 220, flexShrink: 0,
-            background: 'var(--color-surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
             display: 'flex', flexDirection: 'column',
             height: 'calc(100vh - 210px)', minHeight: 460,
             overflow: 'hidden'
           }}>
-            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 600, fontSize: 13 }}>Conversations</span>
+            <div className="flat-table-header" style={{ padding: '12px 14px' }}>
+              <span className="flat-table-title" style={{ fontSize: 14 }}>Conversations</span>
               <button
                 onClick={() => setSidebarOpen(false)}
                 className="chat-x-btn"
                 aria-label="Hide sidebar"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--steel)', fontSize: 16, lineHeight: 1, padding: 2 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--flat-text-muted)', fontSize: 16, lineHeight: 1, padding: 2 }}
                 title="Hide sidebar"
               >×</button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
               {savedConversations.length === 0 ? (
-                <p style={{ color: 'var(--steel)', fontSize: 12, padding: '8px 4px', textAlign: 'center' }}>No saved conversations yet.<br/>Click 💾 Save after chatting.</p>
+                <p className="flat-med-meta" style={{ fontSize: 12, padding: '8px 4px', textAlign: 'center' }}>No saved conversations yet.<br/>Use Save after chatting.</p>
               ) : (
                 savedConversations.map(conv => (
                   <div
@@ -533,8 +506,8 @@ export default function ChatTab() {
                       padding: '8px 10px',
                       borderRadius: 7,
                       cursor: 'pointer',
-                      background: activeConvId === conv.id ? 'var(--color-primary)' : 'transparent',
-                      color: activeConvId === conv.id ? 'var(--color-primary-foreground)' : 'var(--color-text-primary)',
+                      background: activeConvId === conv.id ? 'var(--flat-accent)' : 'transparent',
+                      color: activeConvId === conv.id ? '#fff' : 'var(--flat-text)',
                       marginBottom: 4,
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -558,7 +531,7 @@ export default function ChatTab() {
                       aria-label="Delete conversation"
                       style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        color: activeConvId === conv.id ? 'color-mix(in srgb, var(--color-primary-foreground) 70%, transparent)' : 'var(--color-text-muted)',
+                        color: activeConvId === conv.id ? 'rgba(255,255,255,0.75)' : 'var(--flat-text-muted)',
                         flexShrink: 0, padding: '2px 4px', fontSize: 14, lineHeight: 1
                       }}
                     >×</button>
@@ -571,18 +544,21 @@ export default function ChatTab() {
 
         {!sidebarOpen && (
           <button
+            type="button"
+            className="flat-action-btn"
             onClick={() => setSidebarOpen(true)}
-            style={{ alignSelf: 'flex-start', marginTop: 4, padding: '8px 10px', background: 'var(--color-surface-elevated)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: 'var(--color-text-muted)', flexShrink: 0 }}
+            style={{ alignSelf: 'flex-start', flexShrink: 0 }}
             title="Show conversation history"
+            aria-label="Show conversation history"
           >
-            📋
+            <IconHistory size={16} />
           </button>
         )}
 
         {/* ── Chat Panel ── */}
         <div className="ai-chat-panel" style={{ flex: 1, minWidth: 0 }}>
 
-      <div className="card ai-chat-card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 210px)', minHeight: 460 }}>
+      <div className="flat-card ai-chat-card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 210px)', minHeight: 460 }}>
         {/* Messages Area */}
         <div className="ai-chat-messages" style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {messages.map((msg, index) => (
@@ -621,7 +597,7 @@ export default function ChatTab() {
                     ? 'var(--bg-error)'
                     : 'var(--color-assistant-bubble)',
                   color: msg.role === 'user' ? 'var(--color-primary-foreground)' : msg.isError ? 'var(--color-error)' : 'var(--color-text-primary)',
-                  border: msg.isError ? '1px solid var(--color-error-border)' : msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
+                  border: msg.isError ? '1px solid var(--color-error-border)' : msg.role === 'assistant' ? '1px solid var(--flat-border)' : 'none',
                   wordWrap: 'break-word',
                   fontSize: 14,
                   lineHeight: 1.5
@@ -686,13 +662,20 @@ export default function ChatTab() {
         {messages.length === 1 && (
         <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 8 }}>
           {STARTER_PROMPTS.map((prompt, idx) => (
-            <StarterPromptButton key={idx} prompt={prompt} onClick={() => handleStarterPrompt(prompt)} />
+            <button
+              key={idx}
+              type="button"
+              className="flat-action-btn ai-starter-prompt"
+              onClick={() => handleStarterPrompt(prompt)}
+            >
+              {prompt}
+            </button>
           ))}
         </div>
       )}
 
         {/* Input Area */}
-        <div style={{ borderTop: '1px solid var(--border)' }}>
+        <div style={{ borderTop: '1px solid var(--flat-border)' }}>
           {/* Image preview strip */}
           {pendingImage && (
             <div style={{ padding: '8px 16px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -700,7 +683,7 @@ export default function ChatTab() {
                 <img
                   src={pendingImage.previewUrl}
                   alt="pending upload"
-                  style={{ height: 56, width: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }}
+                  style={{ height: 56, width: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--flat-border)' }}
                 />
                 <button
                   type="button"
@@ -716,7 +699,7 @@ export default function ChatTab() {
                   <IconX size={11} />
                 </button>
               </div>
-              <span style={{ fontSize: 12, color: 'var(--steel)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--flat-text-muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {pendingImage.fileName}
               </span>
             </div>
@@ -734,21 +717,12 @@ export default function ChatTab() {
             {/* Paperclip button */}
             <button
               type="button"
+              className={pendingImage ? 'flat-btn-primary' : 'flat-action-btn'}
               onClick={() => fileInputRef.current?.click()}
               disabled={loading || streaming}
               title="Attach image"
-              style={{
-                padding: '10px',
-                background: pendingImage ? 'var(--color-primary)' : 'var(--color-surface-elevated)',
-                color: pendingImage ? 'var(--color-primary-foreground)' : 'var(--color-text-muted)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                cursor: loading || streaming ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                flexShrink: 0,
-                opacity: loading || streaming ? 0.5 : 1
-              }}
+              aria-label="Attach image"
+              style={{ flexShrink: 0 }}
             >
               <IconPaperclip size={18} />
             </button>
@@ -761,49 +735,21 @@ export default function ChatTab() {
               disabled={loading || streaming}
               style={{
                 flex: 1,
-                padding: '10px 14px',
-                border: '1px solid var(--border)',
+                height: 40,
+                padding: '0 14px',
+                border: '1px solid var(--flat-border-strong)',
                 borderRadius: 8,
                 fontSize: 14,
-                fontFamily: 'inherit'
+                fontFamily: 'inherit',
+                background: '#fff'
               }}
             />
             {loading || streaming ? (
-              <button
-                type="button"
-                onClick={abortCurrentRequest}
-                style={{
-                  padding: '10px 16px',
-                  background: 'var(--color-error)',
-                  color: 'var(--color-primary-foreground)',
-                  border: 'none',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontWeight: 600
-                }}
-              >
+              <button type="button" className="flat-btn-danger" onClick={abortCurrentRequest}>
                 Stop
               </button>
             ) : (
-              <button
-                type="submit"
-                disabled={!input.trim() && !pendingImage}
-                style={{
-                  padding: '10px 16px',
-                  background: 'var(--color-primary)',
-                  color: 'var(--color-primary-foreground)',
-                  border: 'none',
-                  borderRadius: 8,
-                  cursor: (!input.trim() && !pendingImage) ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  opacity: (!input.trim() && !pendingImage) ? 0.6 : 1
-                }}
-              >
+              <button type="submit" className="flat-btn-primary" disabled={!input.trim() && !pendingImage}>
                 <IconSend size={18} />
                 <span>Send</span>
               </button>

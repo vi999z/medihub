@@ -4,12 +4,14 @@ import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import { useDialog } from '../context/DialogContext';
 
+// `tone` grades how much each action destroys: amber clears history/expired
+// stock, red resets or wipes live data.
 const ACTIONS = [
-  { key: 'transactions', label: 'Clear transaction history', icon: IconHistory, endpoint: '/maintenance/transactions', confirm: 'This will permanently remove all transaction records.' },
-  { key: 'logs', label: 'Clear logs and notifications', icon: IconClock, endpoint: '/maintenance/logs', confirm: 'This will permanently remove all audit logs and notifications.' },
-  { key: 'expired-batches', label: 'Remove expired medicine', icon: IconTrash, endpoint: '/maintenance/expired-batches', confirm: 'This will permanently delete all expired batches.' },
-  { key: 'reset', label: 'Reset pharmacy system', icon: IconRefresh, endpoint: '/maintenance/reset', confirm: 'This will clear expired batches, transactions, logs, and notifications.' },
-  { key: 'wipe', label: 'Wipe all data', icon: IconAlertTriangle, endpoint: '/maintenance/wipe', confirm: 'This will permanently delete all medicines, suppliers, batches, transactions, and AI training history.' },
+  { key: 'transactions', label: 'Clear transaction history', icon: IconHistory, tone: 'amber', endpoint: '/maintenance/transactions', confirm: 'This will permanently remove all transaction records.' },
+  { key: 'logs', label: 'Clear logs and notifications', icon: IconClock, tone: 'amber', endpoint: '/maintenance/logs', confirm: 'This will permanently remove all audit logs and notifications.' },
+  { key: 'expired-batches', label: 'Remove expired medicine', icon: IconTrash, tone: 'amber', endpoint: '/maintenance/expired-batches', confirm: 'This will permanently delete all expired batches.' },
+  { key: 'reset', label: 'Reset pharmacy system', icon: IconRefresh, tone: 'red', endpoint: '/maintenance/reset', confirm: 'This will clear expired batches, transactions, logs, and notifications.' },
+  { key: 'wipe', label: 'Wipe all data', icon: IconAlertTriangle, tone: 'red', endpoint: '/maintenance/wipe', confirm: 'This will permanently delete all medicines, suppliers, batches, transactions, and AI training history.' },
 ];
 
 export default function Maintenance() {
@@ -33,30 +35,37 @@ export default function Maintenance() {
   }
 
   return (
-    <div>
-      <div
-        className="card"
-        style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', padding: 18 }}
-      >
-        {ACTIONS.map((action) => (
-          <button
-            key={action.key}
-            className="card maintenance-action"
-            type="button"
-            onClick={() => runAction(action)}
-            disabled={loading !== null}
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: 22, gap: 12, textAlign: 'left', minHeight: 180 }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <action.icon size={20} stroke={1.8} />
-              <strong>{action.label}</strong>
-            </div>
-            <p style={{ margin: 0, color: 'var(--steel)', fontSize: 14 }}>{action.confirm}</p>
-            <span className="btn btn-secondary" style={{ alignSelf: 'stretch', justifyContent: 'center' }}>
-              {loading === action.key ? 'Working…' : 'Run action'}
-            </span>
-          </button>
-        ))}
+    <div className="flat-dashboard">
+      <div className="flat-card">
+        <div className="flat-table-header">
+          <span className="flat-table-title">Maintenance actions</span>
+          <span className="flat-med-meta">These cannot be undone</span>
+        </div>
+        <div style={{ padding: 16 }}>
+          <div className="flat-card-grid">
+            {ACTIONS.map((action) => (
+              <div key={action.key} className={`flat-card flat-item-card flat-item-card--${action.tone}`} style={{ cursor: 'default' }}>
+                <div className="flat-item-card__top">
+                  <div className="flat-item-icon"><action.icon size={22} stroke={1.8} /></div>
+                  <span className={`flat-status-label ${action.tone}`}>{action.tone === 'red' ? 'Destructive' : 'Cleanup'}</span>
+                </div>
+                <div className="flat-med-name">{action.label}</div>
+                <div className="flat-med-meta" style={{ flex: 1 }}>{action.confirm}</div>
+                <div className="flat-item-card__actions">
+                  <button
+                    type="button"
+                    className={action.tone === 'red' ? 'flat-btn-danger' : 'flat-action-btn'}
+                    style={{ flex: 1, justifyContent: 'center' }}
+                    onClick={() => runAction(action)}
+                    disabled={loading !== null}
+                  >
+                    {loading === action.key ? 'Working…' : 'Run action'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

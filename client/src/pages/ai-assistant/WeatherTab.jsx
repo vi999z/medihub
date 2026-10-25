@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Cloud, CloudRain, Sun, RefreshCw, AlertTriangle, Package,
+  Cloud, CloudRain, Sun, RefreshCw, AlertTriangle, CheckCircle2, Package,
   MapPin, ArrowUp, Info
 } from 'lucide-react';
 import api from '../../api/axios';
@@ -15,21 +15,22 @@ const PH_CITIES = [
   'General Santos,PH', 'Baguio,PH',
 ];
 
+// Same red → amber → orange → green severity ladder as the Batches page.
 const URGENCY_CONFIG = {
-  critical: { label: 'Critical',  className: 'critical', color: 'var(--red)',    bg: 'var(--red-tint)' },
-  high:     { label: 'High',      className: 'warning',  color: 'var(--amber)',  bg: 'var(--amber-tint)' },
-  medium:   { label: 'Medium',    className: 'warning',  color: 'var(--amber)',  bg: '#f5f0e0' },
-  low:      { label: 'Low',       className: 'safe',     color: 'var(--green)',  bg: 'var(--green-tint)' },
+  critical: { label: 'Critical', cls: 'red' },
+  high:     { label: 'High',     cls: 'amber' },
+  medium:   { label: 'Medium',   cls: 'orange' },
+  low:      { label: 'Low',      cls: 'green' },
 };
 
 const CATEGORY_LABEL = {
-  cold_flu:      '🤧 Cold & Flu',
-  cough_cold:    '😷 Cough & Cold',
-  antihistamine: '🌿 Antihistamine',
-  analgesic:     '💊 Pain Relief',
-  antidiarrheal: '🏥 Antidiarrheal',
-  vitamins:      '🌿 Vitamins',
-  electrolytes:  '💧 Electrolytes',
+  cold_flu:      'Cold & Flu',
+  cough_cold:    'Cough & Cold',
+  antihistamine: 'Antihistamine',
+  analgesic:     'Pain Relief',
+  antidiarrheal: 'Antidiarrheal',
+  vitamins:      'Vitamins',
+  electrolytes:  'Electrolytes',
 };
 
 function WeatherIcon({ condition, size = 32, style = {} }) {
@@ -48,9 +49,7 @@ function WeatherIcon({ condition, size = 32, style = {} }) {
 function UrgencyBadge({ urgency }) {
   const cfg = URGENCY_CONFIG[urgency] || URGENCY_CONFIG.low;
   return (
-    <span className={`status-pill ${cfg.className}`} style={{ fontSize: 11, fontWeight: 700 }}>
-      {cfg.label}
-    </span>
+    <span className={`flat-status-label ${cfg.cls}`}>{cfg.label}</span>
   );
 }
 
@@ -59,9 +58,9 @@ function MultiplierBadge({ multiplier }) {
   if (pct <= 0) return null;
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 2,
-      fontSize: 11, fontWeight: 700, color: 'var(--amber)',
-      background: 'var(--amber-tint)', borderRadius: 6, padding: '2px 7px'
+      display: 'inline-flex', alignItems: 'center', gap: 2, alignSelf: 'flex-start',
+      fontSize: 11, fontWeight: 700, color: 'var(--flat-amber)',
+      background: 'color-mix(in srgb, var(--flat-amber) 14%, white)', borderRadius: 6, padding: '2px 7px'
     }}>
       <ArrowUp size={10} /> +{pct}% demand
     </span>
@@ -73,55 +72,37 @@ function MultiplierBadge({ multiplier }) {
 function StatTile({ label, value, unit, sub }) {
   const displayValue = value !== null && value !== undefined ? value : '—';
   return (
-    <div style={{
-      background: '#fff',
-      border: '1px solid #f0f0f0',
-      borderRadius: 16,
-      padding: '18px 20px',
-      flex: '1 1 140px',
-      minWidth: 130,
-    }}>
-      <div style={{ fontSize: 11, color: '#aaa', fontWeight: 600, marginBottom: 10, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-        {label}
-      </div>
+    <div className="flat-card weather-tile">
+      <div className="weather-label">{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-        <span style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>{displayValue}</span>
-        {unit && <span style={{ fontSize: 13, color: '#888', fontWeight: 500 }}>{unit}</span>}
+        <span style={{ fontSize: 28, fontWeight: 700, lineHeight: 1 }}>{displayValue}</span>
+        {unit && <span className="flat-med-meta" style={{ marginTop: 0 }}>{unit}</span>}
       </div>
-      {sub && <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{sub}</div>}
+      {sub && <div className="flat-med-meta" style={{ marginTop: 6 }}>{sub}</div>}
     </div>
   );
 }
 
-function ForecastStrip({ forecast, loading }) {
-  if (loading) return <Skeleton height={88} radius={16} />;
+function ForecastStrip({ forecast }) {
   if (!forecast?.length) return null;
   return (
-    <div style={{
-      background: '#fff',
-      border: '1px solid #f0f0f0',
-      borderRadius: 16,
-      padding: '16px 20px',
-      marginBottom: 20,
-    }}>
-      <div style={{ fontSize: 11, color: '#aaa', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 14 }}>
-        5-Day Forecast
-      </div>
-      <div style={{ display: 'flex', gap: 0 }}>
+    <div className="flat-card" style={{ padding: '16px 20px' }}>
+      <div className="weather-label" style={{ marginBottom: 14 }}>5-Day Forecast</div>
+      <div style={{ display: 'flex' }}>
         {forecast.slice(0, 5).map((day, i) => (
           <div key={i} style={{
             flex: 1, textAlign: 'center', padding: '0 6px',
-            borderRight: i < 4 ? '1px solid #f0f0f0' : 'none',
+            borderRight: i < 4 ? '1px solid var(--flat-border)' : 'none',
           }}>
-            <div style={{ fontSize: 11, color: '#aaa', marginBottom: 8, fontWeight: 600 }}>
+            <div className="weather-label" style={{ marginBottom: 8 }}>
               {new Date(day.date + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'short' }).toUpperCase()}
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
               <WeatherIcon condition={day.dominant_condition} size={22} />
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{day.max_temp_c}°</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{day.max_temp_c}°</div>
             {day.min_temp_c != null && (
-              <div style={{ fontSize: 11, color: '#aaa' }}>{day.min_temp_c}°</div>
+              <div className="flat-med-meta" style={{ marginTop: 0, fontSize: 12 }}>{day.min_temp_c}°</div>
             )}
           </div>
         ))}
@@ -132,10 +113,10 @@ function ForecastStrip({ forecast, loading }) {
 
 function CurrentWeatherCard({ weather, loading }) {
   if (loading) return (
-    <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-      <Skeleton height={180} radius={16} style={{ flex: '0 0 240px' }} />
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <Skeleton height={180} radius={8} style={{ flex: '0 0 220px' }} />
       <div style={{ flex: 1, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        {[1,2,3,4].map(i => <Skeleton key={i} height={100} radius={16} style={{ flex: '1 1 120px' }} />)}
+        {[1,2,3,4].map(i => <Skeleton key={i} height={100} radius={8} style={{ flex: '1 1 120px' }} />)}
       </div>
     </div>
   );
@@ -144,15 +125,12 @@ function CurrentWeatherCard({ weather, loading }) {
   const { condition, current, season, season_description, rainy_days_in_forecast, live_data } = weather;
 
   return (
-    <div style={{ marginBottom: 20 }}>
+    <>
       {/* Top row: hero card + stat tiles */}
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
 
         {/* Hero — big temp + condition */}
-        <div style={{
-          background: '#fff',
-          border: '1px solid #f0f0f0',
-          borderRadius: 16,
+        <div className="flat-card" style={{
           padding: '24px 28px',
           flex: '0 0 220px',
           display: 'flex',
@@ -162,21 +140,17 @@ function CurrentWeatherCard({ weather, loading }) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <WeatherIcon condition={condition} size={44} />
-            {!live_data && (
-              <span style={{ fontSize: 10, color: '#aaa', background: '#f5f5f5', borderRadius: 6, padding: '2px 7px' }}>
-                Seasonal est.
-              </span>
-            )}
+            {!live_data && <span className="flat-tag" style={{ margin: 0 }}>Seasonal est.</span>}
           </div>
           <div>
-            <div style={{ fontSize: 52, fontWeight: 700, color: '#1a1a1a', lineHeight: 1, marginBottom: 4 }}>
+            <div style={{ fontSize: 52, fontWeight: 700, lineHeight: 1, marginBottom: 4 }}>
               {current?.temp_c != null ? `${current.temp_c}°` : '—'}
             </div>
-            <div style={{ fontSize: 13, color: '#888', textTransform: 'capitalize', marginBottom: 6 }}>
+            <div className="flat-med-meta" style={{ textTransform: 'capitalize', marginBottom: 6 }}>
               {current?.description || condition || 'Unknown'}
             </div>
-            <div style={{ fontSize: 11, color: '#aaa', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <MapPin size={11} />
+            <div className="flat-med-meta" style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <MapPin size={12} />
               {weather.location}{weather.country ? `, ${weather.country}` : ''}
             </div>
           </div>
@@ -213,28 +187,21 @@ function CurrentWeatherCard({ weather, loading }) {
       </div>
 
       {/* 5-day forecast strip */}
-      <ForecastStrip forecast={weather.forecast_5day} loading={false} />
-    </div>
+      <ForecastStrip forecast={weather.forecast_5day} />
+    </>
   );
 }
 
 function DemandCategoryBadges({ categories, loading }) {
-  if (loading) return <Skeleton height={44} radius={12} style={{ marginBottom: 16 }} />;
+  if (loading) return <Skeleton height={32} radius={8} />;
   if (!categories?.length) return null;
 
   return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--steel)', alignSelf: 'center' }}>
-        HIGH DEMAND:
-      </span>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      <span className="weather-label" style={{ marginBottom: 0 }}>High demand:</span>
       {categories.map(({ category, multiplier }) => (
-        <span key={category} style={{
-          fontSize: 12, fontWeight: 600,
-          background: 'var(--amber-tint)', color: 'var(--amber)',
-          borderRadius: 8, padding: '4px 10px',
-          border: '1px solid rgba(160,128,80,0.25)',
-        }}>
-          {CATEGORY_LABEL[category] || category} <strong>+{Math.round((multiplier - 1) * 100)}%</strong>
+        <span key={category} className="flat-status-label amber">
+          {CATEGORY_LABEL[category] || category} +{Math.round((multiplier - 1) * 100)}%
         </span>
       ))}
     </div>
@@ -246,31 +213,31 @@ function RecommendationRow({ rec }) {
 
   return (
     <tr key={rec.medicine_id}>
-      <td style={{ fontWeight: 600, fontSize: 13 }}>
-        <div>{rec.medicine_name}</div>
-        <div style={{ fontSize: 11, color: 'var(--steel)', marginTop: 2 }}>
+      <td>
+        <div className="flat-med-name">{rec.medicine_name}</div>
+        <div className="flat-med-meta">
           {CATEGORY_LABEL[rec.demand_category] || rec.demand_category}
         </div>
       </td>
       <td>
         <div style={{ fontWeight: 700 }}>{rec.current_stock}</div>
-        <div style={{ fontSize: 11, color: 'var(--steel)' }}>
+        <div className="flat-med-meta">
           reorder @ {rec.reorder_level}
         </div>
       </td>
       <td>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <span style={{ fontSize: 12, color: 'var(--steel)' }}>
+          <span className="flat-med-meta" style={{ marginTop: 0 }}>
             Normal: {rec.daily_velocity_normal}/day
           </span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--amber)' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--flat-amber)' }}>
             Adjusted: {rec.daily_velocity_weather_adjusted}/day
           </span>
           <MultiplierBadge multiplier={rec.weather_demand_multiplier} />
         </div>
       </td>
       <td>
-        <span className={`status-pill ${rec.days_of_stock_at_adjusted_demand <= 7 ? 'critical' : rec.days_of_stock_at_adjusted_demand <= 14 ? 'warning' : 'safe'}`}>
+        <span className={`flat-status-label ${rec.days_of_stock_at_adjusted_demand <= 7 ? 'red' : rec.days_of_stock_at_adjusted_demand <= 14 ? 'amber' : 'green'}`}>
           {rec.days_of_stock_at_adjusted_demand}d
         </span>
       </td>
@@ -287,7 +254,7 @@ function RecommendationRow({ rec }) {
           onClick={() => setExpanded(e => !e)}
           style={{
             background: 'none', border: 'none', padding: 0,
-            fontSize: 11, color: 'var(--steel)', cursor: 'pointer',
+            fontSize: 12, color: 'var(--flat-accent)', cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 3, marginTop: 4,
           }}
         >
@@ -296,8 +263,8 @@ function RecommendationRow({ rec }) {
         </button>
         {expanded && (
           <div style={{
-            fontSize: 11, color: 'var(--ink-soft)', marginTop: 4,
-            background: 'var(--bg-subtle)', borderRadius: 6, padding: '6px 8px',
+            fontSize: 12, color: 'var(--flat-text-muted)', marginTop: 4,
+            background: 'var(--flat-bg)', borderRadius: 6, padding: '6px 8px',
             maxWidth: 240, lineHeight: 1.4,
           }}>
             {rec.weather_reason}
@@ -309,62 +276,44 @@ function RecommendationRow({ rec }) {
 }
 
 function SummaryBanner({ data, loading }) {
-  if (loading) return <Skeleton height={80} radius={14} style={{ marginBottom: 20 }} />;
+  if (loading) return <Skeleton height={72} radius={8} />;
   if (!data) return null;
 
   const { critical_count, high_count, total_items_flagged } = data;
 
   if (total_items_flagged === 0) {
     return (
-      <div className="card" style={{
-        padding: '14px 20px', marginBottom: 20,
-        background: 'var(--green-tint)', borderLeft: '4px solid var(--green)'
-      }}>
-        <div style={{ fontWeight: 700, color: 'var(--green)', fontSize: 13 }}>
-          ✅ Stock levels look good for current weather conditions
+      <div className="flat-card flat-banner flat-banner--green">
+        <div className="flat-banner__title">
+          <CheckCircle2 size={16} /> Stock levels look good for current weather conditions
         </div>
-        <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>
-          No medicines are flagged for weather-driven restocking at this time. Check back during season transitions or after severe weather events.
-        </div>
+        <p>No medicines are flagged for weather-driven restocking at this time. Check back during season transitions or after severe weather events.</p>
       </div>
     );
   }
 
+  const tone = critical_count > 0 ? 'red' : 'amber';
   return (
-    <div className="card" style={{
-      padding: '14px 20px', marginBottom: 20,
-      background: critical_count > 0 ? 'var(--red-tint)' : 'var(--amber-tint)',
-      borderLeft: `4px solid ${critical_count > 0 ? 'var(--red)' : 'var(--amber)'}`
-    }}>
-      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+    <div className={`flat-card flat-banner flat-banner--${tone}`}>
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontWeight: 800, fontSize: 15, color: critical_count > 0 ? 'var(--red)' : 'var(--amber)' }}>
-            <AlertTriangle size={16} style={{ verticalAlign: 'middle', marginRight: 5 }} />
+          <div className="flat-banner__title">
+            <AlertTriangle size={16} />
             {total_items_flagged} medicine{total_items_flagged > 1 ? 's' : ''} need weather-driven restocking
           </div>
-          <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>
-            Based on current weather conditions and Philippine seasonal demand patterns
-          </div>
+          <p>Based on current weather conditions and Philippine seasonal demand patterns</p>
         </div>
-        <div style={{ display: 'flex', gap: 16 }}>
-          {critical_count > 0 && (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--red)' }}>{critical_count}</div>
-              <div style={{ fontSize: 11, color: 'var(--steel)' }}>Critical</div>
+        <div style={{ display: 'flex', gap: 20 }}>
+          {[
+            { label: 'Critical', value: critical_count, color: 'var(--flat-red)' },
+            { label: 'High', value: high_count, color: 'var(--flat-amber)' },
+            { label: 'Medium/Low', value: total_items_flagged - critical_count - high_count, color: 'var(--flat-text)' },
+          ].filter((stat) => stat.value > 0 || stat.label === 'Medium/Low').map((stat) => (
+            <div key={stat.label} style={{ textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, fontSize: 20, color: stat.color }}>{stat.value}</div>
+              <div className="flat-med-meta" style={{ marginTop: 0, fontSize: 12 }}>{stat.label}</div>
             </div>
-          )}
-          {high_count > 0 && (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--amber)' }}>{high_count}</div>
-              <div style={{ fontSize: 11, color: 'var(--steel)' }}>High</div>
-            </div>
-          )}
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--ink)' }}>
-              {total_items_flagged - critical_count - high_count}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--steel)' }}>Medium/Low</div>
-          </div>
+          ))}
         </div>
       </div>
     </div>
@@ -378,7 +327,6 @@ export default function WeatherTab({ onBadgeChange }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [city, setCity] = useState('Lucena City,PH');
-  const [cityInput, setCityInput] = useState('Lucena City,PH');
   const [urgencyFilter, setUrgencyFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
@@ -402,12 +350,6 @@ export default function WeatherTab({ onBadgeChange }) {
     onBadgeChange?.(data?.total_items_flagged ?? 0);
   }, [data, onBadgeChange]);
 
-  function handleCityChange(e) {
-    const val = e.target.value;
-    setCityInput(val);
-    setCity(val);
-  }
-
   const recommendations = data?.recommendations || [];
   const filtered = recommendations.filter(r => {
     if (urgencyFilter !== 'all' && r.urgency !== urgencyFilter) return false;
@@ -418,32 +360,24 @@ export default function WeatherTab({ onBadgeChange }) {
   const allCategories = [...new Set(recommendations.map(r => r.demand_category))];
 
   return (
-    <div>
+    <div className="flat-stack">
       {/* Local action row: city picker + refresh */}
       <div className="page-actions-only">
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div className="filter-search" style={{ flex: '0 0 220px' }}>
-            <MapPin size={14} className="filter-search-icon" />
-            <select
-              value={cityInput}
-              onChange={handleCityChange}
-              style={{
-                background: 'none', border: 'none', outline: 'none',
-                fontSize: 13, color: 'var(--ink)', width: '100%', cursor: 'pointer',
-                paddingLeft: 22,
-              }}
-            >
+        <div className="page-header-actions">
+          <div className="field filter-select" style={{ minWidth: 200 }}>
+            <select value={city} onChange={(e) => setCity(e.target.value)} aria-label="City">
               {PH_CITIES.map(c => (
                 <option key={c} value={c}>{c.replace(',PH', '').replace(',', ', ')}</option>
               ))}
             </select>
           </div>
           <button
-            className="btn btn-secondary"
+            type="button"
+            className="flat-action-btn"
             onClick={() => fetchData(city)}
             disabled={loading}
           >
-            <RefreshCw size={14} className={loading ? 'spin' : ''} />
+            <RefreshCw size={15} className={loading ? 'spin' : ''} />
             {loading ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
@@ -459,26 +393,23 @@ export default function WeatherTab({ onBadgeChange }) {
       <DemandCategoryBadges categories={data?.high_demand_categories} loading={loading} />
 
       {/* How it works info */}
-      <div className="card" style={{ padding: '12px 18px', marginBottom: 20 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          How weather recommendations work
-        </div>
-        <p style={{ margin: '5px 0 0', color: 'var(--ink-soft)', fontSize: 12, lineHeight: 1.6 }}>
+      <div className="flat-card flat-info-card">
+        <div className="flat-info-card__title">How weather recommendations work</div>
+        <p>
           Demand multipliers are calculated by combining <strong>current weather conditions</strong> (live via OpenWeatherMap)
           with <strong>Philippine seasonal baselines</strong> (PAGASA climate data). Your actual stock velocity is adjusted
           by these multipliers to compute weather-adjusted days of supply, triggering restocking alerts before seasonal
-          demand peaks. Common examples: <em>Biogesic, Neozep, Bioflu</em> spike during rainy months (June–November);
+          demand peaks. Common examples: <em>Biogesic, Neozep, Bioflu</em> spike during rainy months (June–November);{' '}
           <em>Cetirizine, Loratadine</em> spike during dry/hazy season (March–May).
         </p>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-          <div className="empty-state">
-            <strong>Unable to load recommendations</strong>
-            <p style={{ margin: '6px 0 0' }}>{error}</p>
-            <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={() => fetchData(city)}>Retry</button>
+        <div className="flat-card flat-empty">
+          Unable to load recommendations — {error}
+          <div style={{ marginTop: 10 }}>
+            <button type="button" className="flat-action-btn" onClick={() => fetchData(city)}>Retry</button>
           </div>
         </div>
       )}
@@ -490,38 +421,28 @@ export default function WeatherTab({ onBadgeChange }) {
           <div className="flat-table-header" style={{ gap: 10, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
             <span className="flat-table-title" style={{ marginRight: 8 }}>Weather restock</span>
             {/* Urgency filter */}
-            <div style={{ display: 'flex', gap: 4 }}>
-              {['all', 'critical', 'high', 'medium'].map(u => (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {['all', 'critical', 'high', 'medium', 'low'].map(u => (
                 <button
                   key={u}
+                  type="button"
+                  className={`chip${urgencyFilter === u ? ' active' : ''}`}
                   onClick={() => setUrgencyFilter(u)}
-                  style={{
-                    fontSize: 11, fontWeight: 600, borderRadius: 6, padding: '3px 10px',
-                    border: '1px solid var(--border)', cursor: 'pointer',
-                    background: urgencyFilter === u ? 'var(--ink)' : 'var(--surface)',
-                    color: urgencyFilter === u ? '#fff' : 'var(--ink)',
-                  }}
                 >
-                  {u === 'all' ? 'All urgencies' : u.charAt(0).toUpperCase() + u.slice(1)}
+                  {u === 'all' ? 'All urgencies' : URGENCY_CONFIG[u].label}
                 </button>
               ))}
             </div>
             {/* Category filter */}
             {allCategories.length > 0 && (
-              <select
-                value={categoryFilter}
-                onChange={e => setCategoryFilter(e.target.value)}
-                style={{
-                  fontSize: 12, padding: '4px 10px', borderRadius: 6,
-                  border: '1px solid var(--border)', background: 'var(--surface)',
-                  color: 'var(--ink)', cursor: 'pointer',
-                }}
-              >
-                <option value="all">All categories</option>
-                {allCategories.map(c => (
-                  <option key={c} value={c}>{CATEGORY_LABEL[c] || c}</option>
-                ))}
-              </select>
+              <div className="field filter-select">
+                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} aria-label="Filter by category">
+                  <option value="all">All categories</option>
+                  {allCategories.map(c => (
+                    <option key={c} value={c}>{CATEGORY_LABEL[c] || c}</option>
+                  ))}
+                </select>
+              </div>
             )}
             <span className="flat-med-meta" style={{ marginLeft: 'auto', marginTop: 0 }}>
               {loading ? '…' : `${filtered.length} item${filtered.length !== 1 ? 's' : ''}`}
@@ -569,7 +490,7 @@ export default function WeatherTab({ onBadgeChange }) {
             </table>
           </div>
 
-          <div style={{ padding: '10px 20px 14px', fontSize: 12, color: 'var(--flat-text-muted)', borderTop: '2px solid #F2C94C' }}>
+          <div className="flat-med-meta" style={{ margin: 0, padding: '10px 20px 14px', fontSize: 12, borderTop: '2px solid #F2C94C' }}>
             * Days of stock calculated using <em>weather-adjusted</em> daily demand velocity.
             {!data?.weather?.live_data && ' Live weather unavailable — using Philippine seasonal estimates.'}
           </div>

@@ -22,7 +22,7 @@ const emptyForm = {
 // (inconsistent) validation. `lockedMedicine` keeps the medicine-detail
 // use case's UX (medicine implied, not pickable); `editingBatch` switches
 // this from "receive new stock" to "edit an existing batch".
-export default function ReceiveStockModal({ isOpen, onClose, medicines, suppliers, lockedMedicine, editingBatch, onSubmit, error, setError }) {
+export default function ReceiveStockModal({ isOpen, onClose, medicines, suppliers, lockedMedicine, editingBatch, initialBatchNumber = '', onSubmit, error, setError }) {
   const [form, setForm] = useState(emptyForm);
   const [localError, setLocalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -46,9 +46,9 @@ export default function ReceiveStockModal({ isOpen, onClose, medicines, supplier
         status: editingBatch.status || 'active'
       });
     } else {
-      setForm({ ...emptyForm, medicine_id: lockedMedicine?.id || '' });
+      setForm({ ...emptyForm, medicine_id: lockedMedicine?.id || '', batch_number: initialBatchNumber });
     }
-  }, [isOpen, editingBatch, lockedMedicine]);
+  }, [isOpen, editingBatch, lockedMedicine, initialBatchNumber]);
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -174,8 +174,8 @@ export default function ReceiveStockModal({ isOpen, onClose, medicines, supplier
 
         {displayError && <p className="error-text" style={{ marginBottom: 0 }}>{displayError}</p>}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
+          <button type="button" className="flat-action-btn" onClick={onClose}>Cancel</button>
+          <button type="submit" className="flat-btn-primary" disabled={submitting}>
             {submitting ? 'Saving...' : isEditing ? 'Update batch' : 'Receive stock'}
           </button>
         </div>

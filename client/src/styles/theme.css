@@ -497,6 +497,12 @@ input, select, textarea { font-family: var(--font-body); }
 }
 .ai-assistant-tab:hover { color: var(--ink); }
 .ai-assistant-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+/* Inside the flat shell the tab strips (top-level and Insights' sub-tabs)
+   pick up the flat accent; the shell's own gap handles spacing. */
+.flat-dashboard .ai-assistant-tabs { margin-bottom: 0; border-bottom-color: var(--flat-border-strong); }
+.flat-dashboard .ai-assistant-tab { color: var(--flat-text-muted); }
+.flat-dashboard .ai-assistant-tab:hover { color: var(--flat-text); }
+.flat-dashboard .ai-assistant-tab.active { color: var(--flat-accent); border-bottom-color: var(--flat-accent); }
 .ai-assistant-tab-badge {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 17px; height: 17px; padding: 0 5px; border-radius: 999px;
@@ -514,26 +520,6 @@ input, select, textarea { font-family: var(--font-body); }
 .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; }
 .section-title h3 { font-size: 0.95rem; }
 
-
-/* Full-card status colors for administration cards.
-   Status colors fill the card instead of appearing only as a top accent strip. */
-.audit-card.audit-card--safe { background: var(--color-success-bg); border-color: var(--color-success-border); }
-.audit-card.audit-card--warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); }
-.audit-card.audit-card--critical { background: var(--color-error-bg); border-color: var(--color-error-border); }
-.audit-card.audit-card--info { background: var(--color-info-bg); border-color: var(--color-info-border); }
-.audit-card.audit-card--neutral { background: var(--color-surface-muted); border-color: var(--color-border-strong); }
-.audit-card.audit-card--safe:hover { border-color: var(--color-success); }
-.audit-card.audit-card--warning:hover { border-color: var(--color-warning); }
-.audit-card.audit-card--critical:hover { border-color: var(--color-error); }
-.audit-card.audit-card--info:hover { border-color: var(--color-info); }
-.audit-card.audit-card--neutral:hover { border-color: var(--color-border-strong); }
-
-.user-card.user-card--active,
-.supplier-card.supplier-card--active { background: var(--color-success-bg); border-color: var(--color-success-border); }
-.user-card.user-card--inactive { background: var(--color-error-bg); border-color: var(--color-error-border); }
-.user-card.user-card--active:hover,
-.supplier-card.supplier-card--active:hover { border-color: var(--color-success); }
-.user-card.user-card--inactive:hover { border-color: var(--color-error); }
 
 .card {
   background: var(--color-surface); border: 1px solid var(--border); border-radius: 8px;
@@ -643,7 +629,6 @@ input, select, textarea { font-family: var(--font-body); }
 }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; padding: 40px 20px; border-radius: 14px; color: var(--steel); background: transparent; text-align: center; }
-.compact-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 180px; padding: 28px 20px; }
 .empty-row td { background: var(--surface); }
 
 .filter-tile { text-align: left; border: 1px solid var(--border); cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
@@ -681,70 +666,6 @@ input, select, textarea { font-family: var(--font-body); }
 .table-wrapper::-webkit-scrollbar { height: 8px; }
 .table-wrapper::-webkit-scrollbar-thumb { background: var(--steel); border-radius: 999px; opacity: 0.3; }
 .table-wrapper::-webkit-scrollbar-thumb:hover { opacity: 0.5; }
-
-.transaction-card,
-.alert-card {
-  gap: 18px;
-  min-height: 350px;
-  padding: 22px;
-  border: 1.5px solid var(--color-border-strong);
-  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-/* Transaction/alert status colors fill the complete card. */
-.transaction-card.safe,
-.alert-card.safe { background: var(--color-success-bg); border-color: var(--color-success-border); }
-.transaction-card.warning,
-.alert-card.warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); }
-.transaction-card.critical,
-.alert-card.critical { background: var(--color-error-bg); border-color: var(--color-error-border); }
-.transaction-card.safe:hover,
-.alert-card.safe:hover { border-color: var(--color-success); }
-.transaction-card.warning:hover,
-.alert-card.warning:hover { border-color: var(--color-warning); }
-.transaction-card.critical:hover,
-.alert-card.critical:hover { border-color: var(--color-error); }
-.transaction-card__top-row,
-.alert-card__top-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.transaction-card__id { font-size: 15px; color: var(--color-text-primary); }
-.transaction-card__type,
-.alert-card__severity { min-height: 36px; padding: 6px 10px; font-size: 15px; }
-.transaction-card__type svg,
-.alert-card__severity svg { flex: 0 0 auto; }
-.transaction-card__content,
-.alert-card__content { flex: 1; display: flex; flex-direction: column; gap: 14px; }
-.transaction-card__name { color: var(--color-text-primary); font-size: 20px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
-.transaction-card__details { color: var(--color-text-primary); font-size: 16px; line-height: 1.45; }
-.transaction-card__batch { color: var(--color-text-primary); font-size: 15px; }
-.transaction-card__stats { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.transaction-card__label { color: var(--color-text-primary); font-size: 15px; font-weight: 700; line-height: 1.35; }
-.transaction-card__value { color: var(--color-text-primary); font-size: 16px; font-weight: 600; line-height: 1.45; }
-.transaction-card__quantity { font-size: 20px; font-weight: 700; line-height: 1.35; }
-.transaction-card__quantity.increase { color: var(--color-success); }
-.transaction-card__quantity.decrease { color: var(--color-error); }
-.transaction-card__reason { padding-top: 14px; border-top: 1.5px solid var(--color-border-strong); color: var(--color-text-primary); font-size: 15px; line-height: 1.45; }
-.transaction-card__reason span { font-weight: 600; }
-.transaction-card__avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--color-primary); color: var(--color-primary-foreground); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0; }
-.transaction-card__user { color: var(--color-text-primary); font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.transaction-card__time { color: var(--color-text-primary); font-size: 15px; white-space: nowrap; margin-left: 8px; }
-.alert-card__type { color: var(--color-text-primary); font-size: 15px; font-weight: 600; text-align: right; }
-.alert-card__message { margin: 0; color: var(--color-text-primary); font-size: 17px; line-height: 1.55; word-break: break-word; }
-.alert-card__bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.alert-card__date-group { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.alert-card__icon { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.alert-card__icon.critical { background: var(--color-error); color: var(--color-primary-foreground); }
-.alert-card__icon.warning { background: var(--color-secondary); color: var(--color-secondary-foreground); }
-.alert-card__icon.safe { background: var(--color-success); color: var(--color-primary-foreground); }
-.alert-card__date { color: var(--color-text-primary); font-size: 15px; }
-.alert-card__read { color: var(--color-text-primary); font-size: 15px; font-style: italic; }
-
-@media (max-width: 600px) {
-  .transaction-card,
-  .alert-card { padding: 20px; }
-  .transaction-card__stats { grid-template-columns: 1fr; gap: 12px; }
-  .alert-card__top-row,
-  .alert-card__bottom-row { align-items: flex-start; flex-direction: column; }
-  .alert-card__type { text-align: left; }
-}
 
 .notification-table { width: 100%; table-layout: fixed; }
 .notification-table th:nth-child(2) { width: 40%; }
@@ -1293,6 +1214,47 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-action-btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 .flat-action-btn:disabled:hover { background: var(--flat-bg); border-color: var(--flat-border-strong); color: var(--flat-text); box-shadow: none; }
 
+/* A nested column that spaces its children like the .flat-dashboard shell
+   does — for page sections (e.g. AI Assistant tabs) rendered inside it. */
+.flat-stack { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+/* "How this works" explainer card */
+.flat-info-card { padding: 16px 20px; }
+.flat-info-card__title { font-size: 12px; font-weight: 700; color: var(--flat-accent); text-transform: uppercase; letter-spacing: 0.08em; }
+.flat-info-card p { margin: 6px 0 0; color: var(--flat-text-muted); font-size: 13px; line-height: 1.6; }
+
+/* AI Chat starter prompts: flat buttons that wrap like cards */
+.flat-action-btn.ai-starter-prompt { height: auto; min-height: 40px; padding: 10px 12px; justify-content: flex-start; text-align: left; line-height: 1.4; font-size: 13px; white-space: normal; }
+
+/* Tinted status banner (e.g. Weather Restock summary) */
+.flat-banner { padding: 14px 20px; border-left-width: 4px; }
+.flat-banner__title { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; }
+.flat-banner p { margin: 4px 0 0; font-size: 13px; color: var(--flat-text-muted); }
+.flat-banner--green { background: color-mix(in srgb, var(--flat-green) 9%, white); border-color: color-mix(in srgb, var(--flat-green) 45%, white); border-left-color: var(--flat-green); }
+.flat-banner--green .flat-banner__title { color: var(--flat-green); }
+.flat-banner--amber { background: color-mix(in srgb, var(--flat-amber) 10%, white); border-color: color-mix(in srgb, var(--flat-amber) 45%, white); border-left-color: var(--flat-amber); }
+.flat-banner--amber .flat-banner__title { color: var(--flat-amber); }
+.flat-banner--red { background: color-mix(in srgb, var(--flat-red) 9%, white); border-color: color-mix(in srgb, var(--flat-red) 45%, white); border-left-color: var(--flat-red); }
+.flat-banner--red .flat-banner__title { color: var(--flat-red); }
+
+/* Weather Restock tiles */
+.weather-tile { padding: 18px 20px; flex: 1 1 140px; min-width: 130px; }
+.weather-label { font-size: 12px; font-weight: 600; color: var(--flat-text-muted); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 10px; }
+
+/* Dropdown menu opened from a flat button (see components/ExportDropdown.jsx) */
+.flat-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; min-width: 230px; z-index: 50;
+  background: #fff; border: 1px solid var(--flat-border); border-radius: 8px; padding: 6px 0;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+.flat-menu__divider { margin: 4px 0; border: none; border-top: 1px solid var(--flat-border); }
+.flat-menu__item {
+  display: block; width: 100%; text-align: left; padding: 9px 16px;
+  background: none; border: none; cursor: pointer; font-size: 13px; color: var(--flat-text);
+  transition: background 0.12s ease;
+}
+.flat-menu__item:hover, .flat-menu__item:focus-visible { background: var(--flat-bg); outline: none; }
+
 .flat-btn-primary {
   height: 40px; padding: 0 16px; border: 1px solid var(--flat-accent);
   background: var(--flat-accent); border-radius: 8px; font-size: 14px; font-weight: 600;
@@ -1303,6 +1265,8 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-btn-primary:hover { background: #B84A28; border-color: #B84A28; box-shadow: var(--flat-shadow-primary-hover); }
 .flat-btn-primary:active { background: #A1401F; border-color: #A1401F; box-shadow: var(--flat-shadow-primary-active); transform: translateY(1.5px); }
 .flat-btn-primary:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: 2px; }
+.flat-btn-primary:disabled,
+.flat-btn-primary:disabled:hover { opacity: 0.5; cursor: not-allowed; background: var(--flat-accent); border-color: var(--flat-accent); box-shadow: none; transform: none; }
 
 .flat-btn-danger {
   height: 40px; padding: 0 16px; border: 1px solid var(--flat-red);
@@ -1314,22 +1278,26 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-btn-danger:hover { background: color-mix(in srgb, var(--flat-red) 85%, black); border-color: color-mix(in srgb, var(--flat-red) 85%, black); box-shadow: var(--flat-shadow-hover); }
 .flat-btn-danger:active { box-shadow: var(--flat-shadow-active); transform: translateY(1.5px); }
 .flat-btn-danger:focus-visible { outline: 2px solid var(--flat-red); outline-offset: 2px; }
+.flat-btn-danger:disabled,
+.flat-btn-danger:disabled:hover { opacity: 0.5; cursor: not-allowed; background: var(--flat-red); border-color: var(--flat-red); box-shadow: none; transform: none; }
 
-/* In-app replacement for window.confirm()/alert() — see DialogContext.jsx */
-/* This modal is used app-wide (DialogContext.jsx), not just from pages
-   nested under .flat-dashboard, but its buttons (.flat-action-btn,
+/* Modals can be mounted outside any .flat-dashboard (the topbar Help modal,
+   DialogContext's confirm()/alert()), but their buttons (.flat-action-btn,
    .flat-btn-primary, .flat-btn-danger) read their colors from tokens that
    are deliberately scoped to .flat-dashboard only (see the comment above
-   it). Re-declaring the handful this modal actually needs here means those
-   buttons still resolve correctly by normal CSS inheritance, wherever the
-   modal is mounted, without leaking these tokens app-wide. */
-.modal-content.confirm-modal {
-  max-width: 400px;
+   it). Re-declaring them on every modal means those buttons resolve by
+   normal CSS inheritance wherever the modal is mounted, without leaking
+   these tokens app-wide. */
+.modal-content.confirm-modal { max-width: 400px; }
+.modal-content {
   --flat-accent: #D85A30;
   --flat-bg: #F5F5F5;
   --flat-border: #E0E0E0;
   --flat-border-strong: #C4C4C4;
   --flat-red: #DC2626;
+  --flat-amber: #D97706;
+  --flat-orange: #EA580C;
+  --flat-green: #16A34A;
   --flat-text: #1A1A1A;
   --flat-text-muted: #6B6B6B;
   --flat-shadow: 0 2px 0 var(--flat-border-strong), 0 3px 6px rgba(0, 0, 0, 0.14);

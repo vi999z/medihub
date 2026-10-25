@@ -1,63 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCheck, RefreshCw, BellRing, Search, X, AlertTriangle, Info, Download, ChevronDown } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { CheckCheck, RefreshCw, Search, X, AlertTriangle, Info } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
-import Skeleton from '../components/Skeleton';
-
-// ── Alerts export dropdown ────────────────────────────────────────────────────
-function AlertsExportDropdown({ onExport }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
-
-  const OPTIONS = [
-    { label: 'All alerts (Excel)', severity: null, format: 'excel' },
-    { label: 'Critical only (Excel)', severity: 'critical', format: 'excel' },
-    { label: 'Warnings only (Excel)', severity: 'warning', format: 'excel' },
-    null,
-    { label: 'All alerts (PDF)', severity: null, format: 'pdf' },
-    { label: 'Critical alerts (PDF)', severity: 'critical', format: 'pdf' },
-    { label: 'All alerts (Word)', severity: null, format: 'docx' },
-  ];
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button className="btn btn-secondary" onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Download size={15} /> Export <ChevronDown size={13} />
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 220,
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 12, boxShadow: 'var(--shadow-xl)', zIndex: 50, padding: '6px 0'
-        }}>
-          {OPTIONS.map((opt, idx) => opt === null ? (
-            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
-          ) : (
-            <button
-              key={idx}
-              onClick={() => { onExport(opt.severity, opt.format); setOpen(false); }}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--ink)', transition: 'background 0.12s ease' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >{opt.label}</button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+import ExportDropdown from '../components/ExportDropdown';
+import { downloadBlob } from '../utils/downloadFile';
+import { NOTIFICATIONS_CHANGED_EVENT } from '../utils/events';
 
 const UNREAD_URL = '/notifications?unread=true';
 
+const EXPORT_OPTIONS = [
+  { label: 'All alerts (Excel)', severity: null, format: 'excel' },
+  { label: 'Critical only (Excel)', severity: 'critical', format: 'excel' },
+  { label: 'Warnings only (Excel)', severity: 'warning', format: 'excel' },
+  null,
+  { label: 'All alerts (PDF)', severity: null, format: 'pdf' },
+  { label: 'Critical alerts (PDF)', severity: 'critical', format: 'pdf' },
+  { label: 'All alerts (Word)', severity: null, format: 'docx' },
+];
+
+// Maps alert severity onto the flat design system's palette.
 function severityConfig(sev) {
-  if (sev === 'critical') return { cls: 'critical', icon: AlertTriangle, borderColor: 'var(--red)' };
-  if (sev === 'warning')  return { cls: 'warning',  icon: AlertTriangle, borderColor: 'var(--gold)' };
-  return                         { cls: 'safe',     icon: Info,          borderColor: 'var(--green)' };
+  if (sev === 'critical') return { cls: 'red', Icon: AlertTriangle, label: 'Critical' };
+  if (sev === 'warning') return { cls: 'amber', Icon: AlertTriangle, label: 'Warning' };
+  return { cls: 'green', Icon: Info, label: 'Info' };
 }
 
 function typeLabel(type) {
@@ -75,7 +40,7 @@ export default function Notifications() {
   async function fetchAll() {
     try {
       const res = await api.cachedGet('/notifications');
-      setNotifications(res.data);
+      setNotifications(res.data || []);
       setError('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load alerts');
@@ -99,9 +64,16 @@ export default function Notifications() {
 
   const filtersActive = Boolean(search) || unreadOnly;
 
+  function clearFilters() {
+    setSearch('');
+    setUnreadOnly(false);
+  }
+
   function refreshCaches() {
     api.invalidateCache('/notifications');
     api.invalidateCache(UNREAD_URL);
+    // Keeps the topbar bell's unread dot in sync without a page change.
+    window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT));
   }
 
   async function markRead(id) {
@@ -126,7 +98,6 @@ export default function Notifications() {
   }
 
   async function handleRefresh() {
-    setLoading(true);
     refreshCaches();
     await fetchAll();
     addToast('Alerts refreshed', 'success');
@@ -139,14 +110,7 @@ export default function Notifications() {
       const res = await api.get(`/reports/export/notifications?${params}`, { responseType: 'blob' });
       const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
       const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `alerts${severity ? `_${severity}` : ''}_${new Date().toISOString().slice(0, 10)}.${ext}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, `alerts${severity ? `_${severity}` : ''}_${new Date().toISOString().slice(0, 10)}.${ext}`);
       addToast('Alerts exported', 'success');
     } catch (err) {
       addToast('Export failed', 'error');
@@ -154,146 +118,113 @@ export default function Notifications() {
   }
 
   return (
-    <div>
+    <div className="flat-dashboard">
       <div className="page-actions-only">
         <div className="page-header-actions">
-          <AlertsExportDropdown onExport={handleExport} />
-          <button className="btn btn-secondary" onClick={handleRefresh}>
+          <ExportDropdown options={EXPORT_OPTIONS} onSelect={({ severity, format }) => handleExport(severity, format)} />
+          <button type="button" className="flat-action-btn" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
-          <button className="btn btn-secondary" onClick={markAllRead} disabled={unreadCount === 0}>
+          <button type="button" className="flat-btn-primary" onClick={markAllRead} disabled={unreadCount === 0}>
             <CheckCheck size={15} /> Mark all read
           </button>
         </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="filter-bar">
-        <div className="filter-search">
-          <Search size={15} className="filter-search-icon" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search alert message or type…"
-            aria-label="Search alerts"
-          />
-          {search && (
-            <button type="button" className="btn-icon filter-search-clear" onClick={() => setSearch('')} title="Clear search">
-              <X size={14} />
+      <div className="flat-card" style={{ padding: 16 }}>
+        <div className="filter-bar" style={{ margin: 0, background: 'none', border: 'none', padding: 0 }}>
+          <div className="filter-search">
+            <Search size={15} className="filter-search-icon" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search alert message or type…"
+              aria-label="Search alerts"
+            />
+            {search && (
+              <button type="button" className="btn-icon filter-search-clear" onClick={() => setSearch('')} title="Clear search">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <label className="filter-toggle">
+            <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />
+            Unread only
+          </label>
+          {filtersActive && (
+            <button type="button" className="flat-action-btn" onClick={clearFilters}>
+              <X size={15} /> Clear filters
             </button>
           )}
         </div>
-        <label className="filter-toggle">
-          <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />
-          Unread only
-        </label>
-        {filtersActive && (
-          <button type="button" className="btn btn-secondary" onClick={() => { setSearch(''); setUnreadOnly(false); }}>
-            <X size={15} /> Clear filters
-          </button>
-        )}
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="empty-state">
-          <strong>Unable to load alerts</strong>
-          <p style={{ margin: '6px 0 0' }}>{error}</p>
-          <button className="btn btn-secondary" style={{ marginTop: 10 }} onClick={fetchAll}>Retry</button>
+      <div className="flat-card">
+        <div className="flat-table-header">
+          <span className="flat-table-title">Alerts</span>
+          {!loading && !error && <span className="flat-med-meta">{unreadCount} unread</span>}
         </div>
-      )}
-
-      {/* Empty */}
-      {!loading && !error && visibleNotifications.length === 0 && (
-        <div className="empty-state">
-          <BellRing size={24} style={{ marginBottom: 6 }} />
-          <strong>No alerts found</strong>
-          <p style={{ margin: '6px 0 0' }}>
-            {notifications.length === 0 ? 'No alerts yet.' : 'No alerts match the current filters.'}
-          </p>
-          {filtersActive && (
-            <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={() => { setSearch(''); setUnreadOnly(false); }}>
-              Clear filters
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Loading skeletons */}
-      {loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: '16px' }}>
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="card" style={{ height: '200px', padding: '16px' }}>
-              <Skeleton height={14} style={{ marginBottom: '12px', width: '40%' }} />
-              <Skeleton height={14} style={{ marginBottom: '8px' }} />
-              <Skeleton height={14} style={{ marginBottom: '8px', width: '80%' }} />
-              <Skeleton height={14} style={{ marginBottom: '16px', width: '60%' }} />
-              <Skeleton height={28} style={{ borderRadius: '999px', width: '50%' }} />
+        <div style={{ padding: 16 }}>
+          {error && (
+            <div className="flat-empty">
+              Unable to load alerts — {error}
+              <div style={{ marginTop: 10 }}>
+                <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
+              </div>
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* Cards grid */}
-      {!loading && !error && visibleNotifications.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: '16px' }}>
-            {visibleNotifications.map((n) => {
-              const cfg = severityConfig(n.severity);
-              const SevIcon = cfg.icon;
-              return (
-                <div
-                  key={n.id}
-                  className={`card alert-card ${cfg.cls}`}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column'
-                  }}
-                >
-                  {/* Top row: severity pill + type */}
-                  <div className="alert-card__top-row">
-                    <span className={`status-pill alert-card__severity ${cfg.cls}`}>
-                      <SevIcon aria-hidden="true" size={18} strokeWidth={2.5} />
-                      <span>{n.severity === 'critical' ? 'Critical alert' : n.severity === 'warning' ? 'Warning' : 'Information'}</span>
-                    </span>
-                    <span className="alert-card__type">{typeLabel(n.type)}</span>
-                  </div>
+          {!error && loading && (
+            <div className="flat-card-grid">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="flat-card flat-item-card">
+                  <div className="flat-item-icon skeleton" style={{ border: 'none' }} />
+                  <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
+                  <div className="skeleton" style={{ height: 12, width: '50%' }} />
+                </div>
+              ))}
+            </div>
+          )}
 
-                  {/* Message */}
-                  <div className="alert-card__content">
-                    <p className="alert-card__message">
-                      {n.message}
-                    </p>
-                  </div>
+          {!error && !loading && visibleNotifications.length === 0 && (
+            <div className="flat-empty">{notifications.length === 0 ? 'No alerts yet.' : 'No alerts match the current filters.'}</div>
+          )}
 
-                  {/* Bottom row: date + icon + action */}
-                  <div className="alert-card__bottom-row">
-                    <div className="alert-card__date-group">
-                      <div className={`alert-card__icon ${cfg.cls}`}>
-                        <SevIcon aria-hidden="true" size={18} strokeWidth={2.5} />
-                      </div>
-                      <span className="alert-card__date">
-                        {new Date(n.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </span>
+          {!error && !loading && visibleNotifications.length > 0 && (
+            <div className="flat-card-grid">
+              {visibleNotifications.map((n) => {
+                const cfg = severityConfig(n.severity);
+                const SevIcon = cfg.Icon;
+                return (
+                  <div key={n.id} className={`flat-card flat-item-card flat-item-card--${cfg.cls}`} style={{ cursor: 'default' }}>
+                    <div className="flat-item-card__top">
+                      <div className="flat-item-icon"><SevIcon size={20} /></div>
+                      <span className={`flat-status-label ${cfg.cls}`}>{cfg.label}</span>
+                    </div>
+                    <div className="flat-med-name">{n.message}</div>
+                    <span className="flat-tag">{typeLabel(n.type)}</span>
+                    <div className="flat-item-row">
+                      <span>Date</span>
+                      <strong>{new Date(n.created_at).toLocaleDateString()}</strong>
+                    </div>
+                    <div className="flat-item-row">
+                      <span>Status</span>
+                      <strong>{n.is_read ? 'Read' : 'Unread'}</strong>
                     </div>
                     {!n.is_read && (
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: '7px 14px', fontSize: '15px', gap: 5 }}
-                        onClick={() => markRead(n.id)}
-                        title="Mark as read"
-                      >
-                        <CheckCheck size={12} /> Read
-                      </button>
-                    )}
-                    {n.is_read && (
-                      <span className="alert-card__read">Read</span>
+                      <div className="flat-item-card__actions">
+                        <button type="button" className="flat-action-btn" onClick={() => markRead(n.id)}>
+                          <CheckCheck size={13} /> Mark as read
+                        </button>
+                      </div>
                     )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-      )}
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

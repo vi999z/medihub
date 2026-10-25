@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Plus, Pencil, Trash2, RefreshCw, Download, Search, X,
-  Upload, QrCode, ChevronDown, Pill, PillBottle, Droplet, Syringe, Camera
+  Plus, Pencil, Trash2, RefreshCw, Search, X,
+  Upload, QrCode, Pill, PillBottle, Droplet, Syringe, Camera
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api, { resolveFileUrl } from '../api/axios';
@@ -10,62 +10,27 @@ import { useToast } from '../context/ToastContext';
 import { useDialog } from '../context/DialogContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
+import { batchStatus } from '../utils/batchStatus';
 import { isValidName, isNonNegativeNumber } from '../utils/validation';
 import CsvImport from '../components/CsvImport';
 import AnimatedModal from '../components/AnimatedModal';
-import QRCodeDisplay from '../components/QRCode';
+import BatchQrModal from '../components/BatchQrModal';
 import ReceiveStockModal from '../components/ReceiveStockModal';
 import StockMovementModal from '../components/StockMovementModal';
+import ExportDropdown from '../components/ExportDropdown';
+import { downloadBlob } from '../utils/downloadFile';
 
-// ── Export dropdown for medicines page ────────────────────────────────────────
-function MedicineExportDropdown({ onExport }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
-
-  const OPTIONS = [
-    { label: 'Current view (CSV)', key: 'csv', format: 'csv' },
-    null,
-    { label: 'Expired batches (Excel)', key: 'expired', format: 'excel' },
-    { label: 'Depleted batches (Excel)', key: 'depleted', format: 'excel' },
-    { label: 'Recalled batches (Excel)', key: 'recalled', format: 'excel' },
-    { label: 'Wasted medicines (Excel)', key: 'wasted', format: 'excel' },
-    null,
-    { label: 'Expired batches (PDF)', key: 'expired', format: 'pdf' },
-    { label: 'Wasted medicines (PDF)', key: 'wasted', format: 'pdf' },
-  ];
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button type="button" className="flat-action-btn" onClick={() => setOpen(o => !o)}>
-        <Download size={15} /> Export <ChevronDown size={13} />
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 220,
-          background: '#fff', border: '1px solid var(--flat-border)',
-          borderRadius: 8, zIndex: 50, padding: '6px 0'
-        }}>
-          {OPTIONS.map((opt, idx) => opt === null ? (
-            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--flat-border)' }} />
-          ) : (
-            <button
-              key={idx}
-              onClick={() => { onExport(opt.key, opt.format); setOpen(false); }}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--flat-text)', transition: 'background 0.12s ease' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--flat-bg)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >{opt.label}</button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+const EXPORT_OPTIONS = [
+  { label: 'Expired batches (Excel)', key: 'expired', format: 'excel' },
+  { label: 'Depleted batches (Excel)', key: 'depleted', format: 'excel' },
+  { label: 'Recalled batches (Excel)', key: 'recalled', format: 'excel' },
+  { label: 'Wasted medicines (Excel)', key: 'wasted', format: 'excel' },
+  null,
+  { label: 'Expired batches (PDF)', key: 'expired', format: 'pdf' },
+  { label: 'Wasted medicines (PDF)', key: 'wasted', format: 'pdf' },
+  null,
+  { label: 'Current view (CSV)', key: 'csv', format: 'csv' },
+];
 
 const CATEGORY_OPTIONS = [
   'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
@@ -150,18 +115,6 @@ function expiryLabel(medicine) {
   return { cls: 'safe', label: new Date(medicine.nearest_expiry).toLocaleDateString() };
 }
 
-function batchStatusPill(batch) {
-  if (batch.status === 'expired') return { cls: 'critical', label: 'Expired' };
-  if (batch.status === 'depleted') return { cls: 'orange', label: 'Depleted' };
-  if (batch.status === 'recalled') return { cls: 'purple', label: 'Recalled' };
-  if (!batch.expiry_date) return { cls: 'safe', label: 'Active' };
-  const days = daysUntil(batch.expiry_date);
-  if (days <= 3) return { cls: 'critical', label: `${days}d left` };
-  if (days <= 14) return { cls: 'warning', label: `${days}d left` };
-  if (days <= 60) return { cls: 'orange', label: `${days}d left` };
-  return { cls: 'safe', label: 'Active' };
-}
-
 export default function Medicines() {
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -174,6 +127,7 @@ export default function Medicines() {
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [showReceiveStock, setShowReceiveStock] = useState(false);
   const [receiveStockError, setReceiveStockError] = useState('');
+  const [scannedCode, setScannedCode] = useState('');
   const [showStockMovement, setShowStockMovement] = useState(false);
   const [stockMovementError, setStockMovementError] = useState('');
   const [editingId, setEditingId] = useState(null);
@@ -193,7 +147,6 @@ export default function Medicines() {
   const [showBatchForm, setShowBatchForm] = useState(false);
   const [editingBatch, setEditingBatch] = useState(null);
   const [batchError, setBatchError] = useState('');
-  const [showQRModal, setShowQRModal] = useState(false);
   const [qrBatch, setQrBatch] = useState(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -278,7 +231,7 @@ export default function Medicines() {
       });
       api.invalidateCache('/batches');
       api.invalidateCache('/medicines');
-    api.invalidateCache('/reports/needs-attention?days=14');
+      api.invalidateCache('/reports/needs-attention?days=14');
       api.invalidateCache('/notifications');
       api.invalidateCache('/notifications?unread=true');
       await Promise.all([fetchBatches(), fetchMedicines()]);
@@ -297,7 +250,7 @@ export default function Medicines() {
       api.invalidateCache('/transactions/recent');
       api.invalidateCache('/batches');
       api.invalidateCache('/medicines');
-    api.invalidateCache('/reports/needs-attention?days=14');
+      api.invalidateCache('/reports/needs-attention?days=14');
       api.invalidateCache('/notifications');
       api.invalidateCache('/notifications?unread=true');
       await Promise.all([fetchBatches(), fetchMedicines()]);
@@ -315,17 +268,18 @@ export default function Medicines() {
     fetchSuppliers();
   }, []);
 
-  // Handle scanner "Add to Stock" navigation: open the first medicine's batch form
+  // Scanner "Add to stock" lands here with ?addBatch=true&code=…: open the
+  // Receive stock form with the scanned code as the batch number, and let the
+  // user pick which medicine it belongs to.
   useEffect(() => {
-    if (searchParams.get('addBatch') === 'true' && medicines.length > 0) {
-      const target = medicines[0];
-      setDetailMedicine(target);
-      setShowBatchForm(true);
-      setBatchForm((prev) => ({ ...prev, batch_number: searchParams.get('code') || '' }));
+    if (searchParams.get('addBatch') === 'true') {
+      setScannedCode(searchParams.get('code') || '');
+      setReceiveStockError('');
+      setShowReceiveStock(true);
       // Clear the param so it doesn't re-trigger
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams, medicines, setSearchParams]);
+  }, [searchParams, setSearchParams]);
 
   function openCreate() {
     resetForm();
@@ -494,7 +448,7 @@ export default function Medicines() {
         await uploadMedicineImage(medicineId, imageFile);
       }
       api.invalidateCache('/medicines');
-    api.invalidateCache('/reports/needs-attention?days=14');
+      api.invalidateCache('/reports/needs-attention?days=14');
       resetForm();
       await fetchMedicines();
     } catch (err) {
@@ -507,7 +461,7 @@ export default function Medicines() {
     try {
       await api.delete(`/medicines/${id}`);
       api.invalidateCache('/medicines');
-    api.invalidateCache('/reports/needs-attention?days=14');
+      api.invalidateCache('/reports/needs-attention?days=14');
       api.invalidateCache('/notifications');
       api.invalidateCache('/notifications?unread=true');
       api.invalidateCache('/batches');
@@ -549,14 +503,7 @@ export default function Medicines() {
       const res = await api.get(endpoint, { responseType: 'blob' });
       const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
       const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${key}_${new Date().toISOString().slice(0, 10)}.${ext}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, `${key}_${new Date().toISOString().slice(0, 10)}.${ext}`);
       addToast('Export downloaded', 'success');
     } catch (err) {
       addToast('Export failed', 'error');
@@ -611,7 +558,7 @@ export default function Medicines() {
       }
       api.invalidateCache('/batches');
       api.invalidateCache('/medicines');
-    api.invalidateCache('/reports/needs-attention?days=14');
+      api.invalidateCache('/reports/needs-attention?days=14');
       api.invalidateCache('/notifications');
       api.invalidateCache('/notifications?unread=true');
       resetBatchForm();
@@ -631,7 +578,7 @@ export default function Medicines() {
       await api.delete(`/batches/${batch.id}`);
       api.invalidateCache('/batches');
       api.invalidateCache('/medicines');
-    api.invalidateCache('/reports/needs-attention?days=14');
+      api.invalidateCache('/reports/needs-attention?days=14');
       api.invalidateCache('/notifications');
       api.invalidateCache('/notifications?unread=true');
       await Promise.all([fetchBatches(), fetchMedicines()]);
@@ -647,7 +594,7 @@ export default function Medicines() {
     <div className="flat-dashboard">
       <div className="page-actions-only">
         <div className="page-header-actions">
-          <MedicineExportDropdown onExport={handleExport} />
+          <ExportDropdown options={EXPORT_OPTIONS} onSelect={({ key, format }) => handleExport(key, format)} />
           <button className="flat-action-btn" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
@@ -907,29 +854,29 @@ export default function Medicines() {
                 )}
                 <div>
                   <h2 style={{ margin: 0 }}>{detailMedicine.name}</h2>
-                  <p style={{ margin: '4px 0 0', color: 'var(--steel)', fontSize: 13 }}>
+                  <p className="flat-med-meta" style={{ margin: '4px 0 0' }}>
                     {[detailMedicine.generic_name, detailMedicine.dosage_form, detailMedicine.strength].filter(Boolean).join(' · ') || '—'}
                   </p>
                   <span className="flat-tag" style={{ marginTop: 6 }}>{detailMedicine.branch || 'QMC'}</span>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className={`status-pill ${stockStateOf(detailMedicine).cls}`}>{stockStateOf(detailMedicine).label}</span>
+                <span className={`flat-status-label ${STOCK_FLAT_CLS[stockStateOf(detailMedicine).key]}`}>{stockStateOf(detailMedicine).label}</span>
                 <button type="button" className="btn-icon" onClick={closeDetail} title="Close medicine details"><X size={18} /></button>
               </div>
             </div>
 
             <div className="medicine-detail-stats">
               <div className="medicine-detail-stat">
-                <div style={{ color: 'var(--steel)', fontSize: 11 }}>Total stock</div>
+                <div className="flat-med-meta" style={{ margin: 0, fontSize: 12 }}>Total stock</div>
                 <div style={{ fontWeight: 700, fontSize: 18 }}>{detailMedicine.total_stock ?? 0} {detailMedicine.unit}</div>
               </div>
               <div className="medicine-detail-stat">
-                <div style={{ color: 'var(--steel)', fontSize: 11 }}>Reorder level</div>
+                <div className="flat-med-meta" style={{ margin: 0, fontSize: 12 }}>Reorder level</div>
                 <div style={{ fontWeight: 700, fontSize: 18 }}>{detailMedicine.reorder_level ?? 0}</div>
               </div>
               <div className="medicine-detail-stat">
-                <div style={{ color: 'var(--steel)', fontSize: 11 }}>Batches</div>
+                <div className="flat-med-meta" style={{ margin: 0, fontSize: 12 }}>Batches</div>
                 <div style={{ fontWeight: 700, fontSize: 18 }}>{detailBatches.length}</div>
               </div>
             </div>
@@ -937,137 +884,64 @@ export default function Medicines() {
             <div className="medicine-detail-modal__section-header">
               <h3 style={{ margin: 0 }}>Batches</h3>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className="btn btn-secondary" onClick={() => { setStockMovementError(''); setShowStockMovement(true); }} disabled={detailBatches.length === 0}>
+                <button type="button" className="flat-action-btn" onClick={() => { setStockMovementError(''); setShowStockMovement(true); }} disabled={detailBatches.length === 0}>
                   Record movement
                 </button>
-                <button className="btn btn-primary" onClick={openBatchCreate}>
+                <button type="button" className="flat-btn-primary" onClick={openBatchCreate}>
                   <Plus size={14} /> Receive stock
                 </button>
               </div>
             </div>
 
             {detailBatches.length === 0 && (
-              <div className="empty-state" style={{ padding: '24px' }}>
-                <strong>No batches for this medicine</strong>
-                <p style={{ margin: '6px 0 0' }}>Receive stock to add a batch.</p>
-              </div>
+              <div className="flat-empty">No batches for this medicine yet. Receive stock to add one.</div>
             )}
 
             {detailBatches.length > 0 && (
               <div className="medicine-detail-batches">
                 {detailBatches.map((b) => {
-                    const pill = batchStatusPill(b);
-                    const borderColorMap = { 'safe': 'var(--green)', 'warning': 'var(--gold)', 'critical': 'var(--red)' };
-                            return (
-                      <div
-                        key={b.id}
-                        className="card"
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          padding: '14px',
-                          borderTop: `4px solid ${borderColorMap[pill.cls]}`
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                          <span className="stamp" style={{ fontSize: '11px' }}>Batch: {b.batch_number}</span>
-                          <span className={`status-pill ${pill.cls}`} style={{ fontSize: '10px', padding: '3px 8px' }}>{pill.label}</span>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12, marginBottom: 8 }}>
-                          <div>
-                            <div style={{ color: 'var(--steel)', fontSize: 11 }}>Remaining</div>
-                            <div style={{ fontWeight: 600 }}>{b.quantity_remaining}</div>
-                          </div>
-                          <div>
-                            <div style={{ color: 'var(--steel)', fontSize: 11 }}>Expiry</div>
-                            <div style={{ fontWeight: 600 }}>{new Date(b.expiry_date).toLocaleDateString()}</div>
-                          </div>
-                        </div>
-                        {b.supplier_name && (
-                          <div style={{ fontSize: 11, color: 'var(--steel)', marginBottom: 8 }}>
-                            Supplier: <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{b.supplier_name}</span>
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 'auto' }}>
-                          <button
-                            type="button"
-                            onClick={() => openBatchEdit(b)}
-                            style={{
-                              width: '30px', height: '30px', borderRadius: '50%', background: 'var(--bg-subtle)',
-                              border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
-                            }}
-                            title="Edit batch"
-                          >
-                            <Pencil size={13} color="var(--ink)" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setQrBatch(b); setShowQRModal(true); }}
-                            style={{
-                              width: '30px', height: '30px', borderRadius: '50%', background: 'var(--bg-subtle)',
-                              border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
-                            }}
-                            title="Show QR code"
-                          >
-                            <QrCode size={13} color="var(--ink)" />
-                          </button>
-                          {(user.role === 'admin' || user.role === 'pharmacist') && (
-                            <button
-                              type="button"
-                              onClick={() => handleBatchDelete(b)}
-                              style={{
-                                width: '30px', height: '30px', borderRadius: '50%', background: 'var(--bg-subtle)',
-                                border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
-                              }}
-                              title="Delete batch"
-                            >
-                              <Trash2 size={13} color="var(--red)" />
-                            </button>
-                          )}
-                        </div>
+                  const pill = batchStatus(b);
+                  return (
+                    <div key={b.id} className={`flat-card flat-item-card flat-item-card--${pill.cls}`} style={{ cursor: 'default' }}>
+                      <div className="flat-item-card__top" style={{ alignItems: 'center' }}>
+                        <span className="flat-tag" style={{ margin: 0 }}>Batch {b.batch_number}</span>
+                        <span className={`flat-status-label ${pill.cls}`}>{pill.label}</span>
                       </div>
-                    );
-                  })}
+                      <div className="flat-item-row">
+                        <span>Remaining</span>
+                        <strong>{b.quantity_remaining}</strong>
+                      </div>
+                      <div className="flat-item-row">
+                        <span>Expiry</span>
+                        <strong>{new Date(b.expiry_date).toLocaleDateString()}</strong>
+                      </div>
+                      <div className="flat-item-row">
+                        <span>Supplier</span>
+                        <strong>{b.supplier_name || '—'}</strong>
+                      </div>
+                      <div className="flat-item-card__actions">
+                        <button type="button" className="flat-action-btn" onClick={() => openBatchEdit(b)} title="Edit batch">
+                          <Pencil size={13} /> Edit
+                        </button>
+                        <button type="button" className="flat-action-btn" onClick={() => setQrBatch(b)} title="Show QR code">
+                          <QrCode size={13} /> QR
+                        </button>
+                        {(user.role === 'admin' || user.role === 'pharmacist') && (
+                          <button type="button" className="flat-action-btn" onClick={() => handleBatchDelete(b)} title="Delete batch">
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         )}
       </AnimatedModal>
 
-      {/* QR code modal */}
-      <AnimatedModal isOpen={showQRModal && Boolean(qrBatch)} onClose={() => setShowQRModal(false)}>
-        {qrBatch && (
-          <div className="card" style={{ padding: 24, border: 'none', boxShadow: 'none' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0 }}>Batch QR Code</h3>
-              <button type="button" className="btn-icon" onClick={() => setShowQRModal(false)} title="Close QR code"><X size={18} /></button>
-            </div>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <QRCodeDisplay value={qrBatch.id.toString()} size={250} />
-            </div>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <p style={{ fontWeight: 500, margin: '0 0 4px' }}>{qrBatch.medicine_name}</p>
-              <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>Batch: {qrBatch.batch_number}</p>
-              <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>ID: {qrBatch.id}</p>
-            </div>
-            <button 
-              className="btn btn-primary" 
-              style={{ width: '100%' }}
-              onClick={() => {
-                const canvas = document.querySelector('.qr-code-container canvas');
-                if (canvas) {
-                  const link = document.createElement('a');
-                  link.download = `batch-${qrBatch.batch_number}-qr.png`;
-                  link.href = canvas.toDataURL();
-                  link.click();
-                }
-              }}
-            >
-              Download QR Code
-            </button>
-          </div>
-        )}
-      </AnimatedModal>
+      <BatchQrModal batch={qrBatch} onClose={() => setQrBatch(null)} />
 
       <AnimatedModal isOpen={showCsvImport} onClose={() => setShowCsvImport(false)}>
         <CsvImport
@@ -1079,7 +953,8 @@ export default function Medicines() {
 
       <ReceiveStockModal
         isOpen={showReceiveStock}
-        onClose={() => setShowReceiveStock(false)}
+        onClose={() => { setShowReceiveStock(false); setScannedCode(''); }}
+        initialBatchNumber={scannedCode}
         medicines={medicines}
         suppliers={suppliers}
         onSubmit={handleReceiveStock}

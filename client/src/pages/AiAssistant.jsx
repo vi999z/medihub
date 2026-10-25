@@ -1,6 +1,6 @@
 import { useState, useCallback, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Sparkles, MessageCircle, Brain, CloudRain } from 'lucide-react';
+import { MessageCircle, Brain, CloudRain } from 'lucide-react';
 
 // Lazy per tab so switching between Chat/Insights/Weather only downloads
 // that tab's code — this page combines what used to be three separate
@@ -34,15 +34,9 @@ export default function AiAssistant() {
   }
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={22} /> AI Assistant
-          </h1>
-          <p>{active.subtitle}</p>
-        </div>
-      </div>
+    <div className="flat-dashboard">
+      {/* The page title already sits in the topbar; only the per-tab blurb goes here. */}
+      <p className="flat-med-meta" style={{ margin: 0 }}>{active.subtitle}</p>
 
       <div className="ai-assistant-tabs">
         {TABS.map((t) => {
@@ -62,7 +56,7 @@ export default function AiAssistant() {
         })}
       </div>
 
-      <Suspense fallback={<div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--steel)' }}>Loading…</div>}>
+      <Suspense fallback={<div className="flat-card flat-empty">Loading…</div>}>
         {tab === 'chat' && <ChatTab />}
         {tab === 'insights' && <InsightsTab onBadgeChange={setInsightsBadge} />}
         {tab === 'weather' && <WeatherTab onBadgeChange={setWeatherBadge} />}

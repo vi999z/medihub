@@ -1,60 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Search, X, Download, ChevronDown, ArrowDownLeft, ArrowUpRight, RefreshCw, Trash2, Calendar } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Search, X, ArrowDownLeft, ArrowUpRight, RefreshCw, Trash2, Calendar } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import StockMovementModal from '../components/StockMovementModal';
+import ExportDropdown from '../components/ExportDropdown';
+import { downloadBlob } from '../utils/downloadFile';
 
-// ── Transactions export dropdown ──────────────────────────────────────────────
-function TransactionExportDropdown({ onExport }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
-
-  const OPTIONS = [
-    { label: 'All transactions (CSV)', key: 'csv', format: 'csv' },
-    null,
-    { label: 'All transactions — 30d (Excel)', key: 'all', format: 'excel', days: 30 },
-    { label: 'Sales only — 30d (Excel)', key: 'sale', format: 'excel', days: 30 },
-    { label: 'Disposals only — 30d (Excel)', key: 'disposal', format: 'excel', days: 30 },
-    { label: 'All transactions — 90d (Excel)', key: 'all', format: 'excel', days: 90 },
-    null,
-    { label: 'All transactions — 30d (PDF)', key: 'all', format: 'pdf', days: 30 },
-    { label: 'All transactions — 30d (Word)', key: 'all', format: 'docx', days: 30 },
-  ];
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button type="button" className="flat-action-btn" onClick={() => setOpen(o => !o)}>
-        <Download size={15} /> Export <ChevronDown size={13} />
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 240,
-          background: '#fff', border: '1px solid var(--flat-border)',
-          borderRadius: 8, zIndex: 50, padding: '6px 0'
-        }}>
-          {OPTIONS.map((opt, idx) => opt === null ? (
-            <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--flat-border)' }} />
-          ) : (
-            <button
-              key={idx}
-              onClick={() => { onExport(opt.key, opt.format, opt.days); setOpen(false); }}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--flat-text)', transition: 'background 0.12s ease' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--flat-bg)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >{opt.label}</button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+const EXPORT_OPTIONS = [
+  { label: 'All transactions — 30d (Excel)', key: 'all', format: 'excel', days: 30 },
+  { label: 'Sales only — 30d (Excel)', key: 'sale', format: 'excel', days: 30 },
+  { label: 'Disposals only — 30d (Excel)', key: 'disposal', format: 'excel', days: 30 },
+  { label: 'All transactions — 90d (Excel)', key: 'all', format: 'excel', days: 90 },
+  null,
+  { label: 'All transactions — 30d (PDF)', key: 'all', format: 'pdf', days: 30 },
+  { label: 'All transactions — 30d (Word)', key: 'all', format: 'docx', days: 30 },
+  null,
+  { label: 'Current view (CSV)', key: 'csv', format: 'csv' },
+];
 
 const TYPES = ['sale', 'adjustment', 'disposal', 'return'];
 const TYPE_FILTERS = [{ value: 'all', label: 'All types' }, ...TYPES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))];
@@ -155,14 +119,7 @@ export default function Transactions() {
       const res = await api.get(`/reports/export/transactions?days=${days}&format=${format}${typeParam}`, { responseType: 'blob' });
       const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
       const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `transactions_${key}_${days}d.${ext}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, `transactions_${key}_${days}d.${ext}`);
       addToast('Transactions exported', 'success');
     } catch (err) {
       addToast('Export failed', 'error');
@@ -173,7 +130,7 @@ export default function Transactions() {
     <div className="flat-dashboard">
       <div className="page-actions-only">
         <div className="page-header-actions">
-          <TransactionExportDropdown onExport={handleExport} />
+          <ExportDropdown options={EXPORT_OPTIONS} onSelect={({ key, format, days }) => handleExport(key, format, days)} />
           <button type="button" className="flat-btn-primary" onClick={() => setShowForm(true)}>
             <Plus size={15} /> New transaction
           </button>

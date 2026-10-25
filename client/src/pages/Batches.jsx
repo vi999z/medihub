@@ -1,76 +1,31 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, Pencil, Download, Search, X, QrCode, ChevronDown, Package } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Trash2, Pencil, Search, X, QrCode, Package } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useDialog } from '../context/DialogContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
-import QRCodeDisplay from '../components/QRCode';
+import { batchStatus } from '../utils/batchStatus';
+import BatchQrModal from '../components/BatchQrModal';
 import ReceiveStockModal from '../components/ReceiveStockModal';
+import ExportDropdown from '../components/ExportDropdown';
+import { downloadBlob } from '../utils/downloadFile';
 
-// ── Export dropdown button ────────────────────────────────────────────────────
-function ExportDropdown({ onExport }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
-
-  const EXPORT_OPTIONS = [
-    { label: 'Active batches (Excel)', status: 'active', format: 'excel' },
-    { label: 'Expiring soon (Excel)', status: 'expiring', format: 'excel' },
-    { label: 'Expired batches (Excel)', status: 'expired', format: 'excel' },
-    { label: 'Depleted batches (Excel)', status: 'depleted', format: 'excel' },
-    { label: 'Recalled batches (Excel)', status: 'recalled', format: 'excel' },
-    { label: 'Wasted medicines (Excel)', status: 'wasted', format: 'excel' },
-    null, // divider
-    { label: 'Expired batches (PDF)', status: 'expired', format: 'pdf' },
-    { label: 'Wasted medicines (PDF)', status: 'wasted', format: 'pdf' },
-    { label: 'Expired batches (Word)', status: 'expired', format: 'docx' },
-    null, // divider
-    { label: 'Current view (CSV)', status: 'csv', format: 'csv' },
-  ];
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button type="button" className="flat-action-btn" onClick={() => setOpen(o => !o)}>
-        <Download size={15} /> Export <ChevronDown size={13} />
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 230,
-          background: '#fff', border: '1px solid var(--flat-border)',
-          borderRadius: 8, zIndex: 50,
-          padding: '6px 0', overflow: 'hidden'
-        }}>
-          {EXPORT_OPTIONS.map((opt, idx) =>
-            opt === null ? (
-              <hr key={idx} style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--flat-border)' }} />
-            ) : (
-              <button
-                key={idx}
-                onClick={() => { onExport(opt.status, opt.format); setOpen(false); }}
-                style={{
-                  display: 'block', width: '100%', textAlign: 'left',
-                  padding: '9px 16px', background: 'none', border: 'none',
-                  cursor: 'pointer', fontSize: 13, color: 'var(--flat-text)',
-                  transition: 'background 0.12s ease'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--flat-bg)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                {opt.label}
-              </button>
-            )
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+const EXPORT_OPTIONS = [
+  { label: 'Active batches (Excel)', key: 'active', format: 'excel' },
+  { label: 'Expiring soon (Excel)', key: 'expiring', format: 'excel' },
+  { label: 'Expired batches (Excel)', key: 'expired', format: 'excel' },
+  { label: 'Depleted batches (Excel)', key: 'depleted', format: 'excel' },
+  { label: 'Recalled batches (Excel)', key: 'recalled', format: 'excel' },
+  { label: 'Wasted medicines (Excel)', key: 'wasted', format: 'excel' },
+  null,
+  { label: 'Expired batches (PDF)', key: 'expired', format: 'pdf' },
+  { label: 'Wasted medicines (PDF)', key: 'wasted', format: 'pdf' },
+  { label: 'Expired batches (Word)', key: 'expired', format: 'docx' },
+  null,
+  { label: 'Current view (CSV)', key: 'csv', format: 'csv' },
+];
 
 const STATUS_FILTERS = [
   { value: 'all', label: 'All statuses' },
@@ -80,21 +35,6 @@ const STATUS_FILTERS = [
   { value: 'depleted', label: 'Depleted' },
   { value: 'recalled', label: 'Recalled' }
 ];
-
-function statusPillFor(batch) {
-  if (batch.status === 'expired') return { cls: 'critical', label: 'Expired' };
-  if (batch.status === 'depleted') return { cls: 'orange', label: 'Depleted' };
-  if (batch.status === 'recalled') return { cls: 'critical', label: 'Recalled' };
-  if (!batch.expiry_date) return { cls: 'safe', label: 'Active' };
-  const days = daysUntil(batch.expiry_date);
-  if (days <= 3) return { cls: 'critical', label: `${days}d left` };
-  if (days <= 14) return { cls: 'warning', label: `${days}d left` };
-  if (days <= 60) return { cls: 'orange', label: `${days}d left` };
-  return { cls: 'safe', label: 'Active' };
-}
-
-// Maps the same pill classification onto the flat design system's palette.
-const BATCH_FLAT_CLS = { critical: 'red', warning: 'amber', orange: 'orange', safe: 'green' };
 
 export default function Batches() {
   const { user } = useAuth();
@@ -110,7 +50,6 @@ export default function Batches() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [showQRModal, setShowQRModal] = useState(false);
   const [qrBatch, setQrBatch] = useState(null);
 
   async function fetchAll() {
@@ -215,14 +154,7 @@ export default function Batches() {
       const res = await api.get(endpoint, { responseType: 'blob' });
       const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
       const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${status}_batches_${new Date().toISOString().slice(0, 10)}.${ext}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, `${status}_batches_${new Date().toISOString().slice(0, 10)}.${ext}`);
       addToast(`Export downloaded`, 'success');
     } catch (err) {
       addToast('Export failed', 'error');
@@ -233,7 +165,7 @@ export default function Batches() {
     <div className="flat-dashboard">
       <div className="page-actions-only">
         <div className="page-header-actions">
-          <ExportDropdown onExport={handleExport} />
+          <ExportDropdown options={EXPORT_OPTIONS} onSelect={({ key, format }) => handleExport(key, format)} />
           {user.role === 'admin' && (
             <button type="button" className="flat-action-btn" onClick={handleRemoveDepleted}>
               <Trash2 size={15} /> Remove depleted
@@ -320,12 +252,12 @@ export default function Batches() {
           {!error && !loading && visibleBatches.length > 0 && (
             <div className="flat-card-grid">
               {visibleBatches.map((b) => {
-                const pill = statusPillFor(b);
+                const pill = batchStatus(b);
                 return (
-                  <div key={b.id} className={`flat-card flat-item-card flat-item-card--${BATCH_FLAT_CLS[pill.cls]}`} style={{ cursor: 'default' }}>
+                  <div key={b.id} className={`flat-card flat-item-card flat-item-card--${pill.cls}`} style={{ cursor: 'default' }}>
                     <div className="flat-item-card__top">
                       <div className="flat-item-icon"><Package size={22} /></div>
-                      <span className={`flat-status-label ${BATCH_FLAT_CLS[pill.cls]}`}>{pill.label}</span>
+                      <span className={`flat-status-label ${pill.cls}`}>{pill.label}</span>
                     </div>
                     <div className="flat-med-name">{b.medicine_name}</div>
                     <div className="flat-med-meta">{b.supplier_name || 'No supplier listed'}</div>
@@ -342,7 +274,7 @@ export default function Batches() {
                       <button type="button" className="flat-action-btn" onClick={() => openEdit(b)}>
                         <Pencil size={13} /> Edit
                       </button>
-                      <button type="button" className="flat-action-btn" onClick={() => { setQrBatch(b); setShowQRModal(true); }}>
+                      <button type="button" className="flat-action-btn" onClick={() => setQrBatch(b)}>
                         <QrCode size={13} /> QR
                       </button>
                     </div>
@@ -354,44 +286,7 @@ export default function Batches() {
         </div>
       </div>
 
-      {showQRModal && qrBatch && (
-        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowQRModal(false)}>
-          <div
-            className="card"
-            style={{ padding: 24, maxWidth: 400, width: '90%' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0 }}>Batch QR Code</h3>
-              <button className="btn-icon" onClick={() => setShowQRModal(false)}><X size={18} /></button>
-            </div>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <QRCodeDisplay value={qrBatch.id.toString()} size={250} />
-            </div>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <p style={{ fontWeight: 500, margin: '0 0 4px' }}>{qrBatch.medicine_name}</p>
-              <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>Batch: {qrBatch.batch_number}</p>
-              <p style={{ color: 'var(--steel)', margin: 0, fontSize: 13 }}>ID: {qrBatch.id}</p>
-            </div>
-            <button
-              type="button"
-              className="flat-btn-primary"
-              style={{ width: '100%' }}
-              onClick={() => {
-                const canvas = document.querySelector('.qr-code-container canvas');
-                if (canvas) {
-                  const link = document.createElement('a');
-                  link.download = `batch-${qrBatch.batch_number}-qr.png`;
-                  link.href = canvas.toDataURL();
-                  link.click();
-                }
-              }}
-            >
-              Download QR Code
-            </button>
-          </div>
-        </div>
-      )}
+      <BatchQrModal batch={qrBatch} onClose={() => setQrBatch(null)} />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import api from '../api/axios';
 import AnimatedModal from './AnimatedModal';
+import { NOTIFICATIONS_CHANGED_EVENT } from '../utils/events';
 
 const NAV_GROUP_PRIMARY = [
   { to: '/dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
@@ -59,15 +60,20 @@ function TopBar({ pageTitle, onOpenNav }) {
 
   useEffect(() => {
     let mounted = true;
-    Promise.all([
-      api.cachedGet('/medicines').catch(() => ({ data: [] })),
-      api.cachedGet('/notifications?unread=true').catch(() => ({ data: [] }))
-    ]).then(([medicinesRes, notificationsRes]) => {
-      if (!mounted) return;
-      setMedicines(medicinesRes.data || []);
-      setUnread(notificationsRes.data?.length || 0);
-    });
-    return () => { mounted = false; };
+    function loadUnread() {
+      api.cachedGet('/notifications?unread=true')
+        .catch(() => ({ data: [] }))
+        .then((res) => { if (mounted) setUnread(res.data?.length || 0); });
+    }
+    api.cachedGet('/medicines')
+      .catch(() => ({ data: [] }))
+      .then((res) => { if (mounted) setMedicines(res.data || []); });
+    loadUnread();
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, loadUnread);
+    return () => {
+      mounted = false;
+      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, loadUnread);
+    };
   }, []);
 
   useEffect(() => {
@@ -209,7 +215,7 @@ function TopBar({ pageTitle, onOpenNav }) {
           Use the sidebar to jump between sections, or the search bar above to find a
           specific medicine. For anything else, reach out to your system administrator.
         </p>
-        <button className="btn btn-primary" onClick={() => setHelpOpen(false)}>Got it</button>
+        <button className="flat-btn-primary" onClick={() => setHelpOpen(false)}>Got it</button>
       </AnimatedModal>
     </header>
   );

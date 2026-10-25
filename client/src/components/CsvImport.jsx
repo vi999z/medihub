@@ -170,7 +170,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
           )}
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 20 }}>
-          <button className="btn btn-primary" onClick={onClose}>
+          <button className="flat-btn-primary" onClick={onClose}>
             Done
           </button>
         </div>
@@ -191,7 +191,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
         <>
           <div style={{ marginBottom: 16 }}>
             <button
-              className="btn btn-secondary"
+              className="flat-action-btn"
               onClick={handleDownloadTemplate}
               style={{ fontSize: 13 }}
             >
@@ -310,9 +310,9 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
                     <td>{row.data.expiry_date || '—'}</td>
                     <td>
                       {row.valid ? (
-                        <span className="status-pill safe">Valid</span>
+                        <span className="flat-status-label green">Valid</span>
                       ) : (
-                        <span className="status-pill critical">Invalid</span>
+                        <span className="flat-status-label red">Invalid</span>
                       )}
                     </td>
                     <td>
@@ -336,7 +336,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             <button
-              className="btn btn-secondary"
+              className="flat-action-btn"
               onClick={() => {
                 setStep('upload');
                 setFile(null);
@@ -346,7 +346,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
               Back
             </button>
             <button
-              className="btn btn-primary"
+              className="flat-btn-primary"
               onClick={handleCommit}
               disabled={importing || validRows.length === 0}
             >
