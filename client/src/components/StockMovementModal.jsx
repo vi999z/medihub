@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeftRight, X } from 'lucide-react';
 import AnimatedModal from './AnimatedModal';
-import { isPositiveInteger } from '../utils/validation';
+import { validateMovementForm, trimFields, MAX_LENGTH } from '../utils/validation';
 
-const emptyForm = { batch_id: '', transaction_type: 'sale', quantity: '', reason: '' };
+const emptyForm = { batch_id: '', transaction_type: 'sale', direction: 'increase', quantity: '', reason: '' };
 const types = [
   { value: 'sale', label: 'Sale or dispense' },
   { value: 'disposal', label: 'Dispose stock' },
@@ -31,17 +31,35 @@ export default function StockMovementModal({ isOpen, onClose, medicine, batches,
   async function handleSubmit(event) {
     event.preventDefault();
     setLocalError('');
-    if (!form.batch_id) {
-      setLocalError('Select a batch');
+    const validationError = validateMovementForm(form);
+    if (validationError) {
+      setLocalError(validationError);
       return;
     }
-    if (!isPositiveInteger(form.quantity)) {
-      setLocalError('Quantity must be a whole number greater than 0');
+    const batch = batches.find((b) => String(b.id) === String(form.batch_id));
+    if (form.transaction_type === 'sale' && ['expired', 'recalled'].includes(batch?.status)) {
+      setLocalError(`This batch is ${batch.status} and cannot be sold. Record a disposal instead.`);
       return;
     }
+    if (batch) {
+      // Same limits the server enforces: never below 0, never above what was received.
+      const qty = Number(form.quantity);
+      const remaining = Number(batch.quantity_remaining);
+      const reduces = ['sale', 'disposal'].includes(form.transaction_type)
+        || (form.transaction_type === 'adjustment' && form.direction === 'decrease');
+      if (reduces && qty > remaining) {
+        setLocalError(`Insufficient stock. Only ${remaining} remaining in this batch.`);
+        return;
+      }
+      if (!reduces && batch.quantity_received != null && remaining + qty > Number(batch.quantity_received)) {
+        setLocalError(`That would leave ${remaining + qty} in a batch that only received ${batch.quantity_received}.`);
+        return;
+      }
+    }
+    if (submitting) return;
     setSubmitting(true);
     try {
-      await onSubmit(form);
+      await onSubmit(trimFields(form));
       onClose();
     } catch {
       // Keep the entered values available when the API rejects the movement.
@@ -54,7 +72,7 @@ export default function StockMovementModal({ isOpen, onClose, medicine, batches,
 
   return (
     <AnimatedModal isOpen={isOpen} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="card" style={{ padding: 24, border: 'none', boxShadow: 'none' }}>
+      <form onSubmit={handleSubmit} noValidate className="card" style={{ padding: 24, border: 'none', boxShadow: 'none' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
             <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -83,17 +101,26 @@ export default function StockMovementModal({ isOpen, onClose, medicine, batches,
               {types.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
             </select>
           </div>
+          {form.transaction_type === 'adjustment' && (
+            <div className="field">
+              <label>Adjust by</label>
+              <select value={form.direction} onChange={(event) => setForm({ ...form, direction: event.target.value })}>
+                <option value="increase">Adding stock (count found more)</option>
+                <option value="decrease">Removing stock (count found less)</option>
+              </select>
+            </div>
+          )}
           <div className="field">
             <label>Quantity</label>
-            <input type="number" min="1" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} required autoFocus />
+            <input type="number" inputMode="numeric" min="1" step="1" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} required autoFocus />
           </div>
           <div className="field">
             <label>Reason <span style={{ color: 'var(--steel)', fontWeight: 400 }}>(optional)</span></label>
-            <input value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="e.g. damaged stock" />
+            <input value={form.reason} maxLength={MAX_LENGTH.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="e.g. damaged stock" />
           </div>
         </div>
 
-        {displayError && <p className="error-text">{displayError}</p>}
+        {displayError && <p className="error-text" role="alert">{displayError}</p>}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
           <button type="button" className="flat-action-btn" onClick={onClose}>Cancel</button>
           <button type="submit" className="flat-btn-primary" disabled={submitting || batches.length === 0}>

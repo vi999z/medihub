@@ -7,6 +7,7 @@ import { downloadCsv } from '../utils/csv';
 import StockMovementModal from '../components/StockMovementModal';
 import ExportDropdown from '../components/ExportDropdown';
 import { downloadBlob } from '../utils/downloadFile';
+import { localDateKey } from '../utils/date';
 
 const EXPORT_OPTIONS = [
   { label: 'All transactions — 30d (Excel)', key: 'all', format: 'excel', days: 30 },
@@ -33,6 +34,8 @@ function transactionConfig(type) {
 // Maps transaction type severity onto the flat design system's palette.
 const TX_FLAT_CLS = { critical: 'red', warning: 'amber', safe: 'green' };
 
+const RECENT_LIMIT = 500;
+
 export default function Transactions() {
   const { addToast } = useToast();
   const [transactions, setTransactions] = useState([]);
@@ -46,9 +49,15 @@ export default function Transactions() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [dateFilter, setDateFilter] = useState(searchParams.get('date') || '');
 
+  // A picked day loads every movement on that day; otherwise the latest
+  // RECENT_LIMIT movements (the server's default of 50 hid older days).
+  const transactionsUrl = dateFilter
+    ? `/transactions/recent?date=${dateFilter}&limit=1000`
+    : `/transactions/recent?limit=${RECENT_LIMIT}`;
+
   async function fetchAll() {
     try {
-      const [t, b] = await Promise.all([api.cachedGet('/transactions/recent'), api.cachedGet('/batches')]);
+      const [t, b] = await Promise.all([api.cachedGet(transactionsUrl), api.cachedGet('/batches')]);
       setTransactions(t.data || []);
       setBatches((b.data || []).filter((batch) => batch.status === 'active' || batch.status === 'depleted'));
       setError('');
@@ -59,7 +68,8 @@ export default function Transactions() {
     }
   }
 
-  useEffect(() => { fetchAll(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchAll(); }, [transactionsUrl]);
 
   // Deep-link support from the Dashboard's sales chart: clicking a day bar
   // lands here with ?date=YYYY-MM-DD already applied, then the param is
@@ -75,7 +85,7 @@ export default function Transactions() {
     const term = search.trim().toLowerCase();
     return transactions.filter((t) => {
       if (typeFilter !== 'all' && t.transaction_type !== typeFilter) return false;
-      if (dateFilter && new Date(t.created_at).toISOString().slice(0, 10) !== dateFilter) return false;
+      if (dateFilter && localDateKey(t.created_at) !== dateFilter) return false;
       if (!term) return true;
       return [t.medicine_name, t.batch_number, t.user_name, t.reason]
         .some((value) => String(value || '').toLowerCase().includes(term));
@@ -181,7 +191,12 @@ export default function Transactions() {
 
       <div className="flat-card">
         <div className="flat-table-header">
-          <span className="flat-table-title">Movements</span>
+          <span className="flat-table-title">
+            Movements
+            {!dateFilter && transactions.length >= RECENT_LIMIT && (
+              <span className="flat-med-meta" style={{ fontWeight: 400, marginLeft: 8 }}>latest {RECENT_LIMIT} shown</span>
+            )}
+          </span>
           {filtersActive && (
             <button type="button" className="flat-table-link" onClick={clearFilters}>Clear filters</button>
           )}

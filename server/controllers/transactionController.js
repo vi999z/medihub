@@ -2,25 +2,14 @@ const { pool } = require('../config/db');
 const transactionModel = require('../models/transactionModel');
 const batchModel = require('../models/batchModel');
 const { logAudit } = require('../utils/auditLogger');
+const { validateTransaction } = require('../utils/validators');
 
 // POST /api/transactions
 // transaction_type: 'sale' | 'adjustment' | 'disposal' | 'return' (stock_in handled separately via batch creation)
 async function create(req, res) {
-  const { batch_id, transaction_type, quantity, reason } = req.body;
-  const numericQuantity = Number(quantity);
-
-  if (!batch_id || !transaction_type || !quantity) {
-    return res.status(400).json({ error: 'batch_id, transaction_type, and quantity are required' });
-  }
-
-  if (!Number.isInteger(numericQuantity) || numericQuantity <= 0) {
-    return res.status(400).json({ error: 'quantity must be a positive whole number' });
-  }
-
-  const validTypes = ['sale', 'adjustment', 'disposal', 'return'];
-  if (!validTypes.includes(transaction_type)) {
-    return res.status(400).json({ error: `transaction_type must be one of: ${validTypes.join(', ')}` });
-  }
+  const { value, error } = validateTransaction(req.body);
+  if (error) return res.status(400).json({ error });
+  const { batch_id, transaction_type, quantity: numericQuantity, direction, reason } = value;
 
   const conn = await pool.getConnection();
   try {
@@ -34,8 +23,16 @@ async function create(req, res) {
       return res.status(404).json({ error: 'Batch not found' });
     }
 
-    // Sales, disposals reduce stock. Returns add stock back. Adjustments can go either way (quantity can be negative).
-    const isReduction = ['sale', 'disposal'].includes(transaction_type);
+    // Expired or recalled stock must never be dispensed — only disposed of.
+    if (transaction_type === 'sale' && ['expired', 'recalled'].includes(batch.status)) {
+      await conn.rollback();
+      return res.status(400).json({ error: `This batch is ${batch.status} and cannot be sold. Record a disposal instead.` });
+    }
+
+    // Sales and disposals reduce stock, returns add it back, and adjustments
+    // go whichever way `direction` says (a recount can find more or less).
+    const isReduction = ['sale', 'disposal'].includes(transaction_type)
+      || (transaction_type === 'adjustment' && direction === 'decrease');
     const delta = isReduction ? -numericQuantity : numericQuantity;
     const newQuantity = Number(batch.quantity_remaining) + delta;
 
@@ -43,13 +40,17 @@ async function create(req, res) {
       await conn.rollback();
       return res.status(400).json({ error: `Insufficient stock. Only ${batch.quantity_remaining} remaining in this batch.` });
     }
+    if (newQuantity > Number(batch.quantity_received)) {
+      await conn.rollback();
+      return res.status(400).json({ error: `That would leave ${newQuantity} in a batch that only received ${batch.quantity_received}.` });
+    }
 
     if (newQuantity === 0) {
       await conn.query(
         "UPDATE batches SET quantity_remaining = ?, status = 'depleted' WHERE id = ?",
         [newQuantity, batch_id]
       );
-    } else if (transaction_type === 'return' && batch.status === 'depleted') {
+    } else if (delta > 0 && batch.status === 'depleted') {
       await conn.query(
         "UPDATE batches SET quantity_remaining = ?, status = 'active' WHERE id = ?",
         [newQuantity, batch_id]
@@ -61,7 +62,7 @@ async function create(req, res) {
     const [result] = await conn.query(
       `INSERT INTO stock_transactions (batch_id, user_id, transaction_type, quantity, reason)
        VALUES (?, ?, ?, ?, ?)`,
-      [batch_id, req.user.id, transaction_type, delta, reason || null]
+      [batch_id, req.user.id, transaction_type, delta, reason]
     );
 
     await conn.commit();
@@ -89,7 +90,12 @@ async function getByMedicine(req, res) {
 }
 
 async function getRecent(req, res) {
-  const transactions = await transactionModel.getRecent(req.query.limit || 50);
+  const { date } = req.query;
+  if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+  }
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 1000);
+  const transactions = await transactionModel.getRecent({ limit, date: date || null });
   res.json(transactions);
 }
 

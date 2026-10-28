@@ -1,6 +1,7 @@
 const medicineModel = require('../models/medicineModel');
 const { pool } = require('../config/db');
 const { logAudit } = require('../utils/auditLogger');
+const { validateMedicine, validateBatch, validateSupplier } = require('../utils/validators');
 const { parse } = require('csv-parse');
 const fs = require('fs');
 const path = require('path');
@@ -26,23 +27,49 @@ async function getOne(req, res) {
   res.json(medicine);
 }
 
+function parseMedicine(body) {
+  return validateMedicine(body, {
+    categoryOptions: medicineModel.CATEGORY_OPTIONS,
+    branchOptions: medicineModel.BRANCH_OPTIONS,
+  });
+}
+
+// The same product (name + strength + dosage form) can only be listed once
+// per branch. `excludeId` skips the medicine being edited.
+async function findDuplicate(medicine, excludeId = 0) {
+  const [rows] = await pool.query(
+    `SELECT id FROM medicines
+     WHERE LOWER(name) = LOWER(?) AND LOWER(COALESCE(strength, '')) = LOWER(?)
+       AND LOWER(COALESCE(dosage_form, '')) = LOWER(?) AND branch = ? AND id <> ?
+     LIMIT 1`,
+    [medicine.name, medicine.strength || '', medicine.dosage_form || '', medicine.branch, excludeId]
+  );
+  return rows[0];
+}
+
+const DUPLICATE_MEDICINE_ERROR = 'This medicine (same name, strength and dosage form) is already listed for this branch';
+
 async function create(req, res) {
-  const { name, unit } = req.body;
-  if (!name || !unit) {
-    return res.status(400).json({ error: 'name and unit are required' });
-  }
-  const id = await medicineModel.create(req.body);
-  await logAudit(req.user.id, 'created_medicine', `Created medicine: ${name}`, req);
-  res.status(201).json({ id, ...req.body });
+  const { value, error } = parseMedicine(req.body);
+  if (error) return res.status(400).json({ error });
+  if (await findDuplicate(value)) return res.status(409).json({ error: DUPLICATE_MEDICINE_ERROR });
+
+  const id = await medicineModel.create(value);
+  await logAudit(req.user.id, 'created_medicine', `Created medicine: ${value.name}`, req);
+  res.status(201).json({ id, ...value });
 }
 
 async function update(req, res) {
   const existing = await medicineModel.getById(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Medicine not found' });
 
-  await medicineModel.update(req.params.id, req.body);
-  await logAudit(req.user.id, 'updated_medicine', `Updated medicine id ${req.params.id}`, req);
-  res.json({ id: req.params.id, ...req.body });
+  const { value, error } = parseMedicine(req.body);
+  if (error) return res.status(400).json({ error });
+  if (await findDuplicate(value, existing.id)) return res.status(409).json({ error: DUPLICATE_MEDICINE_ERROR });
+
+  await medicineModel.update(req.params.id, value);
+  await logAudit(req.user.id, 'updated_medicine', `Updated medicine: ${value.name}`, req);
+  res.json({ id: Number(req.params.id), ...value });
 }
 
 async function remove(req, res) {
@@ -72,6 +99,7 @@ async function remove(req, res) {
     conn.release();
   }
 
+  deleteOldImage(existing.image_url);
   await logAudit(req.user.id, 'deleted_medicine', `Deleted medicine: ${existing.name}`, req);
   res.status(204).send();
 }
@@ -118,8 +146,40 @@ function hasBatchData(row) {
   return BATCH_COLUMNS.some((col) => row[col] && String(row[col]).trim() !== '');
 }
 
-function normalizeBoolean(value) {
-  return ['true', 'yes', '1'].includes(String(value).toLowerCase());
+// Validates one CSV row with the same rules as the Add medicine / Receive
+// stock forms. Used when previewing a file AND again when committing it, so
+// the server never trusts the preview's "valid" flags sent back by the browser.
+function checkCsvRow(row, existingNames) {
+  const errors = [];
+  const warnings = [];
+
+  const medicine = parseMedicine(row);
+  if (medicine.error) errors.push(medicine.error);
+  if (row.requires_prescription && !['true', 'false', 'yes', 'no', '1', '0'].includes(String(row.requires_prescription).trim().toLowerCase())) {
+    errors.push('requires_prescription must be true/false, yes/no, or 1/0');
+  }
+  if (row.name && existingNames.has(String(row.name).trim().toLowerCase())) {
+    errors.push('Medicine name already exists');
+  }
+  if (medicine.value && row.category && !medicineModel.CATEGORY_OPTIONS.includes(medicine.value.category)) {
+    warnings.push(`"${medicine.value.category}" is not a standard category`);
+  }
+
+  const hasBatch = hasBatchData(row);
+  let batch = null;
+  if (hasBatch) {
+    batch = validateBatch(row, undefined, { withoutMedicine: true, allowPastExpiry: true });
+    if (batch.error) errors.push(batch.error);
+    else if (batch.value.status === 'expired') warnings.push('Batch is already expired and will be imported as expired');
+    // New supplier names are created on import, so they get the same check
+    // as the Add supplier form.
+    if (row.supplier_name && String(row.supplier_name).trim()) {
+      const supplier = validateSupplier({ name: row.supplier_name });
+      if (supplier.error) errors.push(supplier.error);
+    }
+  }
+
+  return { errors, warnings, hasBatch, medicine: medicine.value, batch: batch?.value };
 }
 
 async function validateCsvImport(req, res) {
@@ -128,8 +188,6 @@ async function validateCsvImport(req, res) {
   }
 
   const results = [];
-  const requiredColumns = ['name', 'unit'];
-  const optionalColumns = ['generic_name', 'category', 'dosage_form', 'strength', 'reorder_level', 'requires_prescription'];
 
   // Get existing medicine names for duplicate check
   const [existingMedicines] = await pool.query('SELECT name FROM medicines');
@@ -143,65 +201,9 @@ async function validateCsvImport(req, res) {
 
   parser.on('data', (row) => {
     const rowNum = parser.info.lines;
-    const errors = [];
-    const warnings = [];
-
-    // Check required fields
-    requiredColumns.forEach(col => {
-      if (!row[col] || row[col].trim() === '') {
-        errors.push(`Missing required field: ${col}`);
-      }
-    });
-
-    // Validate data types
-    if (row.reorder_level && isNaN(Number(row.reorder_level))) {
-      errors.push('reorder_level must be a number');
-    }
-
-    if (row.requires_prescription && !['true', 'false', 'yes', 'no', '1', '0'].includes(row.requires_prescription.toLowerCase())) {
-      errors.push('requires_prescription must be true/false, yes/no, or 1/0');
-    }
-
-    // Check for duplicate names
-    if (row.name && existingNames.has(row.name.toLowerCase())) {
-      errors.push('Medicine name already exists');
-    }
-
-    // Validate category if provided
-    if (row.category) {
-      const normalizedCategory = medicineModel.normalizeCategory(row.category);
-      if (!medicineModel.CATEGORY_OPTIONS.includes(normalizedCategory) && normalizedCategory !== row.category.trim()) {
-        warnings.push(`Category will be normalized to: ${normalizedCategory}`);
-      }
-    }
-
-    // Batch validation (only when batch data is present)
-    const hasBatch = hasBatchData(row);
-    if (hasBatch) {
-      if (!row.batch_number || row.batch_number.trim() === '') {
-        errors.push('Missing required field: batch_number');
-      }
-      if (!row.quantity_received || isNaN(Number(row.quantity_received)) || Number(row.quantity_received) <= 0) {
-        errors.push('quantity_received must be a positive number');
-      }
-      if (!row.expiry_date) {
-        errors.push('Missing required field: expiry_date');
-      } else {
-        const expiry = new Date(row.expiry_date);
-        if (isNaN(expiry.getTime())) {
-          errors.push('expiry_date must be a valid date (YYYY-MM-DD)');
-        }
-      }
-      if (row.cost_price && isNaN(Number(row.cost_price))) {
-        errors.push('cost_price must be a number');
-      }
-      if (row.selling_price && isNaN(Number(row.selling_price))) {
-        errors.push('selling_price must be a number');
-      }
-      if (row.manufacture_date && isNaN(new Date(row.manufacture_date).getTime())) {
-        errors.push('manufacture_date must be a valid date (YYYY-MM-DD)');
-      }
-    }
+    const { errors, warnings, hasBatch } = checkCsvRow(row, existingNames);
+    // Later rows with the same name in this file are duplicates too.
+    if (row.name) existingNames.add(String(row.name).trim().toLowerCase());
 
     results.push({
       row: rowNum,
@@ -253,7 +255,11 @@ async function commitCsvImport(req, res) {
     return res.status(400).json({ error: 'Invalid results format' });
   }
 
-  const validRows = results.filter(r => r.valid);
+  // Only rows the preview marked valid are imported, but each is re-checked
+  // here — the flags come from the browser and can't be trusted.
+  const rows = results.filter(r => r && r.valid);
+  const [existingMedicines] = await pool.query('SELECT name FROM medicines');
+  const existingNames = new Set(existingMedicines.map((m) => m.name.toLowerCase()));
   const created = [];
   const failed = [];
   let batchesCreated = 0;
@@ -264,50 +270,37 @@ async function commitCsvImport(req, res) {
   try {
     await conn.beginTransaction();
 
-    for (const row of validRows) {
+    for (const row of rows) {
       try {
-        const data = {
-          name: row.data.name,
-          generic_name: row.data.generic_name || '',
-          category: row.data.category || 'Other',
-          dosage_form: row.data.dosage_form || '',
-          strength: row.data.strength || '',
-          unit: row.data.unit,
-          reorder_level: row.data.reorder_level ? Number(row.data.reorder_level) : 10,
-          requires_prescription: normalizeBoolean(row.data.requires_prescription)
-        };
+        const check = checkCsvRow(row.data || {}, existingNames);
+        if (check.errors.length) {
+          failed.push({ name: row.data?.name || `Row ${row.row}`, error: check.errors.join('; ') });
+          continue;
+        }
+        const data = check.medicine;
+        existingNames.add(data.name.toLowerCase());
 
         const [medicineResult] = await conn.query(
-          `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [data.name, data.generic_name, medicineModel.normalizeCategory(data.category), data.dosage_form, data.strength, data.unit, data.reorder_level, data.requires_prescription]
+          `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [data.name, data.generic_name, data.category, data.dosage_form, data.strength, data.unit, data.reorder_level, data.requires_prescription, data.branch]
         );
         const medicineId = medicineResult.insertId;
         created.push({ id: medicineId, name: data.name });
 
         // Create batch if batch data is present
-        if (row.hasBatch) {
+        if (check.hasBatch) {
+          const b = check.batch;
           const supplierId = await resolveSupplierId(conn, row.data.supplier_name);
-          const quantityReceived = Number(row.data.quantity_received);
-          const expiryDate = row.data.expiry_date;
-          const isExpired = new Date(expiryDate) < new Date(new Date().toDateString());
+          const quantityReceived = b.quantity_received;
+          const expiryDate = b.expiry_date;
+          const isExpired = b.status === 'expired';
 
           const [batchResult] = await conn.query(
             `INSERT INTO batches
              (medicine_id, supplier_id, batch_number, quantity_received, quantity_remaining, cost_price, selling_price, manufacture_date, expiry_date, status)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              medicineId,
-              supplierId,
-              row.data.batch_number,
-              quantityReceived,
-              quantityReceived,
-              row.data.cost_price ? Number(row.data.cost_price) : null,
-              row.data.selling_price ? Number(row.data.selling_price) : null,
-              row.data.manufacture_date || null,
-              expiryDate,
-              isExpired ? 'expired' : 'active'
-            ]
+            [medicineId, supplierId, b.batch_number, quantityReceived, quantityReceived, b.cost_price, b.selling_price, b.manufacture_date, expiryDate, b.status]
           );
           const batchId = batchResult.insertId;
           batchesCreated++;
@@ -315,7 +308,7 @@ async function commitCsvImport(req, res) {
           // Generate alerts immediately
           const batchForAlert = {
             id: batchId,
-            batch_number: row.data.batch_number,
+            batch_number: check.batch.batch_number,
             expiry_date: expiryDate,
             quantity_remaining: quantityReceived,
             medicine_name: data.name

@@ -1,4 +1,5 @@
 const { pool } = require('../config/db');
+const { localDateKey, addDays, startOfLocalDay } = require('../utils/dates');
 
 async function getSummary() {
   const [[medicineCount]] = await pool.query('SELECT COUNT(*) AS total FROM medicines');
@@ -153,28 +154,30 @@ async function getLowStock() {
 }
 
 async function getSalesTrend(days = 30) {
+  const dayCount = Math.min(Math.max(parseInt(days, 10) || 30, 1), 366);
+  const today = localDateKey();
+  const firstDay = addDays(today, -(dayCount - 1));
+  // Group by calendar day in the pharmacy's timezone (in JS, not with SQL
+  // DATE(), which uses the database session's timezone).
   const [rows] = await pool.query(
-    `SELECT DATE(st.created_at) AS day,
-            SUM(-st.quantity) AS units_sold,
-            SUM(-st.quantity * COALESCE(b.selling_price, 0)) AS revenue
+    `SELECT st.created_at, -st.quantity AS units, COALESCE(b.selling_price, 0) AS price
      FROM stock_transactions st
      JOIN batches b ON st.batch_id = b.id
-     WHERE st.transaction_type = 'sale' AND st.created_at >= (CURDATE() - INTERVAL ? DAY)
-     GROUP BY DATE(st.created_at) ORDER BY day ASC`,
-    [days]
+     WHERE st.transaction_type = 'sale' AND st.created_at >= ?`,
+    [startOfLocalDay(firstDay)]
   );
-  const map = Object.fromEntries(
-    rows.map((r) => [r.day.toISOString().slice(0, 10), { units_sold: Number(r.units_sold), revenue: parseFloat(r.revenue) }])
-  );
+  const map = {};
+  for (const r of rows) {
+    const key = localDateKey(new Date(r.created_at));
+    const entry = map[key] || (map[key] = { units_sold: 0, revenue: 0 });
+    entry.units_sold += Number(r.units);
+    entry.revenue += Number(r.units) * parseFloat(r.price);
+  }
   const series = [];
-  const start = new Date();
-  start.setDate(start.getDate() - (days - 1));
-  for (let i = 0; i < days; i++) {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    const key = d.toISOString().slice(0, 10);
+  for (let i = 0; i < dayCount; i++) {
+    const key = addDays(firstDay, i);
     const entry = map[key] || { units_sold: 0, revenue: 0 };
-    series.push({ date: key, units_sold: entry.units_sold, revenue: entry.revenue });
+    series.push({ date: key, units_sold: entry.units_sold, revenue: Math.round(entry.revenue * 100) / 100 });
   }
   return series;
 }

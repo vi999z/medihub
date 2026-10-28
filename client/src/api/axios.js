@@ -48,8 +48,13 @@ api.cachedGet = function cachedGet(url) {
   });
 };
 
+// Clears `url` and the same path with any query string, so invalidating
+// '/transactions/recent' also drops '/transactions/recent?limit=500'.
 api.invalidateCache = function invalidateCache(url) {
-  cache.delete(`GET:${url}`);
+  const key = `GET:${url}`;
+  for (const cachedKey of [...cache.keys()]) {
+    if (cachedKey === key || cachedKey.startsWith(`${key}?`)) cache.delete(cachedKey);
+  }
 };
 
 api.clearAllCache = function clearAllCache() {

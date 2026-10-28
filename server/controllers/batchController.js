@@ -2,6 +2,7 @@ const batchModel = require('../models/batchModel');
 const medicineModel = require('../models/medicineModel');
 const { pool } = require('../config/db');
 const { logAudit } = require('../utils/auditLogger');
+const { validateBatch } = require('../utils/validators');
 
 async function getAll(req, res) {
   const batches = await batchModel.getAll();
@@ -19,74 +20,49 @@ async function getByMedicine(req, res) {
   res.json(batches);
 }
 
+// Shared checks that need the database: the medicine/supplier exist and the
+// batch number isn't already used for this medicine.
+async function checkReferences(value, excludeBatchId = 0) {
+  const medicine = await medicineModel.getById(value.medicine_id);
+  if (!medicine) return { status: 400, error: 'Select a medicine' };
+  if (value.supplier_id) {
+    const [suppliers] = await pool.query('SELECT id FROM suppliers WHERE id = ?', [value.supplier_id]);
+    if (!suppliers.length) return { status: 400, error: 'Choose a valid supplier' };
+  }
+  const [dupes] = await pool.query(
+    'SELECT id FROM batches WHERE medicine_id = ? AND LOWER(batch_number) = LOWER(?) AND id <> ? LIMIT 1',
+    [value.medicine_id, value.batch_number, excludeBatchId]
+  );
+  if (dupes.length) return { status: 409, error: `Batch ${value.batch_number} already exists for ${medicine.name}` };
+  return { medicine };
+}
+
 async function create(req, res) {
-  const { medicine_id, batch_number, quantity_received, expiry_date } = req.body;
+  const { value, error } = validateBatch(req.body);
+  if (error) return res.status(400).json({ error });
 
-  if (!medicine_id || !batch_number || !quantity_received || !expiry_date) {
-    return res.status(400).json({ error: 'medicine_id, batch_number, quantity_received, and expiry_date are required' });
-  }
+  const refs = await checkReferences(value);
+  if (refs.error) return res.status(refs.status).json({ error: refs.error });
 
-  const medicine = await medicineModel.getById(medicine_id);
-  if (!medicine) return res.status(404).json({ error: 'Medicine not found' });
+  const id = await batchModel.create(value);
+  await logAudit(req.user.id, 'created_batch', `Received batch ${value.batch_number} for ${refs.medicine.name} (qty: ${value.quantity_received})`, req);
 
-  if (new Date(expiry_date) <= new Date()) {
-    return res.status(400).json({ error: 'Expiry date must be in the future' });
-  }
-
-  const payload = {
-    ...req.body,
-    supplier_id: req.body.supplier_id || null,
-    cost_price: req.body.cost_price === '' || req.body.cost_price == null ? null : req.body.cost_price,
-    selling_price: req.body.selling_price === '' || req.body.selling_price == null ? null : req.body.selling_price,
-    manufacture_date: req.body.manufacture_date || null
-  };
-
-  const id = await batchModel.create(payload);
-  await logAudit(req.user.id, 'created_batch', `Received batch ${batch_number} for ${medicine.name} (qty: ${quantity_received})`, req);
-
-  res.status(201).json({ id, ...payload });
+  res.status(201).json({ id, ...value });
 }
 
 async function update(req, res) {
   const existing = await batchModel.getById(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Batch not found' });
 
-  const payload = { ...req.body };
-  if (payload.medicine_id) {
-    const medicine = await medicineModel.getById(payload.medicine_id);
-    if (!medicine) return res.status(404).json({ error: 'Medicine not found' });
-  }
+  const { value, error } = validateBatch(req.body, existing);
+  if (error) return res.status(400).json({ error });
 
-  if (payload.supplier_id === '') payload.supplier_id = null;
-  if (payload.expiry_date === '' || payload.expiry_date == null) {
-    return res.status(400).json({ error: 'expiry_date is required' });
-  }
+  const refs = await checkReferences(value, existing.id);
+  if (refs.error) return res.status(refs.status).json({ error: refs.error });
 
-  if (payload.quantity_received === '' || payload.quantity_received == null) {
-    payload.quantity_received = existing.quantity_received;
-  }
-  if (payload.quantity_remaining === '' || payload.quantity_remaining == null) {
-    payload.quantity_remaining = existing.quantity_remaining;
-  }
-  if (payload.cost_price === '' || payload.cost_price == null) {
-    payload.cost_price = existing.cost_price;
-  }
-  if (payload.selling_price === '' || payload.selling_price == null) {
-    payload.selling_price = existing.selling_price;
-  }
-
-  if (payload.status === undefined || payload.status === null || payload.status === '') {
-    payload.status = existing.status;
-    if (Number(payload.quantity_remaining) <= 0 && payload.status === 'active') {
-      payload.status = 'depleted';
-    }
-  } else if (Number(payload.quantity_remaining) <= 0 && payload.status === 'active') {
-    payload.status = 'depleted';
-  }
-
-  await batchModel.update(req.params.id, payload);
-  await logAudit(req.user.id, 'updated_batch', `Updated batch ${existing.batch_number}`, req);
-  res.json({ id: req.params.id, ...existing, ...payload });
+  await batchModel.update(req.params.id, value);
+  await logAudit(req.user.id, 'updated_batch', `Updated batch ${value.batch_number}`, req);
+  res.json({ id: Number(req.params.id), ...existing, ...value });
 }
 
 async function remove(req, res) {

@@ -954,72 +954,6 @@ class ConversationContext {
   }
 }
 
-// ─── Enhanced System Prompt Builder ───
-function buildSystemPrompt(context = null, detectedIntention = null) {
-  let prompt = MEDICAL_INSTRUCTIONS;
-  
-  prompt += `\n\nAVAILABLE FUNCTIONS:
-${Object.entries(AVAILABLE_FUNCTIONS).map(([name, info]) => 
-  `- ${name}: ${info.description}`
-).join('\n')}`;
-
-  if (detectedIntention) {
-    const intentionHints = {
-      expiry: 'Focus on expiry dates, shelf life, and waste prevention.',
-      reorder: 'Focus on stock levels, reorder points, and ordering strategies.',
-      anomaly: 'Focus on unusual patterns, discrepancies, and potential issues.',
-      trend: 'Focus on patterns over time, consumption rates, and demand forecasting.',
-      performance: 'Focus on supplier reliability, delivery times, and quality metrics.',
-      analysis: 'Provide comprehensive analysis with insights and recommendations.',
-      pricing: 'Focus on costs, margins, and profitability.',
-      forecasting: 'Focus on predictions, future needs, and capacity planning.',
-      general: 'Be conversational and helpful while being prepared to access pharmacy data if needed.'
-    };
-
-    prompt += `\n\nQUESTION TYPE: ${detectedIntention.toUpperCase()}
-${intentionHints[detectedIntention] || intentionHints.general}`;
-  }
-
-  if (context) {
-    prompt += `\n\nPREVIOUS CONVERSATION:
-${context}`;
-  }
-
-  prompt += `\n\nRESPONSE FORMAT:
-- Plain text only, NO markdown
-- NO asterisks, NO bold, NO special formatting
-- Be concise (1-2 sentences max)
-- Include key data points
-- One actionable suggestion if needed`;
-
-  return prompt;
-}
-
-// ─── Intention Detection (enhanced with more patterns) ───
-function detectIntention(question) {
-  const keywords = {
-    expiry: ['expir', 'shelf life', 'waste', 'discard', 'spoil', 'expired', 'expiry date'],
-    reorder: ['order', 'reorder', 'stock', 'low', 'out of stock', 'purchase', 'restock'],
-    anomaly: ['unusual', 'anomal', 'strange', 'discrepanc', 'missin', 'theft', 'suspicious', 'unexpected'],
-    trend: ['trend', 'pattern', 'sales', 'consumption', 'velocity', 'demand', 'history', 'over time'],
-    performance: ['supplier', 'delivery', 'quality', 'performan', 'reliability'],
-    analysis: ['analyze', 'analyze', 'insight', 'recommend', 'advice', 'suggest', 'report', 'summary'],
-    pricing: ['price', 'cost', 'profit', 'margin', 'revenue', 'pricing'],
-    forecasting: ['forecast', 'predict', 'future', 'project', 'estimate', 'need'],
-    general: ['hello', 'hi', 'help', 'what', 'how', 'who', 'can you']
-  };
-
-  const lowerQuestion = question.toLowerCase();
-
-  for (const [intention, kws] of Object.entries(keywords)) {
-    if (kws.some(kw => lowerQuestion.includes(kw))) {
-      return intention;
-    }
-  }
-
-  return 'general_inquiry';
-}
-
 // ─── Model Selection ───
 async function selectAvailableModel(apiKey) {
   return 'gemini-3.7-flash'; // primary; modernChat.js falls back through chain
@@ -1034,72 +968,6 @@ function getModelConfig(modelName) {
 function modelSupportsFeature(modelName, feature) {
   const config = getModelConfig(modelName);
   return config[feature] || false;
-}
-
-// ─── Main Chat Function with Modern LLM Capabilities ───
-function extractGeneratedText(responseData) {
-  const candidate = responseData?.candidates?.[0];
-  const parts = candidate?.content?.parts || [];
-  const text = parts
-    .map((part) => part?.text)
-    .filter((part) => typeof part === 'string' && part.trim().length > 0)
-    .join('\n')
-    .trim();
-
-  if (text) {
-    return text;
-  }
-
-  if (responseData?.promptFeedback?.blockReason) {
-    return 'The request was blocked by the safety filter, so I’m switching to a quick inventory summary instead.';
-  }
-
-  if (responseData?.candidates?.length) {
-    return 'I can give you a quick inventory summary instead. Ask about stock levels, expiring items, or low-stock alerts.';
-  }
-
-  return 'I’m having trouble generating a full answer right now, so I’m giving you a quick inventory summary instead.';
-}
-
-async function buildFallbackInventoryResponse(question) {
-  try {
-    const data = await getInventorySummary();
-    const summary = data?.summary || {};
-    const totalMedicines = summary.total_medicines ?? summary.total_items ?? 0;
-    const totalStock = summary.total_stock ?? 0;
-    const totalValue = summary.total_value ?? 0;
-    const expiringSoon = summary.expiring_soon ?? 0;
-    const lowStock = summary.low_stock_count ?? summary.low_stock ?? 0;
-
-    // Get more specific data based on question
-    let specificData = '';
-    let followUp = '';
-    const lowerQuestion = question.toLowerCase();
-
-    if (lowerQuestion.includes('expir') || lowerQuestion.includes('shelf')) {
-      const expiryData = await getExpiryAnalysis(30);
-      specificData = ` ${expiryData.total_at_risk} items are at risk of expiring within 30 days.`;
-      followUp = ' Would you like me to show you which specific items are expiring?';
-    } else if (lowerQuestion.includes('stock') || lowerQuestion.includes('inventory')) {
-      const lowStockData = await getLowStockItems(5);
-      specificData = ` ${lowStockData.count} items are below reorder level.`;
-      followUp = ' I can help you identify which items need reordering.';
-    } else if (lowerQuestion.includes('sales') || lowerQuestion.includes('trend')) {
-      const salesData = await getSalesTrends(30);
-      specificData = ` Average of ${salesData.avg_daily_transactions} transactions per day over the last 30 days.`;
-      followUp = ' I can break this down by specific medicines or time periods.';
-    } else if (lowerQuestion.includes('total') || lowerQuestion.includes('overview') || lowerQuestion.includes('summary')) {
-      specificData = ` Total inventory value: $${totalValue?.toFixed(2) || '0.00'}.`;
-      followUp = ' Would you like me to provide more details about any specific aspect?';
-    }
-
-    const response = `Current inventory: ${totalMedicines} medicines, ${totalStock} units in stock.${specificData} ${expiringSoon > 0 ? `${expiringSoon} items expiring soon. ` : ''}${lowStock > 0 ? `${lowStock} low-stock items. ` : ''}${followUp}`;
-
-    return response;
-  } catch (err) {
-    console.error('Fallback inventory response error:', err);
-    return 'I can help you with your pharmacy inventory management. I have access to your stock levels, expiry dates, sales trends, reorder suggestions, and can generate reports. You can ask me about inventory status, expiring items, low stock alerts, sales patterns, or I can help you analyze specific data. What would you like to know?';
-  }
 }
 
 // ─── Smart Data Fetching Based on Question Context ───
@@ -1195,11 +1063,14 @@ function buildContextualResponse(question, data, intention) {
 function detectFileRequest(question) {
   const lowerQuestion = question.toLowerCase();
 
+  // Checked in this order, first match wins: specific formats come before
+  // PDF, whose patterns ("document", "download report") are generic — so
+  // "export as a Word document" is Word and "Excel spreadsheet" is Excel.
   const filePatterns = {
-    csv: ['csv', 'spreadsheet', 'download file', 'export to csv', 'comma separated', 'data export', 'download csv'],
-    xlsx: ['excel', 'xlsx', 'spreadsheet', 'microsoft excel', 'excel file', 'download excel', 'export excel'],
-    pdf: ['pdf', 'report file', 'download report', 'pdf report', 'document', 'download pdf', 'generate pdf'],
     docx: ['word', 'docx', 'word document', 'microsoft word', 'word file', 'download word', 'generate word'],
+    xlsx: ['excel', 'xlsx', 'spreadsheet', 'microsoft excel', 'excel file', 'download excel', 'export excel'],
+    csv: ['csv', 'download file', 'export to csv', 'comma separated', 'data export', 'download csv'],
+    pdf: ['pdf', 'report file', 'download report', 'pdf report', 'document', 'download pdf', 'generate pdf'],
     json: ['json', 'data file', 'api data', 'structured data', 'json file', 'download json', 'export json'],
     txt: ['text file', 'txt', 'plain text', 'text document', 'text format', 'download txt', 'generate text']
   };
@@ -1238,6 +1109,12 @@ const {
   modernChat,
   chatWithFileGeneration,
 } = require('./modernChat');
+// The live versions used by modernChat — re-exported so this barrel has one
+// copy of each instead of a stale duplicate.
+const { extractGeneratedText, buildFallbackInventoryResponse } = require('./responseBuilder');
+// Same for the prompt/intent helpers: geminiClient.js has the current
+// versions (weather intent, markdown-friendly prompt) that modernChat uses.
+const { buildSystemPrompt, detectIntention } = require('./geminiClient');
 
 module.exports = {
   modernChat,

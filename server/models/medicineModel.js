@@ -72,7 +72,7 @@ async function create(data) {
   const [result] = await pool.query(
     `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, generic_name, normalizedCategory, dosage_form, strength, unit, reorder_level || 10, !!requires_prescription, normalizedBranch]
+    [name, generic_name, normalizedCategory, dosage_form, strength, unit, reorder_level ?? 10, !!requires_prescription, normalizedBranch]
   );
   return result.insertId;
 }

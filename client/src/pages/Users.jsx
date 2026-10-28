@@ -4,7 +4,7 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useDialog } from '../context/DialogContext';
-import { isValidName, isValidEmail } from '../utils/validation';
+import { validateUserForm, trimFields, MAX_LENGTH } from '../utils/validation';
 
 export default function Users() {
   const { user: me } = useAuth();
@@ -17,6 +17,8 @@ export default function Users() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ full_name: '', email: '', password: '', role: 'pharmacist', is_active: true });
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   async function fetchAll() {
     try {
@@ -38,6 +40,7 @@ export default function Users() {
   }, [users, search]);
 
   function resetForm() {
+    setFormError('');
     setShowForm(false);
     setEditingId(null);
     setForm({ full_name: '', email: '', password: '', role: 'pharmacist', is_active: true });
@@ -51,31 +54,31 @@ export default function Users() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!isValidName(form.full_name)) {
-      addToast('Full name can only contain letters, numbers, spaces and . , \' & / ( ) -', 'error');
+    if (saving) return;
+    setFormError('');
+    const validationError = validateUserForm(form, { isCreate: !editingId });
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
-    if (!isValidEmail(form.email)) {
-      addToast('Enter a valid email address', 'error');
-      return;
-    }
-    if (!editingId && form.password.length < 8) {
-      addToast('Temporary password must be at least 8 characters', 'error');
-      return;
-    }
+    setSaving(true);
     try {
+      const payload = trimFields(form);
       if (editingId) {
-        await api.put(`/users/${editingId}`, { full_name: form.full_name, email: form.email, role: form.role, is_active: form.is_active });
+        await api.put(`/users/${editingId}`, { full_name: payload.full_name, email: payload.email, role: payload.role, is_active: payload.is_active });
         addToast('Account updated', 'success');
       } else {
-        await api.post('/users', form);
+        // The password is sent exactly as typed (not trimmed).
+        await api.post('/users', { ...payload, password: form.password });
         addToast('Account created', 'success');
       }
       api.invalidateCache('/users');
       resetForm();
       await fetchAll();
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to save account', 'error');
+      setFormError(err.response?.data?.error || 'Failed to save account');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -115,25 +118,32 @@ export default function Users() {
       {showForm && (
         <form
           onSubmit={handleSubmit}
+          noValidate
           className="flat-card"
           style={{ padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))' }}
         >
-          <div className="field"><label>Full name</label><input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} required /></div>
-          <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
+          <div className="field"><label>Full name</label><input value={form.full_name} maxLength={MAX_LENGTH.fullName} onChange={(e) => setForm({ ...form, full_name: e.target.value })} required /></div>
+          <div className="field"><label>Email</label><input type="email" value={form.email} maxLength={MAX_LENGTH.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
           {!editingId && (
-            <div className="field"><label>Temporary password</label><input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required /></div>
+            <div className="field"><label>Temporary password</label><input type="password" autoComplete="new-password" value={form.password} minLength={8} maxLength={MAX_LENGTH.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required /></div>
           )}
           <div className="field">
             <label>Role</label>
-            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+            <select
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              disabled={editingId === me.id}
+              title={editingId === me.id ? "You can't change your own role" : undefined}
+            >
               <option value="pharmacist">Pharmacist</option>
               <option value="admin">Admin</option>
             </select>
           </div>
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
-            <button type="submit" className="flat-btn-primary">{editingId ? 'Update account' : 'Create account'}</button>
+            <button type="submit" className="flat-btn-primary" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Update account' : 'Create account'}</button>
             <button type="button" className="flat-action-btn" onClick={resetForm}>Cancel</button>
           </div>
+          {formError && <p className="error-text" role="alert" style={{ gridColumn: '1 / -1', margin: 0 }}>{formError}</p>}
         </form>
       )}
 

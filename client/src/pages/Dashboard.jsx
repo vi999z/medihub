@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import api from '../api/axios';
 import { downloadCsv } from '../utils/csv';
 import AnimatedModal from '../components/AnimatedModal';
+import { localDateKey } from '../utils/date';
 
 function peso(n) {
   const value = Number(n) || 0;
@@ -162,7 +163,7 @@ export default function Dashboard() {
 
   const maxRevenue = Math.max(1, ...salesTrend.map((d) => d.revenue || 0));
   const trendTotal = salesTrend.reduce((sum, d) => sum + (d.revenue || 0), 0);
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = localDateKey();
   const vsYesterday = todaySales?.vs_yesterday_pct;
 
   const BREAKDOWN_META = {

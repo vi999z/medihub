@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const userModel = require('../models/userModel');
 const { pool } = require('../config/db');
 const { logAudit } = require('../utils/auditLogger');
+const { validateUser } = require('../utils/validators');
 
 async function getAll(req, res) {
   res.json(await userModel.getAllUsers());
@@ -12,13 +13,20 @@ async function update(req, res) {
   const existing = await userModel.findById(req.params.id);
   if (!existing) return res.status(404).json({ error: 'User not found' });
 
-  const { full_name, email, role, is_active } = req.body;
-  if (!full_name || !email || !role) {
-    return res.status(400).json({ error: 'full_name, email, and role are required' });
-  }
+  const { value, error } = validateUser(req.body, { isCreate: false });
+  if (error) return res.status(400).json({ error });
+  const { full_name, email, role, is_active } = value;
 
-  if (!['admin', 'pharmacist'].includes(role)) {
-    return res.status(400).json({ error: 'role must be admin or pharmacist' });
+  // Same rule as setStatus/remove: an admin can't take away their own access.
+  // Since whoever is editing is an active admin, this also guarantees the
+  // system always keeps at least one active admin.
+  if (Number(req.params.id) === Number(req.user.id)) {
+    if (role !== existing.role) {
+      return res.status(400).json({ error: "You can't change your own role" });
+    }
+    if (is_active !== undefined && !is_active) {
+      return res.status(400).json({ error: "You can't deactivate your own account" });
+    }
   }
 
   const emailOwner = await userModel.findByEmail(email);
@@ -43,7 +51,13 @@ async function setStatus(req, res) {
   if (req.params.id == req.user.id) {
     return res.status(400).json({ error: "You can't change your own status" });
   }
-  await userModel.setActive(req.params.id, !!is_active);
+  if (typeof is_active !== 'boolean') {
+    return res.status(400).json({ error: 'is_active must be true or false' });
+  }
+  if (!(await userModel.findById(req.params.id))) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  await userModel.setActive(req.params.id, is_active);
   await logAudit(req.user.id, 'changed_user_status', `Set user ${req.params.id} active=${!!is_active}`, req);
   res.json({ success: true });
 }
@@ -51,6 +65,9 @@ async function setStatus(req, res) {
 async function remove(req, res) {
   if (req.params.id == req.user.id) {
     return res.status(400).json({ error: "You can't delete your own account" });
+  }
+  if (!(await userModel.findById(req.params.id))) {
+    return res.status(404).json({ error: 'User not found' });
   }
 
   await userModel.setActive(req.params.id, false);

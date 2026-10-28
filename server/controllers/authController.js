@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const userModel = require('../models/userModel');
 const { pool } = require('../config/db');
 const { logAudit } = require('../utils/auditLogger');
+const { validateUser } = require('../utils/validators');
 
 // Converts JWT_EXPIRES_IN strings like "7d", "24h", "3600" into milliseconds
 // so we can give the cookie the same lifetime as the JWT itself.
@@ -83,14 +84,9 @@ async function logout(req, res) {
 
 // POST /api/auth/register  (admin-only — see route protection below)
 async function register(req, res) {
-  const { full_name, email, password, role } = req.body;
-
-  if (!full_name || !email || !password || !role) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-  if (!['admin', 'pharmacist'].includes(role)) {
-    return res.status(400).json({ error: 'Invalid role' });
-  }
+  const { value, error } = validateUser(req.body, { isCreate: true });
+  if (error) return res.status(400).json({ error });
+  const { full_name, email, password, role } = value;
 
   const existing = await userModel.findByEmail(email);
   if (existing) {

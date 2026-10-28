@@ -11,7 +11,7 @@ import { useDialog } from '../context/DialogContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
 import { batchStatus } from '../utils/batchStatus';
-import { isValidName, isNonNegativeNumber } from '../utils/validation';
+import { validateMedicineForm, trimFields, MAX_LENGTH } from '../utils/validation';
 import CsvImport from '../components/CsvImport';
 import AnimatedModal from '../components/AnimatedModal';
 import BatchQrModal from '../components/BatchQrModal';
@@ -133,6 +133,8 @@ export default function Medicines() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Medicine photo (separate from `form` since it uploads via its own
@@ -158,6 +160,7 @@ export default function Medicines() {
   const [sortBy, setSortBy] = useState(() => searchParams.get('sort') || 'name-asc');
 
   function resetForm() {
+    setFormError('');
     setForm(emptyForm);
     setEditingId(null);
     setShowForm(false);
@@ -340,7 +343,7 @@ export default function Medicines() {
       if (field === 'margin') return sign * (marginOf(a) - marginOf(b));
       return sign * String(a.name || '').localeCompare(String(b.name || ''));
     });
-  }, [medicines, search, activeCategory, stockFilter, branchFilter, prescriptionOnly, sortBy]);
+  }, [medicinesWithStatus, search, activeCategory, stockFilter, branchFilter, prescriptionOnly, sortBy]);
 
   const filtersActive = search || activeCategory !== 'All' || stockFilter !== 'all' || branchFilter !== 'all' || prescriptionOnly;
 
@@ -417,30 +420,22 @@ export default function Medicines() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError('');
-    if (!isValidName(form.name)) {
-      setError('Medicine name can only contain letters, numbers, spaces and . , \' & / ( ) -');
+    if (saving) return;
+    setFormError('');
+    const validationError = validateMedicineForm(form);
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
-    if (form.generic_name && !isValidName(form.generic_name)) {
-      setError('Generic name can only contain letters, numbers, spaces and . , \' & / ( ) -');
-      return;
-    }
-    if (!form.unit.trim()) {
-      setError('Unit is required');
-      return;
-    }
-    if (!isNonNegativeNumber(form.reorder_level)) {
-      setError('Reorder level must be a number of 0 or more');
-      return;
-    }
+    setSaving(true);
     try {
+      const payload = trimFields(form);
       let medicineId = editingId;
       if (editingId) {
-        await api.put(`/medicines/${editingId}`, form);
+        await api.put(`/medicines/${editingId}`, payload);
         addToast('Medicine updated', 'success');
       } else {
-        const res = await api.post('/medicines', form);
+        const res = await api.post('/medicines', payload);
         medicineId = res.data.id;
         addToast('Medicine added', 'success');
       }
@@ -452,22 +447,36 @@ export default function Medicines() {
       resetForm();
       await fetchMedicines();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save medicine');
+      setFormError(err.response?.data?.error || 'Failed to save medicine');
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function handleDelete(id) {
-    if (!(await confirm({ title: 'Delete medicine', message: 'Delete this medicine from the catalog?', confirmLabel: 'Delete', danger: true }))) return;
+  async function handleDelete(medicine) {
+    const medicineBatches = batches.filter((b) => b.medicine_id === medicine.id);
+    const inStock = Number(medicine.total_stock) || 0;
+    const details = medicineBatches.length
+      ? ` Its ${medicineBatches.length} batch${medicineBatches.length === 1 ? '' : 'es'}${inStock ? ` (${inStock} ${medicine.unit} in stock)` : ''} and their stock movement history will be deleted too.`
+      : '';
+    if (!(await confirm({
+      title: 'Delete medicine',
+      message: `Delete ${medicine.name} from the catalog?${details} This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    }))) return;
     try {
-      await api.delete(`/medicines/${id}`);
+      await api.delete(`/medicines/${medicine.id}`);
       api.invalidateCache('/medicines');
       api.invalidateCache('/reports/needs-attention?days=14');
       api.invalidateCache('/notifications');
       api.invalidateCache('/notifications?unread=true');
       api.invalidateCache('/batches');
+      api.invalidateCache('/transactions/recent');
+      if (detailMedicine?.id === medicine.id) closeDetail();
       await fetchMedicines();
       await fetchBatches();
-      addToast('Medicine deleted', 'success');
+      addToast(`${medicine.name} deleted`, 'success');
     } catch (err) {
       addToast(err.response?.data?.error || 'Failed to delete medicine', 'error');
     }
@@ -654,7 +663,7 @@ export default function Medicines() {
           <h2 style={{ margin: 0 }}>{editingId ? 'Edit medicine' : 'Add medicine'}</h2>
           <button type="button" className="btn-icon" onClick={resetForm} title="Close"><X size={18} /></button>
         </div>
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))' }}>
+        <form onSubmit={handleSubmit} noValidate style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))' }}>
           <div className="field" style={{ gridColumn: '1 / -1' }}>
             <label>Photo</label>
             <div className="flat-photo-picker">
@@ -673,18 +682,20 @@ export default function Medicines() {
               {imageUploading && <span className="flat-med-meta">Uploading…</span>}
             </div>
           </div>
-          <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
-          <div className="field"><label>Generic name</label><input value={form.generic_name} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} /></div>
+          <div className="field"><label>Name</label><input value={form.name} maxLength={MAX_LENGTH.medicineName} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+          <div className="field"><label>Generic name</label><input value={form.generic_name} maxLength={MAX_LENGTH.genericName} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} /></div>
           <div className="field">
             <label>Category</label>
             <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
               {CATEGORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              {/* Keep a custom category (e.g. from a CSV import) selectable when editing */}
+              {form.category && !CATEGORY_OPTIONS.includes(form.category) && <option value={form.category}>{form.category}</option>}
             </select>
           </div>
-          <div className="field"><label>Dosage form</label><input value={form.dosage_form} onChange={(e) => setForm({ ...form, dosage_form: e.target.value })} /></div>
-          <div className="field"><label>Strength</label><input value={form.strength} onChange={(e) => setForm({ ...form, strength: e.target.value })} /></div>
-          <div className="field"><label>Unit</label><input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required /></div>
-          <div className="field"><label>Reorder level</label><input type="number" value={form.reorder_level} onChange={(e) => setForm({ ...form, reorder_level: e.target.value })} /></div>
+          <div className="field"><label>Dosage form</label><input value={form.dosage_form} maxLength={MAX_LENGTH.dosageForm} placeholder="e.g. Tablet" onChange={(e) => setForm({ ...form, dosage_form: e.target.value })} /></div>
+          <div className="field"><label>Strength</label><input value={form.strength} maxLength={MAX_LENGTH.strength} placeholder="e.g. 500mg" onChange={(e) => setForm({ ...form, strength: e.target.value })} /></div>
+          <div className="field"><label>Unit</label><input value={form.unit} maxLength={MAX_LENGTH.unit} placeholder="e.g. box" onChange={(e) => setForm({ ...form, unit: e.target.value })} required /></div>
+          <div className="field"><label>Reorder level</label><input type="number" inputMode="numeric" min="0" max="100000" step="1" value={form.reorder_level} onChange={(e) => setForm({ ...form, reorder_level: e.target.value })} required /></div>
           <div className="field">
             <label>Branch</label>
             <select value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })}>
@@ -696,10 +707,10 @@ export default function Medicines() {
             Requires prescription
           </label>
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
-            <button type="submit" className="flat-btn-primary">{editingId ? 'Update medicine' : 'Save medicine'}</button>
+            <button type="submit" className="flat-btn-primary" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Update medicine' : 'Save medicine'}</button>
             <button type="button" className="flat-action-btn" onClick={resetForm}>Cancel</button>
           </div>
-          {error && <p className="error-text" style={{ gridColumn: '1 / -1' }}>{error}</p>}
+          {formError && <p className="error-text" role="alert" style={{ gridColumn: '1 / -1' }}>{formError}</p>}
         </form>
         </div>
         )}
@@ -831,6 +842,11 @@ export default function Medicines() {
                         <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); openEdit(m); }}>
                           <Pencil size={13} /> Edit
                         </button>
+                        {(user.role === 'admin' || user.role === 'pharmacist') && (
+                          <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); handleDelete(m); }}>
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

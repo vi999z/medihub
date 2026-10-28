@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useDialog } from '../context/DialogContext';
 import { downloadCsv } from '../utils/csv';
-import { isValidName, isValidEmail, isValidPhone } from '../utils/validation';
+import { validateSupplierForm, trimFields, MAX_LENGTH } from '../utils/validation';
 
 export default function Suppliers() {
   const { user } = useAuth();
@@ -18,6 +18,8 @@ export default function Suppliers() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ name: '', contact_person: '', phone: '', email: '', address: '' });
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   async function fetchAll() {
     try {
@@ -41,6 +43,7 @@ export default function Suppliers() {
   }, [suppliers, search]);
 
   function resetForm() {
+    setFormError('');
     setShowForm(false);
     setEditingId(null);
     setForm({ name: '', contact_person: '', phone: '', email: '', address: '' });
@@ -60,35 +63,30 @@ export default function Suppliers() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!isValidName(form.name)) {
-      addToast('Supplier name can only contain letters, numbers, spaces and . , \' & / ( ) -', 'error');
+    if (saving) return;
+    setFormError('');
+    const validationError = validateSupplierForm(form);
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
-    if (form.contact_person && !isValidName(form.contact_person)) {
-      addToast('Contact person can only contain letters, numbers, spaces and . , \' & / ( ) -', 'error');
-      return;
-    }
-    if (form.phone && !isValidPhone(form.phone)) {
-      addToast('Phone can only contain digits, spaces, + - ( )', 'error');
-      return;
-    }
-    if (form.email && !isValidEmail(form.email)) {
-      addToast('Enter a valid email address', 'error');
-      return;
-    }
+    setSaving(true);
     try {
+      const payload = trimFields(form);
       if (editingId) {
-        await api.put(`/suppliers/${editingId}`, form);
+        await api.put(`/suppliers/${editingId}`, payload);
         addToast('Supplier updated', 'success');
       } else {
-        await api.post('/suppliers', form);
+        await api.post('/suppliers', payload);
         addToast('Supplier added', 'success');
       }
       api.invalidateCache('/suppliers');
       resetForm();
       await fetchAll();
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to save supplier', 'error');
+      setFormError(err.response?.data?.error || 'Failed to save supplier');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -143,18 +141,20 @@ export default function Suppliers() {
       {showForm && (
         <form
           onSubmit={handleSubmit}
+          noValidate
           className="flat-card"
           style={{ padding: 16, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))' }}
         >
-          <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
-          <div className="field"><label>Contact person</label><input value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
-          <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-          <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-          <div className="field" style={{ gridColumn: '1 / -1' }}><label>Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+          <div className="field"><label>Name</label><input value={form.name} maxLength={MAX_LENGTH.supplierName} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+          <div className="field"><label>Contact person</label><input value={form.contact_person} maxLength={MAX_LENGTH.contactPerson} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
+          <div className="field"><label>Phone</label><input type="tel" inputMode="tel" value={form.phone} maxLength={MAX_LENGTH.phone} placeholder="e.g. +63 912 345 6789" onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+          <div className="field"><label>Email</label><input type="email" value={form.email} maxLength={MAX_LENGTH.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+          <div className="field" style={{ gridColumn: '1 / -1' }}><label>Address</label><input value={form.address} maxLength={MAX_LENGTH.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
-            <button type="submit" className="flat-btn-primary">{editingId ? 'Update supplier' : 'Save supplier'}</button>
+            <button type="submit" className="flat-btn-primary" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Update supplier' : 'Save supplier'}</button>
             <button type="button" className="flat-action-btn" onClick={resetForm}>Cancel</button>
           </div>
+          {formError && <p className="error-text" role="alert" style={{ gridColumn: '1 / -1', margin: 0 }}>{formError}</p>}
         </form>
       )}
 

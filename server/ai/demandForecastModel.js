@@ -1,5 +1,6 @@
 const tf = require('@tensorflow/tfjs');
 const { pool } = require('../config/db');
+const { localDateKey, addDays } = require('../utils/dates');
 
 async function getDailySales(medicineId, lookbackDays = 90) {
   try {
@@ -15,16 +16,13 @@ async function getDailySales(medicineId, lookbackDays = 90) {
     );
 
     // Fill gaps with 0 so the series has no missing days
+    // `day` is a 'YYYY-MM-DD' string in the pharmacy's timezone (config/db.js).
     const series = [];
-    const start = new Date();
-    start.setDate(start.getDate() - lookbackDays);
-    const salesByDay = Object.fromEntries(rows.map((r) => [r.day.toISOString().slice(0, 10), Number(r.units_sold)]));
+    const start = addDays(localDateKey(), -lookbackDays);
+    const salesByDay = Object.fromEntries(rows.map((r) => [String(r.day).slice(0, 10), Number(r.units_sold)]));
 
     for (let i = 0; i < lookbackDays; i++) {
-      const d = new Date(start);
-      d.setDate(d.getDate() + i);
-      const key = d.toISOString().slice(0, 10);
-      series.push(salesByDay[key] || 0);
+      series.push(salesByDay[addDays(start, i)] || 0);
     }
     return series;
   } catch (err) {

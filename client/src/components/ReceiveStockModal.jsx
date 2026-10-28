@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Package, X } from 'lucide-react';
 import AnimatedModal from './AnimatedModal';
-import { isValidCode, isPositiveInteger, isNonNegativeNumber } from '../utils/validation';
+import { validateBatchForm, trimFields, MAX_LENGTH } from '../utils/validation';
+import { localDateKey } from '../utils/date';
 
 const emptyForm = {
   medicine_id: '',
@@ -55,18 +56,7 @@ export default function ReceiveStockModal({ isOpen, onClose, medicines, supplier
   }
 
   function validate() {
-    if (!lockedMedicine && !form.medicine_id) return 'Select a medicine';
-    if (!isValidCode(form.batch_number)) return 'Batch number can only contain letters, numbers, - and _';
-    if (!isPositiveInteger(form.quantity_received)) return 'Quantity received must be a whole number greater than 0';
-    if (isEditing) {
-      if (!isNonNegativeNumber(form.quantity_remaining)) return 'Quantity remaining must be a number of 0 or more';
-      if (Number(form.quantity_remaining) > Number(form.quantity_received)) return 'Quantity remaining cannot exceed quantity received';
-    }
-    if (form.cost_price !== '' && !isNonNegativeNumber(form.cost_price)) return 'Cost price must be a number of 0 or more';
-    if (form.selling_price !== '' && !isNonNegativeNumber(form.selling_price)) return 'Selling price must be a number of 0 or more';
-    if (!form.expiry_date) return 'Expiry date is required';
-    if (form.manufacture_date && form.manufacture_date > form.expiry_date) return 'Manufacture date must be before the expiry date';
-    return '';
+    return validateBatchForm(form, { isEditing, needsMedicine: !lockedMedicine });
   }
 
   async function handleSubmit(event) {
@@ -78,9 +68,10 @@ export default function ReceiveStockModal({ isOpen, onClose, medicines, supplier
       setLocalError(validationError);
       return;
     }
+    if (submitting) return;
     setSubmitting(true);
     try {
-      await onSubmit(form);
+      await onSubmit(trimFields(form));
       onClose();
     } catch {
       // The parent displays the API error while keeping the form values intact.
@@ -93,7 +84,7 @@ export default function ReceiveStockModal({ isOpen, onClose, medicines, supplier
 
   return (
     <AnimatedModal isOpen={isOpen} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="card" style={{ padding: 24, border: 'none', boxShadow: 'none' }}>
+      <form onSubmit={handleSubmit} noValidate className="card" style={{ padding: 24, border: 'none', boxShadow: 'none' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
             <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -124,25 +115,25 @@ export default function ReceiveStockModal({ isOpen, onClose, medicines, supplier
           )}
           <div className="field">
             <label>Batch number</label>
-            <input value={form.batch_number} onChange={(event) => update('batch_number', event.target.value)} required autoFocus={!isEditing} />
+            <input value={form.batch_number} maxLength={MAX_LENGTH.batchNumber} onChange={(event) => update('batch_number', event.target.value)} required autoFocus={!isEditing} />
           </div>
           <div className="field">
             <label>Quantity received</label>
-            <input type="number" min="1" value={form.quantity_received} onChange={(event) => update('quantity_received', event.target.value)} required />
+            <input type="number" inputMode="numeric" min="1" step="1" value={form.quantity_received} onChange={(event) => update('quantity_received', event.target.value)} required />
           </div>
           {isEditing && (
             <div className="field">
               <label>Quantity remaining</label>
-              <input type="number" min="0" value={form.quantity_remaining} onChange={(event) => update('quantity_remaining', event.target.value)} required />
+              <input type="number" inputMode="numeric" min="0" max={form.quantity_received || undefined} step="1" value={form.quantity_remaining} onChange={(event) => update('quantity_remaining', event.target.value)} required />
             </div>
           )}
           <div className="field">
             <label>Expiry date</label>
-            <input type="date" value={form.expiry_date} onChange={(event) => update('expiry_date', event.target.value)} required />
+            <input type="date" min={isEditing ? undefined : localDateKey()} value={form.expiry_date} onChange={(event) => update('expiry_date', event.target.value)} required />
           </div>
           <div className="field">
             <label>Manufacture date <span style={{ color: 'var(--steel)', fontWeight: 400 }}>(optional)</span></label>
-            <input type="date" value={form.manufacture_date} onChange={(event) => update('manufacture_date', event.target.value)} />
+            <input type="date" max={localDateKey()} value={form.manufacture_date} onChange={(event) => update('manufacture_date', event.target.value)} />
           </div>
           <div className="field">
             <label>Supplier <span style={{ color: 'var(--steel)', fontWeight: 400 }}>(optional)</span></label>
@@ -153,11 +144,11 @@ export default function ReceiveStockModal({ isOpen, onClose, medicines, supplier
           </div>
           <div className="field">
             <label>Cost price <span style={{ color: 'var(--steel)', fontWeight: 400 }}>(optional)</span></label>
-            <input type="number" min="0" step="0.01" value={form.cost_price} onChange={(event) => update('cost_price', event.target.value)} />
+            <input type="number" inputMode="decimal" min="0" step="0.01" value={form.cost_price} onChange={(event) => update('cost_price', event.target.value)} />
           </div>
           <div className="field">
             <label>Selling price <span style={{ color: 'var(--steel)', fontWeight: 400 }}>(optional)</span></label>
-            <input type="number" min="0" step="0.01" value={form.selling_price} onChange={(event) => update('selling_price', event.target.value)} />
+            <input type="number" inputMode="decimal" min="0" step="0.01" value={form.selling_price} onChange={(event) => update('selling_price', event.target.value)} />
           </div>
           {isEditing && (
             <div className="field">
@@ -172,7 +163,7 @@ export default function ReceiveStockModal({ isOpen, onClose, medicines, supplier
           )}
         </div>
 
-        {displayError && <p className="error-text" style={{ marginBottom: 0 }}>{displayError}</p>}
+        {displayError && <p className="error-text" role="alert" style={{ marginBottom: 0 }}>{displayError}</p>}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
           <button type="button" className="flat-action-btn" onClick={onClose}>Cancel</button>
           <button type="submit" className="flat-btn-primary" disabled={submitting}>
