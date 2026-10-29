@@ -7,6 +7,9 @@
  *   node scripts/seedDemoData.js --fresh   remove the demo data, then add it again
  *   node scripts/seedDemoData.js --check   only check the plan; touches nothing
  *
+ * Administrators can also do this from the app: Maintenance → Load demo data /
+ * Remove demo data (server/controllers/maintenanceController.js).
+ *
  * What it creates (both branches, QMC and MT Carmel):
  *   - 5 suppliers and 22 medicines across categories, some prescription-only
  *   - batches in every status: active, expired, depleted, recalled
@@ -45,15 +48,24 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rand = mulberry32(20261029);
+const SEED = 20261029;
+let rand = mulberry32(SEED);
 const randInt = (min, max) => Math.floor(rand() * (max - min + 1)) + min;
 
 // ─── Dates (Philippine time; `day` = days relative to today) ───────────────
-const TODAY = localDateKey();
+// Read fresh at the start of every run (the server may run for days).
+let TODAY;
+let NOW_HOUR;
+let LAST_SALE_DAY;
+function startClock() {
+  rand = mulberry32(SEED);
+  TODAY = localDateKey();
+  NOW_HOUR = Number(new Intl.DateTimeFormat('en-US', { timeZone: APP_TIMEZONE, hour: 'numeric', hourCycle: 'h23' }).format(new Date()));
+  // Sales stop yesterday if the pharmacy hasn't opened yet today.
+  LAST_SALE_DAY = NOW_HOUR >= 9 ? 0 : -1;
+}
+startClock();
 const dayKey = (day) => addDays(TODAY, day);
-const NOW_HOUR = Number(new Intl.DateTimeFormat('en-US', { timeZone: APP_TIMEZONE, hour: 'numeric', hourCycle: 'h23' }).format(new Date()));
-// Sales stop yesterday if the pharmacy hasn't opened yet today.
-const LAST_SALE_DAY = NOW_HOUR >= 9 ? 0 : -1;
 // A time on that day during opening hours; never later than now for today.
 function timestamp(day, startHour = 8, endHour = 20) {
   const latest = day === 0 ? Math.max(startHour, Math.min(endHour, NOW_HOUR - 1)) : endHour;
@@ -287,11 +299,13 @@ async function resetDemoData() {
   const [sup] = await pool.query('DELETE FROM suppliers WHERE email LIKE ?', [`%${DEMO_EMAIL_DOMAIN}`]);
   const [audit] = await pool.query('DELETE FROM audit_logs WHERE ip_address = ?', [DEMO_IP]);
 
-  console.log(`Removed demo data: ${medicineIds.length} medicines, ${batchIds.length} batches (with their movements), ${sup.affectedRows} suppliers, ${audit.affectedRows} audit entries.`);
+  return `Removed demo data: ${medicineIds.length} medicines, ${batchIds.length} batches (with their movements), ${sup.affectedRows} suppliers, ${audit.affectedRows} audit entries.`;
 }
 
 // ─── Seed ──────────────────────────────────────────────────────────────────
 async function seedDemoData() {
+  startClock();
+  validatePlans();
   const [users] = await pool.query("SELECT id, role FROM users WHERE is_active = 1 ORDER BY id");
   const admin = users.find((u) => u.role === 'admin');
   if (!admin) throw new Error('No active administrator account found — create one first.');
@@ -325,7 +339,6 @@ async function seedDemoData() {
         [med.name, med.strength, med.dosage_form, med.branch]
       );
       if (existing.length) {
-        console.log(`  skipped ${med.name} ${med.strength} (${med.branch}) — already in the catalog`);
         counts.skipped++;
         continue;
       }
@@ -448,25 +461,35 @@ async function seedDemoData() {
   await pool.query('UPDATE notifications SET is_read = 1 WHERE id > ? AND MOD(id, 3) = 0', [maxId]);
   const [[{ alerts }]] = await pool.query('SELECT COUNT(*) AS alerts FROM notifications WHERE id > ?', [maxId]);
 
-  console.log(`Added demo data: ${SUPPLIERS.length} suppliers, ${counts.medicines} medicines, ${counts.batches} batches, ${counts.movements} stock movements, ${alerts} alerts, ${audit.length} audit entries.`);
-  if (counts.skipped) console.log(`Skipped ${counts.skipped} medicine(s) that already exist.`);
-  console.log('Next: log in as an administrator → AI Assistant → Insights → Retrain model.');
+  const skipped = counts.skipped ? ` Skipped ${counts.skipped} medicine(s) already in the catalog.` : '';
+  return `Added demo data: ${SUPPLIERS.length} suppliers, ${counts.medicines} medicines, ${counts.batches} batches, ${counts.movements} stock movements, ${alerts} alerts, ${audit.length} audit entries.${skipped} Next: AI Assistant → Insights → Retrain model.`;
+}
+
+// Replace any existing demo data with a fresh copy dated from today.
+async function loadFreshDemoData() {
+  validatePlans();
+  const removed = (await demoExists()) ? `${await resetDemoData()} ` : '';
+  return `${removed}${await seedDemoData()}`;
 }
 
 async function main() {
   validatePlans();
   const args = process.argv.slice(2);
   if (args.includes('--check')) { console.log('Demo data plan is consistent.'); return; }
-  if (args.includes('--reset') || args.includes('--fresh')) await resetDemoData();
+  if (args.includes('--reset') || args.includes('--fresh')) console.log(await resetDemoData());
   if (!args.includes('--reset')) {
     if (await demoExists()) {
       console.log('Demo data already exists. Use --fresh to replace it, or --reset to remove it.');
     } else {
-      await seedDemoData();
+      console.log(await seedDemoData());
     }
   }
 }
 
-main()
-  .catch((err) => { console.error('Seeding failed:', err.message); process.exitCode = 1; })
-  .finally(() => pool.end());
+module.exports = { loadFreshDemoData, resetDemoData, demoExists };
+
+if (require.main === module) {
+  main()
+    .catch((err) => { console.error('Seeding failed:', err.message); process.exitCode = 1; })
+    .finally(() => pool.end());
+}

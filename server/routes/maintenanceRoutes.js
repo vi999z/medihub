@@ -11,5 +11,7 @@ router.delete('/logs', ctrl.clearLogs);
 router.delete('/expired-batches', ctrl.removeExpiredBatches);
 router.delete('/reset', ctrl.resetSystem);
 router.delete('/wipe', ctrl.wipeAllData);
+router.post('/demo-data', ctrl.loadDemoData);
+router.delete('/demo-data', ctrl.removeDemoData);
 
 module.exports = router;

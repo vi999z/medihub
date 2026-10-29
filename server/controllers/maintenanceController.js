@@ -62,4 +62,35 @@ async function wipeAllData(req, res) {
   res.json({ message: 'All data wiped: medicines, suppliers, batches, transactions, notifications, AI conversations and training history cleared.' });
 }
 
-module.exports = { clearTransactions, clearLogs, removeExpiredBatches, resetSystem, wipeAllData };
+// Demo data (scripts/seedDemoData.js): 14 weeks of sample activity covering
+// every status, for testing and demonstrations. Loading replaces any earlier
+// demo data so dates line up with today; removing touches only demo rows.
+let demoDataBusy = false;
+
+async function runDemoTask(req, res, action, task) {
+  if (demoDataBusy) return res.status(409).json({ error: 'Demo data is already being updated — try again in a moment.' });
+  demoDataBusy = true;
+  logDestructiveAction(req, action);
+  try {
+    const message = await task();
+    await logAudit(req.user.id, `maintenance_${action}`, message, req);
+    res.json({ message });
+  } catch (err) {
+    console.error(`${action} failed:`, err);
+    res.status(500).json({ error: err.message || 'Demo data update failed' });
+  } finally {
+    demoDataBusy = false;
+  }
+}
+
+async function loadDemoData(req, res) {
+  const { loadFreshDemoData } = require('../scripts/seedDemoData');
+  await runDemoTask(req, res, 'load_demo_data', loadFreshDemoData);
+}
+
+async function removeDemoData(req, res) {
+  const { resetDemoData } = require('../scripts/seedDemoData');
+  await runDemoTask(req, res, 'remove_demo_data', resetDemoData);
+}
+
+module.exports = { clearTransactions, clearLogs, removeExpiredBatches, resetSystem, wipeAllData, loadDemoData, removeDemoData };
