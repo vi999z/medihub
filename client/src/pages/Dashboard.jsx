@@ -20,11 +20,15 @@ function marginOf(medicine) {
   return retail > 0 ? ((retail - cost) / retail) * 100 : null;
 }
 
+// How far ahead to look for expiring stock. Defaults to 14 days, the same
+// near-expiry threshold used by alerts and the Medicines/Batches pages.
 const DATE_FILTERS = [
   { value: 'today', label: 'Today', days: 1 },
-  { value: '7d', label: 'Last 7 days', days: 7 },
-  { value: '30d', label: 'Last 30 days', days: 30 },
+  { value: '7d', label: 'Next 7 days', days: 7 },
+  { value: '14d', label: 'Next 14 days', days: 14 },
+  { value: '30d', label: 'Next 30 days', days: 30 },
 ];
+const DEFAULT_DATE_FILTER = '14d';
 
 const STATUS_META = {
   out_of_stock: { label: 'Out of stock', cls: 'red' },
@@ -89,12 +93,12 @@ export default function Dashboard() {
 
   const [branchFilter, setBranchFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('30d');
+  const [dateFilter, setDateFilter] = useState(DEFAULT_DATE_FILTER);
   const [statusFilter, setStatusFilter] = useState('all');
   const [breakdown, setBreakdown] = useState(null);
 
   const loading = summary === null;
-  const horizonDays = DATE_FILTERS.find((f) => f.value === dateFilter)?.days ?? 30;
+  const horizonDays = DATE_FILTERS.find((f) => f.value === dateFilter)?.days ?? 14;
 
   useEffect(() => {
     let mounted = true;
