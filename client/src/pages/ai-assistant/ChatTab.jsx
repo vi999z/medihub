@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { IconSend, IconRobot, IconUser, IconRefresh, IconSparkles, IconPaperclip, IconX, IconDownload, IconPlus, IconDeviceFloppy, IconHistory } from '@tabler/icons-react';
+import { IconSend, IconRobot, IconUser, IconSparkles, IconPaperclip, IconX, IconDownload, IconPlus, IconHistory } from '@tabler/icons-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import api from '../../api/axios';
@@ -19,15 +19,15 @@ const STARTER_PROMPTS = [
   "Download PDF pharmacy report"
 ];
 
+// A message becomes a file download only when it names a file format; anything
+// else ("give me a summary of low stock") is answered in the chat instead.
 function detectExportType(prompt = '') {
   const text = prompt.toLowerCase();
 
-  if (/word|docx|document/.test(text)) return 'docx';
-  if (/csv|excel|spreadsheet|xls/.test(text)) return 'csv';
-  if (/pdf/.test(text)) return 'pdf';
-  if (/text file|txt|summary/.test(text)) return 'txt';
-  if (/json|api payload|structured data/.test(text)) return 'json';
-  if (/chart|graph|visual|dashboard/.test(text)) return 'chart';
+  if (/\b(word|docx)\b/.test(text)) return 'docx';
+  if (/\b(excel|xlsx|xls|spreadsheet)\b/.test(text)) return 'xlsx';
+  if (/\bpdf\b/.test(text)) return 'pdf';
+  if (/\bcsv\b/.test(text)) return 'csv';
 
   return null;
 }
@@ -48,7 +48,7 @@ async function triggerExportDownload(prompt) {
   if (!exportType) return false;
 
   try {
-    if (exportType === 'pdf' || exportType === 'docx') {
+    if (exportType === 'pdf' || exportType === 'docx' || exportType === 'xlsx') {
       const response = await api.post('/ai/auto-generate-file', { question: prompt }, { responseType: 'blob' });
       const blob = new Blob([response.data], {
         type: response.headers['content-type'] || 'application/octet-stream'
@@ -210,24 +210,35 @@ export default function ChatTab() {
     }
   }
 
-  async function saveCurrentConversation() {
-    if (messages.length <= 1) { addToast('Nothing to save yet', 'info'); return; }
-    try {
-      // Auto-title from first user message
-      const firstUser = messages.find(m => m.role === 'user');
-      const autoTitle = firstUser ? firstUser.content.slice(0, 60) : 'Conversation';
-      const res = await api.post('/ai/conversations', {
-        id: activeConvId || undefined,
-        title: autoTitle,
-        messages
-      });
-      setActiveConvId(res.data.id);
-      await loadConversationList();
-      addToast('Conversation saved', 'success');
-    } catch (err) {
-      addToast('Failed to save conversation', 'error');
-    }
-  }
+  // Conversations are saved automatically after every reply, so each user's
+  // history is kept without a separate Save step. `convIdRef` holds the id the
+  // current conversation is saved under (null = not saved yet).
+  const convIdRef = useRef(null);
+  const [saveTick, setSaveTick] = useState(0);
+
+  useEffect(() => { convIdRef.current = activeConvId; }, [activeConvId]);
+
+  useEffect(() => {
+    if (!saveTick) return;
+    const firstUser = messages.find(m => m.role === 'user');
+    if (!firstUser) return;
+    let cancelled = false;
+    api.post('/ai/conversations', {
+      id: convIdRef.current || undefined,
+      title: (firstUser.content || 'Image question').slice(0, 60),
+      messages
+    })
+      .then((res) => {
+        if (cancelled) return;
+        convIdRef.current = res.data.id;
+        setActiveConvId(res.data.id);
+        loadConversationList();
+      })
+      .catch((err) => console.error('Auto-save failed:', err));
+    return () => { cancelled = true; };
+    // Runs once per finished reply; `messages` is read at that moment on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveTick]);
 
   async function loadSavedConversation(conv) {
     try {
@@ -324,6 +335,7 @@ export default function ChatTab() {
     } finally {
       setLoading(false);
       setStreaming(false);
+      setSaveTick((t) => t + 1);
     }
   }
 
@@ -371,26 +383,6 @@ export default function ChatTab() {
     window.requestAnimationFrame(() => handleSubmit({ preventDefault: () => {} }, prompt));
   }
 
-  async function clearChat() {
-    try {
-      await api.post('/ai/conversation/clear');
-      setMessages([
-        {
-          role: 'assistant',
-          content: 'Hello! I\'m MediHub AI, your modern pharmaceutical intelligence assistant. Conversation history cleared. How can I help?',
-          timestamp: new Date()
-        }
-      ]);
-      setConversationTurn(0);
-      setIntention(null);
-      setActiveConvId(null);
-      setPendingImage(null);
-      addToast('Conversation cleared', 'success');
-    } catch (err) {
-      addToast('Failed to clear conversation', 'error');
-    }
-  }
-
   async function getHealthReport() {
     setLoading(true);
     try {
@@ -409,6 +401,7 @@ export default function ChatTab() {
       addToast('Failed to generate health report', 'error');
     } finally {
       setLoading(false);
+      setSaveTick((t) => t + 1);
     }
   }
 
@@ -455,9 +448,6 @@ export default function ChatTab() {
           <button type="button" className="flat-action-btn" onClick={startNewConversation} title="Start a fresh conversation">
             <IconPlus size={15} /> New
           </button>
-          <button type="button" className="flat-action-btn" onClick={saveCurrentConversation} disabled={loading || messages.length <= 1} title="Save this conversation">
-            <IconDeviceFloppy size={15} /> Save
-          </button>
           <button type="button" className="flat-action-btn" onClick={getHealthReport} disabled={loading}>
             <IconSparkles size={15} /> Health report
           </button>
@@ -466,9 +456,6 @@ export default function ChatTab() {
           </button>
           <button type="button" className="flat-action-btn" onClick={() => downloadAiReport('docx')} disabled={loading} title="Export conversation report as Word document">
             <IconDownload size={15} /> Word report
-          </button>
-          <button type="button" className="flat-action-btn" onClick={clearChat}>
-            <IconRefresh size={15} /> Clear
           </button>
         </div>
       </div>
@@ -496,7 +483,7 @@ export default function ChatTab() {
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
               {savedConversations.length === 0 ? (
-                <p className="flat-med-meta" style={{ fontSize: 12, padding: '8px 4px', textAlign: 'center' }}>No saved conversations yet.<br/>Use Save after chatting.</p>
+                <p className="flat-med-meta" style={{ fontSize: 12, padding: '8px 4px', textAlign: 'center' }}>No conversations yet.<br/>Chats are saved automatically.</p>
               ) : (
                 savedConversations.map(conv => (
                   <div

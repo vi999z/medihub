@@ -29,7 +29,8 @@ async function createNearExpiryAlert(batch) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const daysLeft = Math.ceil((new Date(batch.expiry_date) - today) / 86400000);
-  const tier = ALERT_TIERS.find((t) => daysLeft <= t);
+  // The tightest tier that applies (2 days left → the 3-day tier, not 14).
+  const tier = [...ALERT_TIERS].reverse().find((t) => daysLeft <= t);
   if (tier === undefined) return null;
 
   if (await notificationExists('near_expiry', batch.id, 1)) return null;
@@ -52,19 +53,67 @@ async function createExpiredAlert(batch) {
 }
 
 /**
- * Generate a low-stock alert for a medicine if its total remaining stock is
- * at or below its reorder level (and above zero).
+ * Generate a low-stock alert for a medicine if its total usable stock is at
+ * or below its reorder level. Zero stock is the most urgent case, so it gets
+ * a critical "out of stock" alert instead of being skipped.
  * Returns true if an alert was created.
  */
 async function createLowStockAlert(medicine) {
   const totalRemaining = Number(medicine.total_remaining) || 0;
   const reorderLevel = Number(medicine.reorder_level) || 0;
-  if (totalRemaining <= 0 || totalRemaining > reorderLevel) return false;
+  if (totalRemaining > reorderLevel) return false;
 
   if (await notificationExists('low_stock', medicine.id, 3)) return false;
-  const message = `${medicine.name} is low on stock: ${totalRemaining} remaining (reorder level: ${reorderLevel}).`;
-  await createNotification('low_stock', medicine.id, message, 'warning');
+  const outOfStock = totalRemaining <= 0;
+  const message = outOfStock
+    ? `${medicine.name} is out of stock (reorder level: ${reorderLevel}).`
+    : `${medicine.name} is low on stock: ${totalRemaining} remaining (reorder level: ${reorderLevel}).`;
+  await createNotification('low_stock', medicine.id, message, outOfStock ? 'critical' : 'warning');
   return true;
+}
+
+/**
+ * Re-check a medicine's low-stock alert right after its stock changes, so the
+ * alert appears immediately instead of at the next nightly run.
+ */
+async function refreshLowStockAlert(medicineId) {
+  const [rows] = await pool.query(
+    `SELECT m.id, m.name, m.reorder_level,
+            COALESCE(SUM(CASE WHEN b.status = 'active' AND b.expiry_date >= CURDATE() THEN b.quantity_remaining ELSE 0 END), 0) AS total_remaining
+     FROM medicines m
+     LEFT JOIN batches b ON b.medicine_id = m.id
+     WHERE m.id = ?
+     GROUP BY m.id, m.name, m.reorder_level`,
+    [medicineId]
+  );
+  if (rows[0]) await createLowStockAlert(rows[0]);
+}
+
+/**
+ * Re-check one batch's expiry alerts (and its medicine's stock level) right
+ * after it is received, edited, or moved. An active batch already past its
+ * expiry date is flipped to 'expired' here too.
+ */
+async function refreshAlertsForBatch(batchId) {
+  const [rows] = await pool.query(
+    `SELECT b.id, b.medicine_id, b.batch_number, b.expiry_date, b.quantity_remaining, b.status,
+            (b.expiry_date < CURDATE()) AS is_past_expiry, m.name AS medicine_name
+     FROM batches b JOIN medicines m ON b.medicine_id = m.id
+     WHERE b.id = ?`,
+    [batchId]
+  );
+  const batch = rows[0];
+  if (!batch) return;
+  if (batch.status === 'active' && Number(batch.is_past_expiry)) {
+    await pool.query("UPDATE batches SET status = 'expired' WHERE id = ?", [batch.id]);
+    batch.status = 'expired';
+  }
+  if (batch.status === 'expired') {
+    await createExpiredAlert(batch);
+  } else if (batch.status === 'active' && Number(batch.quantity_remaining) > 0) {
+    await createNearExpiryAlert(batch);
+  }
+  await refreshLowStockAlert(batch.medicine_id);
 }
 
 module.exports = {
@@ -73,5 +122,7 @@ module.exports = {
   createNotification,
   createNearExpiryAlert,
   createExpiredAlert,
-  createLowStockAlert
+  createLowStockAlert,
+  refreshLowStockAlert,
+  refreshAlertsForBatch
 };

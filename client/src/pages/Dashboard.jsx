@@ -125,19 +125,28 @@ export default function Dashboard() {
     return [{ value: 'all', label: 'All categories' }, ...[...names].sort().map((c) => ({ value: c, label: c }))];
   }, [needsAttention]);
 
+  // Both branches are always offered, even if one has nothing listed yet.
   const branchOptions = useMemo(() => {
-    const names = new Set((needsAttention?.items || []).map((i) => i.branch || 'QMC'));
+    const names = new Set(['QMC', 'MT Carmel', ...(needsAttention?.items || []).map((i) => i.branch || 'QMC')]);
     return [{ value: 'all', label: 'All branches' }, ...[...names].sort().map((b) => ({ value: b, label: b }))];
   }, [needsAttention]);
 
-  const filteredItems = useMemo(() => {
-    const items = needsAttention?.items || [];
-    return items.filter((i) =>
-      (statusFilter === 'all' ? i.status !== 'healthy' : i.status === statusFilter) &&
-      (categoryFilter === 'all' || (i.category || 'Uncategorized') === categoryFilter) &&
-      (branchFilter === 'all' || (i.branch || 'QMC') === branchFilter)
-    );
-  }, [needsAttention, categoryFilter, branchFilter, statusFilter]);
+  // Items in the selected branch and category; the stock-status counts and
+  // the "needs attention" list both follow these filters.
+  const scopedItems = useMemo(() => (needsAttention?.items || []).filter((i) =>
+    (categoryFilter === 'all' || (i.category || 'Uncategorized') === categoryFilter) &&
+    (branchFilter === 'all' || (i.branch || 'QMC') === branchFilter)
+  ), [needsAttention, categoryFilter, branchFilter]);
+
+  const stockCounts = useMemo(() => {
+    const counts = { out_of_stock: 0, low_stock: 0, expiring: 0, healthy: 0 };
+    for (const i of scopedItems) if (i.status in counts) counts[i.status]++;
+    return counts;
+  }, [scopedItems]);
+
+  const filteredItems = useMemo(() => scopedItems.filter((i) =>
+    statusFilter === 'all' ? i.status !== 'healthy' : i.status === statusFilter
+  ), [scopedItems, statusFilter]);
 
   function toggleStockFilter(status) {
     setStatusFilter((current) => (current === status ? 'all' : status));
@@ -258,28 +267,28 @@ export default function Dashboard() {
             <button type="button" className={`flat-stock-col${statusFilter === 'out_of_stock' ? ' active' : ''}`} onClick={() => toggleStockFilter('out_of_stock')}>
               <span className="flat-stock-dot red" />
               <span className="flat-stock-text">
-                <span className="flat-stock-number">{loading ? '—' : needsAttention?.counts.out_of_stock ?? 0}</span>
+                <span className="flat-stock-number">{loading ? '—' : stockCounts.out_of_stock}</span>
                 <span className="flat-stock-label">Out of stock</span>
               </span>
             </button>
             <button type="button" className={`flat-stock-col${statusFilter === 'low_stock' ? ' active' : ''}`} onClick={() => toggleStockFilter('low_stock')}>
               <span className="flat-stock-dot amber" />
               <span className="flat-stock-text">
-                <span className="flat-stock-number">{loading ? '—' : needsAttention?.counts.low_stock ?? 0}</span>
+                <span className="flat-stock-number">{loading ? '—' : stockCounts.low_stock}</span>
                 <span className="flat-stock-label">Running low</span>
               </span>
             </button>
             <button type="button" className={`flat-stock-col${statusFilter === 'expiring' ? ' active' : ''}`} onClick={() => toggleStockFilter('expiring')}>
               <span className="flat-stock-dot orange" />
               <span className="flat-stock-text">
-                <span className="flat-stock-number">{loading ? '—' : needsAttention?.counts.expiring ?? 0}</span>
+                <span className="flat-stock-number">{loading ? '—' : stockCounts.expiring}</span>
                 <span className="flat-stock-label">Expiring in {horizonDays}d</span>
               </span>
             </button>
             <button type="button" className={`flat-stock-col${statusFilter === 'healthy' ? ' active' : ''}`} onClick={() => toggleStockFilter('healthy')}>
               <span className="flat-stock-dot green" />
               <span className="flat-stock-text">
-                <span className="flat-stock-number">{loading ? '—' : needsAttention?.counts.healthy ?? 0}</span>
+                <span className="flat-stock-number">{loading ? '—' : stockCounts.healthy}</span>
                 <span className="flat-stock-label">Healthy</span>
               </span>
             </button>

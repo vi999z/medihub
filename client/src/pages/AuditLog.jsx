@@ -75,9 +75,6 @@ export default function AuditLog() {
       <div className="flat-card">
         <div className="flat-table-header">
           <span className="flat-table-title">Activity</span>
-          {search && (
-            <button type="button" className="flat-table-link" onClick={() => setSearch('')}>Clear search</button>
-          )}
         </div>
         <div style={{ padding: 16 }}>
           {error && (

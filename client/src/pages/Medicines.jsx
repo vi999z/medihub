@@ -779,9 +779,6 @@ export default function Medicines() {
       <div className="flat-card">
         <div className="flat-table-header">
           <span className="flat-table-title">Catalog</span>
-          {filtersActive && (
-            <button type="button" className="flat-table-link" onClick={clearFilters}>Clear filters</button>
-          )}
         </div>
         <div style={{ padding: 16 }}>
           {error && (
@@ -982,7 +979,7 @@ export default function Medicines() {
           isOpen={showStockMovement}
           onClose={() => setShowStockMovement(false)}
           medicine={detailMedicine}
-          batches={detailBatches.filter((batch) => batch.status === 'active' || batch.status === 'depleted')}
+          batches={detailBatches}
           onSubmit={handleStockMovement}
           error={stockMovementError}
         />

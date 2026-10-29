@@ -3,6 +3,7 @@ const transactionModel = require('../models/transactionModel');
 const batchModel = require('../models/batchModel');
 const { logAudit } = require('../utils/auditLogger');
 const { validateTransaction } = require('../utils/validators');
+const { refreshAlertsForBatch } = require('../utils/alertHelpers');
 
 // POST /api/transactions
 // transaction_type: 'sale' | 'adjustment' | 'disposal' | 'return' (stock_in handled separately via batch creation)
@@ -45,7 +46,9 @@ async function create(req, res) {
       return res.status(400).json({ error: `That would leave ${newQuantity} in a batch that only received ${batch.quantity_received}.` });
     }
 
-    if (newQuantity === 0) {
+    // Emptying an active batch makes it depleted; an expired or recalled batch
+    // keeps its status so disposed stock is still reported as wasted.
+    if (newQuantity === 0 && batch.status === 'active') {
       await conn.query(
         "UPDATE batches SET quantity_remaining = ?, status = 'depleted' WHERE id = ?",
         [newQuantity, batch_id]
@@ -66,6 +69,7 @@ async function create(req, res) {
     );
 
     await conn.commit();
+    await refreshAlertsForBatch(batch_id);
 
     await logAudit(req.user.id, 'stock_transaction', `${transaction_type} of ${Math.abs(delta)} on batch ${batch.batch_number}`, req);
 

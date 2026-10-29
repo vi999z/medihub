@@ -9,7 +9,7 @@ const { explainAnomaly, explainExpiryRisk, explainReorderRecommendation, generat
 const { streamGeminiResponse } = require('../ai/streamingHandler');
 const { trainAndPersist, scoreActiveBatches } = require('../ai/expiryRiskModel');
 const { pool } = require('../config/db');
-const { getReorderSuggestions } = require('../ai/demandForecastModel');
+const { getReorderSuggestions, getDemandForecasts } = require('../ai/demandForecastModel');
 const { detectAnomalies } = require('../ai/anomalyDetection');
 const { logAudit } = require('../utils/auditLogger');
 const { buildSmartReport } = require('../ai/smartReportBuilder');
@@ -761,6 +761,17 @@ async function train(req, res) {
   }
 }
 
+// GET /api/ai/demand-forecast?days=14 — projected demand per medicine
+async function getDemandForecastHandler(req, res) {
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 14, 1), 60);
+    res.json({ forecasts: await getDemandForecasts(days) });
+  } catch (err) {
+    console.error('Demand forecast failed:', err);
+    res.status(500).json({ error: 'Failed to forecast demand' });
+  }
+}
+
 async function getReorderSuggestionsHandler(req, res) {
   try {
     const suggestions = await getReorderSuggestions();
@@ -817,6 +828,7 @@ module.exports = {
   getExpiryRisk,
   train,
   getReorderSuggestionsHandler,
+  getDemandForecastHandler,
   getAnomalies,
 
   // Utility functions

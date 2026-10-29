@@ -10,6 +10,26 @@ function getSupportedExportTypes() {
   return [...SUPPORTED_EXPORT_TYPES];
 }
 
+// Readable column header from a field name: "quantity_remaining" -> "Quantity Remaining".
+function humanizeHeader(key) {
+  return String(key).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// One table cell as text: dates as YYYY-MM-DD, 0 kept (not blanked), objects summarised.
+function cellText(value) {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? '' : value.toISOString().slice(0, 10);
+  if (typeof value === 'object') return JSON.stringify(value);
+  const text = String(value);
+  // Full ISO timestamps read better as date + time.
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text) ? text.slice(0, 16).replace('T', ' ') : text;
+}
+
+// PDFKit's built-in fonts have no peso sign (it prints as "±").
+function pdfText(value) {
+  return cellText(value).replace(/₱/g, 'PHP ');
+}
+
 function toRowsArray(reportData) {
   if (Array.isArray(reportData?.rows)) return reportData.rows;
   if (Array.isArray(reportData?.items)) return reportData.items;
@@ -189,7 +209,10 @@ function buildChartPayload(reportData) {
 
 function buildPdfBuffer(reportData) {
   reportData = normalizeReportData(reportData);
-  const doc = new PDFDocument({ margin: 50, size: 'A4' });
+  const tableRows = toRowsArray(reportData);
+  const tableHeaders = [...new Set(tableRows.flatMap((row) => Object.keys(row || {})))];
+  // Wide tables get a landscape page so columns stay readable.
+  const doc = new PDFDocument({ margin: 50, size: 'A4', layout: tableHeaders.length > 6 ? 'landscape' : 'portrait' });
   const chunks = [];
 
   return new Promise((resolve, reject) => {
@@ -198,7 +221,7 @@ function buildPdfBuffer(reportData) {
     doc.on('error', (error) => reject(error));
 
     // Enhanced Header with branding
-    doc.fontSize(20).fillColor('#2563eb').text(reportData?.title || 'Pharmacy Health Report', { align: 'center' });
+    doc.fontSize(20).fillColor('#2563eb').text(pdfText(reportData?.title || 'Pharmacy Health Report'), { align: 'center' });
     doc.fontSize(10).fillColor('gray').text(`Generated: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, { align: 'center' });
     doc.moveDown();
     doc.moveDown();
@@ -206,7 +229,7 @@ function buildPdfBuffer(reportData) {
     if (reportData.executive_summary) {
       doc.fontSize(16).fillColor('#1e40af').text('Executive Summary', { underline: true });
       doc.moveDown(0.4);
-      doc.fontSize(11).fillColor('#172033').text(reportData.executive_summary, { lineGap: 3 });
+      doc.fontSize(11).fillColor('#172033').text(pdfText(reportData.executive_summary), { lineGap: 3 });
       doc.moveDown();
     }
 
@@ -220,7 +243,7 @@ function buildPdfBuffer(reportData) {
       entries.forEach(([key, value]) => {
         const formattedKey = key.replace(/_/g, ' ').toUpperCase();
         doc.fillColor('#4b5563').text(`${formattedKey}:`, { continued: true });
-        doc.fillColor('#1e293b').text(` ${value}`);
+        doc.fillColor('#1e293b').text(` ${pdfText(value)}`);
       });
       doc.moveDown();
     }
@@ -263,42 +286,60 @@ function buildPdfBuffer(reportData) {
       });
     }
 
-    // Data tables section with enhanced styling
-    const rows = toRowsArray(reportData);
+    // Detailed data table: wraps long values, grows rows to fit, and starts a
+    // new page (repeating the header row) when it runs out of room.
+    const rows = tableRows;
     if (rows.length > 0) {
-      doc.fontSize(16).fillColor('#1e40af').text('Detailed Data', { underline: true });
-      doc.moveDown();
-      doc.fontSize(10);
+      const MAX_ROWS = 500;
+      const left = doc.page.margins.left;
+      const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const headers = tableHeaders;
+      const colWidth = tableWidth / headers.length;
+      const fontSize = headers.length > 10 ? 7 : headers.length > 6 ? 8 : 9;
+      const pad = 4;
+      const bottom = () => doc.page.height - doc.page.margins.bottom;
+      const rowHeightFor = (texts, font) => {
+        doc.font(font).fontSize(fontSize);
+        return Math.max(...texts.map((t) => doc.heightOfString(t, { width: colWidth - pad * 2 }))) + pad * 2;
+      };
 
-      // Create enhanced table
-      const headers = [...new Set(rows.flatMap((row) => Object.keys(row || {})))];
-      const tableTop = doc.y;
-      const rowHeight = 22;
-      const colWidth = (doc.page.width - 100) / headers.length;
-
-      // Draw headers with better styling
-      headers.forEach((header, i) => {
-        doc.rect(50 + i * colWidth, tableTop, colWidth, rowHeight).fillAndStroke('#3b82f6', '#1e40af');
-        doc.fillColor('white').font('Helvetica-Bold').text(header, 55 + i * colWidth, tableTop + 5, { width: colWidth - 10 });
-      });
-      doc.fillColor('black').font('Helvetica');
-
-      // Draw rows with alternating colors
-      rows.slice(0, 30).forEach((row, rowIndex) => {
-        const y = tableTop + rowHeight + (rowIndex + 1) * rowHeight;
-        const isEven = rowIndex % 2 === 0;
-        if (isEven) {
-          doc.rect(50, y, doc.page.width - 100, rowHeight).fill('#f8fafc');
-        }
-        headers.forEach((header, colIndex) => {
-          doc.rect(50 + colIndex * colWidth, y, colWidth, rowHeight).stroke();
-          doc.text(String(row?.[header] || ''), 55 + colIndex * colWidth, y + 5, { width: colWidth - 10 });
+      const drawHeader = (y) => {
+        const labels = headers.map(humanizeHeader);
+        const h = rowHeightFor(labels, 'Helvetica-Bold');
+        labels.forEach((label, i) => {
+          doc.rect(left + i * colWidth, y, colWidth, h).fillAndStroke('#3b82f6', '#1e40af');
+          doc.fillColor('white').font('Helvetica-Bold').fontSize(fontSize)
+            .text(label, left + i * colWidth + pad, y + pad, { width: colWidth - pad * 2 });
         });
+        return y + h;
+      };
+
+      doc.x = left;
+      doc.fontSize(16).fillColor('#1e40af').text('Detailed Data', { underline: true });
+      doc.moveDown(0.5);
+      let y = drawHeader(doc.y);
+
+      rows.slice(0, MAX_ROWS).forEach((row, rowIndex) => {
+        const texts = headers.map((header) => pdfText(row?.[header]));
+        const h = rowHeightFor(texts, 'Helvetica');
+        if (y + h > bottom()) {
+          doc.addPage();
+          y = drawHeader(doc.page.margins.top);
+        }
+        if (rowIndex % 2 === 0) doc.rect(left, y, tableWidth, h).fill('#f1f5f9');
+        texts.forEach((text, colIndex) => {
+          doc.lineWidth(0.5).strokeColor('#cbd5e1').rect(left + colIndex * colWidth, y, colWidth, h).stroke();
+          // Set the text colour after the stripe fill, or the text inherits it.
+          doc.fillColor('#0f172a').font('Helvetica').fontSize(fontSize)
+            .text(text, left + colIndex * colWidth + pad, y + pad, { width: colWidth - pad * 2 });
+        });
+        y += h;
       });
 
-      if (rows.length > 30) {
-        doc.moveDown();
-        doc.text(`... and ${rows.length - 30} more rows available`, { italic: true, size: 9 });
+      doc.x = left;
+      doc.y = y + 8;
+      if (rows.length > MAX_ROWS) {
+        doc.fontSize(9).fillColor('#475569').text(`... and ${rows.length - MAX_ROWS} more rows (export to Excel for the full list)`);
       }
       doc.moveDown();
     }
@@ -347,9 +388,14 @@ function buildPdfBuffer(reportData) {
       doc.moveDown();
     }
 
-    // Footer with disclaimer
-    doc.fontSize(8).fillColor('gray').text('MediHub Pharmacy Management System - Confidential Report', { align: 'center' });
-    doc.text('Generated by AI - Review before distribution', { align: 'center' });
+    // Footer — full width, from the left margin (the table leaves the cursor in its last column).
+    const footerWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    doc.x = doc.page.margins.left;
+    doc.fontSize(8).fillColor('gray').text('MediHub Pharmacy Management System - Confidential Report', doc.page.margins.left, doc.y, { width: footerWidth, align: 'center' });
+    // Only reports with an AI-written summary carry the AI disclaimer.
+    if (reportData.executive_summary || reportData.ai_generated) {
+      doc.text('Includes AI-generated content - review before distribution', { width: footerWidth, align: 'center' });
+    }
 
     doc.end();
   });
@@ -432,17 +478,17 @@ async function buildWordDocument(reportData) {
               new TableRow({
                 children: [...new Set(toRowsArray(reportData).flatMap(row => Object.keys(row || {})))].map(header =>
                   new TableCell({
-                    children: [new Paragraph({ text: header, bold: true })],
+                    children: [new Paragraph({ children: [new TextRun({ text: humanizeHeader(header), bold: true })] })],
                     width: { size: 25, type: WidthType.PERCENTAGE },
                     shading: { fill: 'f0f0f0' }
                   })
                 )
               }),
-              ...toRowsArray(reportData).slice(0, 50).map(row =>
+              ...toRowsArray(reportData).slice(0, 200).map(row =>
                 new TableRow({
                   children: [...new Set(toRowsArray(reportData).flatMap(item => Object.keys(item || {})))].map(key =>
                     new TableCell({
-                      children: [new Paragraph(String(row[key] ?? ''))],
+                      children: [new Paragraph(cellText(row?.[key]))],
                       width: { size: 25, type: WidthType.PERCENTAGE }
                     })
                   )
@@ -450,7 +496,10 @@ async function buildWordDocument(reportData) {
               )
             ],
             width: { size: 100, type: WidthType.PERCENTAGE },
-          })
+          }),
+          ...(toRowsArray(reportData).length > 200 ? [
+            new Paragraph({ text: `... and ${toRowsArray(reportData).length - 200} more rows (export to Excel for the full list)`, spacing: { before: 100 } }),
+          ] : []),
         ] : []),
 
         // Recommendations
@@ -532,8 +581,8 @@ async function buildExcelWorkbook(reportData) {
 
     const headers = [...new Set(rows.flatMap(row => Object.keys(row || {})))];
     headers.forEach((header, colIndex) => {
-      const cell = worksheet.getCell(String.fromCharCode(65 + colIndex) + row);
-      cell.value = header;
+      const cell = worksheet.getRow(row).getCell(colIndex + 1);
+      cell.value = humanizeHeader(header);
       cell.font = { bold: true };
       cell.fill = {
         type: 'pattern',
@@ -543,11 +592,18 @@ async function buildExcelWorkbook(reportData) {
     });
     row++;
 
-    rows.slice(0, 100).forEach((dataRow) => {
+    // Excel is the full-detail export, so every row is included. Numbers stay
+    // numeric (and 0 stays 0) so they can be summed in the spreadsheet.
+    rows.forEach((dataRow) => {
       headers.forEach((header, colIndex) => {
-        worksheet.getCell(String.fromCharCode(65 + colIndex) + row).value = dataRow[header] || '';
+        const value = dataRow?.[header];
+        worksheet.getRow(row).getCell(colIndex + 1).value = typeof value === 'number' ? value : cellText(value);
       });
       row++;
+    });
+    headers.forEach((header, colIndex) => {
+      const column = worksheet.getColumn(colIndex + 1);
+      column.width = Math.max(column.width || 0, Math.min(40, humanizeHeader(header).length + 4));
     });
   }
 

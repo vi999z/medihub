@@ -214,17 +214,26 @@ async function getBatchesByStatus(status) {
 }
 
 async function getWastedMedicines() {
-  // Wasted = depleted or expired batches with cost_price info
+  // Wasted = stock disposed of (disposal movements) plus stock still sitting
+  // in expired batches. Batches that simply sold out are not waste.
   const [rows] = await pool.query(
     `SELECT b.id, b.batch_number, b.status, b.quantity_received, b.quantity_remaining,
             b.cost_price, b.selling_price, b.expiry_date,
-            (b.quantity_remaining * COALESCE(b.cost_price, 0)) AS estimated_waste_value,
+            COALESCE(d.disposed, 0) AS quantity_disposed,
+            COALESCE(d.disposed, 0) + CASE WHEN b.status = 'expired' THEN b.quantity_remaining ELSE 0 END AS quantity_wasted,
+            (COALESCE(d.disposed, 0) + CASE WHEN b.status = 'expired' THEN b.quantity_remaining ELSE 0 END)
+              * COALESCE(b.cost_price, 0) AS estimated_waste_value,
             m.name AS medicine_name, m.category, m.unit,
             s.name AS supplier_name
      FROM batches b
      JOIN medicines m ON b.medicine_id = m.id
      LEFT JOIN suppliers s ON b.supplier_id = s.id
-     WHERE b.status IN ('expired', 'depleted')
+     LEFT JOIN (
+       SELECT batch_id, SUM(-quantity) AS disposed
+       FROM stock_transactions WHERE transaction_type = 'disposal'
+       GROUP BY batch_id
+     ) d ON d.batch_id = b.id
+     WHERE COALESCE(d.disposed, 0) > 0 OR (b.status = 'expired' AND b.quantity_remaining > 0)
      ORDER BY estimated_waste_value DESC`
   );
   return rows;

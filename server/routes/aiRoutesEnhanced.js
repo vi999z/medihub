@@ -39,6 +39,7 @@ router.delete('/conversations/:id', convCtrl.deleteConversation);
 router.get('/weather-recommendations', ctrlEnhanced.getWeatherRecommendations);
 
 // ─── Traditional endpoints (backward compatible) ───
+router.get('/demand-forecast', ctrlEnhanced.getDemandForecastHandler);
 router.get('/reorder-suggestions', ctrlEnhanced.getReorderSuggestionsHandler);
 router.post('/train', requireRole('admin'), ctrlEnhanced.train);
 

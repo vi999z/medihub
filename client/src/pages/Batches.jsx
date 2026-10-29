@@ -12,6 +12,7 @@ import ReceiveStockModal from '../components/ReceiveStockModal';
 import ExportDropdown from '../components/ExportDropdown';
 import { downloadBlob } from '../utils/downloadFile';
 
+// Every report in Excel and PDF; Word for the expired and wasted reports.
 const EXPORT_OPTIONS = [
   { label: 'Active batches (Excel)', key: 'active', format: 'excel' },
   { label: 'Expiring soon (Excel)', key: 'expiring', format: 'excel' },
@@ -20,9 +21,15 @@ const EXPORT_OPTIONS = [
   { label: 'Recalled batches (Excel)', key: 'recalled', format: 'excel' },
   { label: 'Wasted medicines (Excel)', key: 'wasted', format: 'excel' },
   null,
+  { label: 'Active batches (PDF)', key: 'active', format: 'pdf' },
+  { label: 'Expiring soon (PDF)', key: 'expiring', format: 'pdf' },
   { label: 'Expired batches (PDF)', key: 'expired', format: 'pdf' },
+  { label: 'Depleted batches (PDF)', key: 'depleted', format: 'pdf' },
+  { label: 'Recalled batches (PDF)', key: 'recalled', format: 'pdf' },
   { label: 'Wasted medicines (PDF)', key: 'wasted', format: 'pdf' },
+  null,
   { label: 'Expired batches (Word)', key: 'expired', format: 'docx' },
+  { label: 'Wasted medicines (Word)', key: 'wasted', format: 'docx' },
   null,
   { label: 'Current view (CSV)', key: 'csv', format: 'csv' },
 ];
@@ -150,7 +157,9 @@ export default function Batches() {
     try {
       const endpoint = status === 'wasted'
         ? `/reports/export/wasted?format=${format}`
-        : `/reports/export/batches?status=${status}&format=${format}`;
+        : status === 'expiring'
+          ? `/reports/export/expiring?days=14&format=${format}`
+          : `/reports/export/batches?status=${status}&format=${format}`;
       const res = await api.get(endpoint, { responseType: 'blob' });
       const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
       const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
@@ -219,9 +228,6 @@ export default function Batches() {
       <div className="flat-card">
         <div className="flat-table-header">
           <span className="flat-table-title">Batches</span>
-          {filtersActive && (
-            <button type="button" className="flat-table-link" onClick={clearFilters}>Clear filters</button>
-          )}
         </div>
         <div style={{ padding: 16 }}>
           {error && (

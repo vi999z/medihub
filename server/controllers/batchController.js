@@ -3,6 +3,7 @@ const medicineModel = require('../models/medicineModel');
 const { pool } = require('../config/db');
 const { logAudit } = require('../utils/auditLogger');
 const { validateBatch } = require('../utils/validators');
+const { refreshAlertsForBatch, refreshLowStockAlert } = require('../utils/alertHelpers');
 
 async function getAll(req, res) {
   const batches = await batchModel.getAll();
@@ -45,6 +46,12 @@ async function create(req, res) {
   if (refs.error) return res.status(refs.status).json({ error: refs.error });
 
   const id = await batchModel.create(value);
+  // Receiving stock is a movement too, so it appears in the transaction history.
+  await pool.query(
+    "INSERT INTO stock_transactions (batch_id, user_id, transaction_type, quantity, reason) VALUES (?, ?, 'stock_in', ?, ?)",
+    [id, req.user.id, value.quantity_received, 'Stock received']
+  );
+  await refreshAlertsForBatch(id);
   await logAudit(req.user.id, 'created_batch', `Received batch ${value.batch_number} for ${refs.medicine.name} (qty: ${value.quantity_received})`, req);
 
   res.status(201).json({ id, ...value });
@@ -61,6 +68,7 @@ async function update(req, res) {
   if (refs.error) return res.status(refs.status).json({ error: refs.error });
 
   await batchModel.update(req.params.id, value);
+  await refreshAlertsForBatch(existing.id);
   await logAudit(req.user.id, 'updated_batch', `Updated batch ${value.batch_number}`, req);
   res.json({ id: Number(req.params.id), ...existing, ...value });
 }
@@ -70,6 +78,7 @@ async function remove(req, res) {
   if (!existing) return res.status(404).json({ error: 'Batch not found' });
 
   await batchModel.remove(req.params.id);
+  await refreshLowStockAlert(existing.medicine_id);
   await logAudit(req.user.id, 'deleted_batch', `Deleted batch ${existing.batch_number}`, req);
   res.status(204).send();
 }

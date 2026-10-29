@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, X, ArrowDownLeft, ArrowUpRight, RefreshCw, Trash2, Calendar } from 'lucide-react';
+import { Plus, Search, X, ArrowDownLeft, ArrowUpRight, RefreshCw, Trash2, PackagePlus } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
@@ -21,10 +21,17 @@ const EXPORT_OPTIONS = [
   { label: 'Current view (CSV)', key: 'csv', format: 'csv' },
 ];
 
-const TYPES = ['sale', 'adjustment', 'disposal', 'return'];
-const TYPE_FILTERS = [{ value: 'all', label: 'All types' }, ...TYPES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))];
+const TYPE_FILTERS = [
+  { value: 'all', label: 'All types' },
+  { value: 'stock_in', label: 'Stock in' },
+  { value: 'sale', label: 'Sale' },
+  { value: 'adjustment', label: 'Adjustment' },
+  { value: 'disposal', label: 'Disposal' },
+  { value: 'return', label: 'Return' },
+];
 
 function transactionConfig(type) {
+  if (type === 'stock_in') return { cls: 'safe', Icon: PackagePlus, label: 'Stock in' };
   if (type === 'sale') return { cls: 'critical', Icon: ArrowDownLeft, label: 'Sale' };
   if (type === 'disposal') return { cls: 'critical', Icon: Trash2, label: 'Disposal' };
   if (type === 'return') return { cls: 'safe', Icon: ArrowUpRight, label: 'Return' };
@@ -59,7 +66,7 @@ export default function Transactions() {
     try {
       const [t, b] = await Promise.all([api.cachedGet(transactionsUrl), api.cachedGet('/batches')]);
       setTransactions(t.data || []);
-      setBatches((b.data || []).filter((batch) => batch.status === 'active' || batch.status === 'depleted'));
+      setBatches(b.data || []);
       setError('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load transactions');
@@ -176,11 +183,16 @@ export default function Transactions() {
               {TYPE_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
-          {dateFilter && (
-            <button type="button" className="filter-toggle" onClick={() => setDateFilter('')} title="Clear date filter">
-              <Calendar size={14} /> {new Date(`${dateFilter}T00:00:00`).toLocaleDateString()} <X size={13} />
-            </button>
-          )}
+          <div className="field filter-select">
+            <input
+              type="date"
+              value={dateFilter}
+              max={localDateKey()}
+              onChange={(e) => setDateFilter(e.target.value)}
+              aria-label="Filter by date"
+              title="Show movements on this date"
+            />
+          </div>
           {filtersActive && (
             <button type="button" className="flat-action-btn" onClick={clearFilters}>
               <X size={15} /> Clear filters
@@ -197,9 +209,6 @@ export default function Transactions() {
               <span className="flat-med-meta" style={{ fontWeight: 400, marginLeft: 8 }}>latest {RECENT_LIMIT} shown</span>
             )}
           </span>
-          {filtersActive && (
-            <button type="button" className="flat-table-link" onClick={clearFilters}>Clear filters</button>
-          )}
         </div>
         <div style={{ padding: 16 }}>
           {error && (

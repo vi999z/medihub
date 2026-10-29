@@ -35,19 +35,13 @@ async function flipExpiredBatches() {
   }
 }
 
-// 3a. Purge stale low_stock notifications for medicines that now have 0 stock
-//     (these should never show — zero stock means the medicine was wiped/depleted)
-async function purgeZeroStockNotifications() {
+// 3a. Purge low_stock notifications for medicines that no longer exist
+//     (e.g. after a wipe). Zero stock is kept: it raises an "out of stock" alert.
+async function purgeOrphanedStockNotifications() {
   await pool.query(
     `DELETE n FROM notifications n
-     LEFT JOIN (
-       SELECT m.id, COALESCE(SUM(b.quantity_remaining), 0) AS total_remaining
-       FROM medicines m
-       LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active'
-       GROUP BY m.id
-     ) stock ON n.reference_id = stock.id
-     WHERE n.type = 'low_stock'
-       AND (stock.total_remaining = 0 OR stock.total_remaining IS NULL)`
+     LEFT JOIN medicines m ON n.reference_id = m.id
+     WHERE n.type = 'low_stock' AND m.id IS NULL`
   );
 }
 
@@ -58,7 +52,7 @@ async function checkLowStock() {
      FROM medicines m
      LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active'
      GROUP BY m.id, m.name, m.reorder_level
-     HAVING total_remaining > 0 AND total_remaining <= m.reorder_level`
+     HAVING total_remaining <= m.reorder_level`
   );
 
   for (const med of medicines) {
@@ -69,7 +63,7 @@ async function checkLowStock() {
 async function runAllChecks() {
   console.log('🔍 Running expiry & stock monitoring checks...');
   try {
-    await purgeZeroStockNotifications(); // remove stale 0-stock alerts first
+    await purgeOrphanedStockNotifications(); // remove alerts for deleted medicines first
     await flipExpiredBatches();
     await checkExpiringBatches();
     await checkLowStock();

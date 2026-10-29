@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { IconTrash, IconHistory, IconClock, IconRefresh, IconAlertTriangle } from '@tabler/icons-react';
+import { IconTrash, IconHistory, IconClock, IconRefresh, IconAlertTriangle, IconPackageOff } from '@tabler/icons-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import { useDialog } from '../context/DialogContext';
@@ -10,6 +10,7 @@ const ACTIONS = [
   { key: 'transactions', label: 'Clear transaction history', icon: IconHistory, tone: 'amber', endpoint: '/maintenance/transactions', confirm: 'This will permanently remove all transaction records.' },
   { key: 'logs', label: 'Clear logs and notifications', icon: IconClock, tone: 'amber', endpoint: '/maintenance/logs', confirm: 'This will permanently remove all audit logs and notifications.' },
   { key: 'expired-batches', label: 'Remove expired medicine', icon: IconTrash, tone: 'amber', endpoint: '/maintenance/expired-batches', confirm: 'This will permanently delete all expired batches.' },
+  { key: 'depleted-batches', label: 'Remove depleted batches', icon: IconPackageOff, tone: 'amber', endpoint: '/batches/depleted', confirm: 'This will permanently delete every batch with no stock left.' },
   { key: 'reset', label: 'Reset pharmacy system', icon: IconRefresh, tone: 'red', endpoint: '/maintenance/reset', confirm: 'This will clear expired batches, transactions, logs, and notifications.' },
   { key: 'wipe', label: 'Wipe all data', icon: IconAlertTriangle, tone: 'red', endpoint: '/maintenance/wipe', confirm: 'This will permanently delete all medicines, suppliers, batches, transactions, and AI training history.' },
 ];

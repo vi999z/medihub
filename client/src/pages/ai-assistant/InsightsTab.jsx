@@ -31,9 +31,25 @@ function severityPill(severity) {
 
 const TABS = [
   { key: 'risk', label: 'Expiry risk' },
+  { key: 'forecast', label: 'Demand forecast' },
   { key: 'reorder', label: 'Reorder suggestions' },
   { key: 'anomalies', label: 'Anomalies' },
 ];
+
+const TREND_LABEL = { rising: 'Rising', falling: 'Falling', stable: 'Steady' };
+const TREND_CLS = { rising: 'orange', falling: 'green', stable: 'green' };
+
+// Tiny bar chart of the day-by-day forecast.
+function ForecastBars({ values }) {
+  const max = Math.max(1, ...values);
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }} aria-hidden="true">
+      {values.map((v, i) => (
+        <div key={i} style={{ width: 6, height: `${Math.max(2, (v / max) * 28)}px`, background: 'var(--flat-accent)', opacity: 0.75, borderRadius: 1 }} />
+      ))}
+    </div>
+  );
+}
 
 function TrainBanner({ trainMsg, trainStatus }) {
   if (!trainMsg) return null;
@@ -72,6 +88,7 @@ export default function InsightsTab({ onBadgeChange }) {
   const [risk, setRisk] = useState([]);
   const [reorder, setReorder] = useState([]);
   const [anomalies, setAnomalies] = useState([]);
+  const [forecasts, setForecasts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [training, setTraining] = useState(false);
   const [trainMsg, setTrainMsg] = useState('');
@@ -82,19 +99,22 @@ export default function InsightsTab({ onBadgeChange }) {
     setLoading(true);
     setError('');
     try {
-      const [r, ro, a] = await Promise.all([
+      const [r, ro, a, f] = await Promise.all([
         api.get('/ai/expiry-risk'),
         api.get('/ai/reorder-suggestions'),
         api.get('/ai/anomalies'),
+        api.get('/ai/demand-forecast?days=14'),
       ]);
       setRisk(r.data || []);
       setReorder(ro.data?.suggestions || ro.data || []);
       setAnomalies(a.data?.anomalies || []);
+      setForecasts(f.data?.forecasts || []);
     } catch (err) {
       setError(err.response?.data?.error || 'Unable to load AI insights right now.');
       setRisk([]);
       setReorder([]);
       setAnomalies([]);
+      setForecasts([]);
     } finally {
       setLoading(false);
     }
@@ -258,6 +278,48 @@ export default function InsightsTab({ onBadgeChange }) {
                         </td>
                       </tr>
                     ))}
+                </tbody>
+              )}
+            </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'forecast' && (
+        <div className="flat-card flat-attention-card">
+          <div className="flat-table-header">
+            <span className="flat-table-title">Demand forecast — next 14 days</span>
+            {!loading && !error && <span className="flat-med-meta">{forecasts.length} item{forecasts.length !== 1 ? 's' : ''}</span>}
+          </div>
+          <div className="flat-attention-scroll">
+            <table className="flat-table">
+              <thead><tr><th>Medicine</th><th>Avg demand/day</th><th>Projected (14 days)</th><th>Trend</th><th>In stock</th><th>Daily forecast</th></tr></thead>
+              {loading ? <TableSkeleton cols={6} /> : (
+                <tbody>
+                  {error && (
+                    <tr><td colSpan={6} className="flat-empty">
+                      Unable to load insights — {error}
+                      <div style={{ marginTop: 10 }}>
+                        <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
+                      </div>
+                    </td></tr>
+                  )}
+                  {!error && forecasts.length === 0 && (
+                    <tr><td colSpan={6} className="flat-empty">No sales history yet — record some sales to see projected demand.</td></tr>
+                  )}
+                  {forecasts.map((f) => (
+                    <tr key={f.medicine_id}>
+                      <td style={{ fontWeight: 500 }}>{f.medicine_name}</td>
+                      <td>{f.avg_daily_demand} {f.unit}</td>
+                      <td><strong>{f.projected_demand} {f.unit}</strong></td>
+                      <td><span className={`flat-status-label ${TREND_CLS[f.trend] || 'green'}`}>{TREND_LABEL[f.trend] || f.trend}</span></td>
+                      <td>
+                        {f.current_stock}
+                        {f.days_of_stock_left != null && <div className="flat-med-meta">~{f.days_of_stock_left} days of stock</div>}
+                      </td>
+                      <td><ForecastBars values={f.forecast || []} /></td>
+                    </tr>
+                  ))}
                 </tbody>
               )}
             </table>

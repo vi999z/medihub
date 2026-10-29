@@ -12,6 +12,7 @@ async function detectAnomalies(lookbackDays = 30) {
        JOIN medicines m ON b.medicine_id = m.id
        JOIN users u ON st.user_id = u.id
        WHERE st.created_at >= (CURDATE() - INTERVAL ? DAY)
+         AND st.transaction_type <> 'stock_in' -- deliveries are planned, not anomalies
        ORDER BY m.id, st.created_at`,
       [lookbackDays]
     );
@@ -87,6 +88,7 @@ async function getAnomalyDiagnostics(medicineId, lookbackDays = 30) {
        FROM stock_transactions st
        JOIN batches b ON st.batch_id = b.id
        WHERE b.medicine_id = ? AND st.created_at >= (CURDATE() - INTERVAL ? DAY)
+         AND st.transaction_type <> 'stock_in'
        ORDER BY st.created_at`,
       [medicineId, lookbackDays]
     );

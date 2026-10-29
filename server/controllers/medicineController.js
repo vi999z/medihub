@@ -304,6 +304,10 @@ async function commitCsvImport(req, res) {
           );
           const batchId = batchResult.insertId;
           batchesCreated++;
+          await conn.query(
+            "INSERT INTO stock_transactions (batch_id, user_id, transaction_type, quantity, reason) VALUES (?, ?, 'stock_in', ?, ?)",
+            [batchId, req.user.id, quantityReceived, 'Stock received (CSV import)']
+          );
 
           // Generate alerts immediately
           const batchForAlert = {

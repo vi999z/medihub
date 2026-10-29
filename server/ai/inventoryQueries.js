@@ -77,8 +77,9 @@ async function getSalesTrends(days) {
             COUNT(DISTINCT st.id) as transaction_count,
             SUM(CASE WHEN st.transaction_type = 'sale' THEN -st.quantity ELSE st.quantity END) as net_movement,
             SUM(CASE WHEN st.transaction_type = 'sale' THEN -st.quantity ELSE 0 END) as total_sold,
-            COUNT(DISTINCT st.medicine_id) as unique_medicines
+            COUNT(DISTINCT b.medicine_id) as unique_medicines
      FROM stock_transactions st
+     JOIN batches b ON st.batch_id = b.id
      WHERE st.created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
      GROUP BY DATE(st.created_at)
      ORDER BY date DESC`,

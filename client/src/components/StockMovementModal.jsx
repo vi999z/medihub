@@ -90,7 +90,7 @@ export default function StockMovementModal({ isOpen, onClose, medicine, batches,
               <option value="">Choose a batch</option>
               {batches.map((batch) => (
                 <option key={batch.id} value={batch.id}>
-                  {medicine ? '' : `${batch.medicine_name} — `}{batch.batch_number} ({batch.quantity_remaining} {medicine?.unit || ''} left{batch.status === 'depleted' ? ', depleted' : ''})
+                  {medicine ? '' : `${batch.medicine_name} — `}{batch.batch_number} ({batch.quantity_remaining} {medicine?.unit || ''} left{batch.status !== 'active' ? `, ${batch.status}` : ''})
                 </option>
               ))}
             </select>

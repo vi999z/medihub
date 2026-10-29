@@ -169,9 +169,6 @@ export default function Users() {
       <div className="flat-card">
         <div className="flat-table-header">
           <span className="flat-table-title">Accounts</span>
-          {search && (
-            <button type="button" className="flat-table-link" onClick={() => setSearch('')}>Clear search</button>
-          )}
         </div>
         <div style={{ padding: 16 }}>
           {error && (

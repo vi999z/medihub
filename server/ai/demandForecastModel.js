@@ -146,15 +146,23 @@ async function getReorderSuggestions() {
       }
       if (avg_daily_demand <= 0) continue;
 
-      const daysOfStockLeft = avg_daily_demand > 0 ? med.current_stock / avg_daily_demand : Infinity;
-      const suggestedReorderQty = Math.ceil(avg_daily_demand * 30); // 30-day buffer
+      const currentStock = Number(med.current_stock) || 0;
+      const reorderLevel = Number(med.reorder_level) || 0;
+      const daysOfStockLeft = currentStock / avg_daily_demand;
+      // Only medicines that actually need restocking: under 30 days of cover
+      // at the forecast rate, or already at/below their reorder level.
+      if (daysOfStockLeft >= 30 && currentStock > reorderLevel) continue;
+      // Top up to 30 days of forecast demand (never below the reorder level),
+      // minus what is already on the shelf.
+      const target = Math.max(Math.ceil(avg_daily_demand * 30), reorderLevel);
+      const suggestedReorderQty = Math.max(target - currentStock, 1);
 
       const insight = describeTrend(trend, daysOfStockLeft, avg_daily_demand);
 
       suggestions.push({
         medicine_id: med.id,
         medicine_name: med.name,
-        current_stock: med.current_stock,
+        current_stock: currentStock,
         avg_daily_demand,
         days_of_stock_left: Number(daysOfStockLeft.toFixed(1)),
         trend,
@@ -202,4 +210,41 @@ async function getForecastingDiagnostics(medicineId) {
   }
 }
 
-module.exports = { forecastDemand, getReorderSuggestions, getForecastingDiagnostics };
+// Projected demand for every medicine that has sales history, for the
+// Demand Forecast view: recent average, the next `horizonDays` forecast, and trend.
+async function getDemandForecasts(horizonDays = 14) {
+  const [medicines] = await pool.query(
+    `SELECT m.id, m.name, m.unit,
+            COALESCE(SUM(CASE WHEN b.status = 'active' THEN b.quantity_remaining ELSE 0 END), 0) AS current_stock
+     FROM medicines m
+     JOIN batches b ON b.medicine_id = m.id
+     WHERE EXISTS (
+       SELECT 1 FROM stock_transactions st JOIN batches sb ON st.batch_id = sb.id
+       WHERE sb.medicine_id = m.id AND st.transaction_type = 'sale'
+     )
+     GROUP BY m.id, m.name, m.unit
+     ORDER BY m.name`
+  );
+  const forecasts = [];
+  for (const med of medicines) {
+    const { forecast, avg_daily_demand, trend, error } = await forecastDemand(med.id, horizonDays);
+    if (error) continue;
+    const projectedTotal = Math.round(forecast.reduce((a, b) => a + b, 0));
+    const currentStock = Number(med.current_stock) || 0;
+    forecasts.push({
+      medicine_id: med.id,
+      medicine_name: med.name,
+      unit: med.unit,
+      current_stock: currentStock,
+      avg_daily_demand,
+      trend,
+      horizon_days: horizonDays,
+      projected_demand: projectedTotal,
+      forecast,
+      days_of_stock_left: avg_daily_demand > 0 ? Number((currentStock / avg_daily_demand).toFixed(1)) : null,
+    });
+  }
+  return forecasts.sort((a, b) => b.projected_demand - a.projected_demand);
+}
+
+module.exports = { forecastDemand, getReorderSuggestions, getForecastingDiagnostics, getDemandForecasts };
