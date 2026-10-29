@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const { pool } = require('../config/db');
+const { APP_TIMEZONE } = require('../utils/dates');
 const {
   notificationExists,
   createNotification,
@@ -74,8 +75,12 @@ async function runAllChecks() {
 }
 
 function startExpiryMonitor() {
-  runAllChecks(); // run once immediately on server start
-  cron.schedule('0 0 * * *', runAllChecks); // then daily at midnight
+  // Run once shortly after start-up (not immediately), so a server waking from
+  // sleep answers its first visitor before this heavier check competes for the
+  // database. Alerts for stock changes are created as they happen anyway.
+  setTimeout(runAllChecks, 30000);
+  // Then daily at midnight Philippine time (the server itself runs on UTC).
+  cron.schedule('0 0 * * *', runAllChecks, { timezone: APP_TIMEZONE });
 }
 
 module.exports = { startExpiryMonitor, runAllChecks };
