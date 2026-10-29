@@ -16,7 +16,7 @@ const ENTITY_CONFIG = {
     label: 'Batch',
     plural: 'Batches',
     templateHeaders: ['medicine_name', 'batch_number', 'quantity_received', 'cost_price', 'selling_price', 'manufacture_date', 'expiry_date', 'supplier_name'],
-    templateExample: ['Paracetamol', 'BATCH-001', '100', '5.00', '8.00', '2025-01-15', '2026-01-15', 'MedSupply Co.'],
+    templateExample: ['Paracetamol', 'BATCH-001', '100', '5.00', '8.00', '2025-01-15', '2026-01-15', 'Sample Supplier'],
     requiredColumns: ['medicine_name', 'batch_number', 'quantity_received', 'expiry_date'],
     displayColumns: ['Medicine', 'Batch #', 'Status', 'Errors']
   },
@@ -24,7 +24,7 @@ const ENTITY_CONFIG = {
     label: 'Supplier',
     plural: 'Suppliers',
     templateHeaders: ['name', 'contact_person', 'phone', 'email', 'address'],
-    templateExample: ['MedSupply Co.', 'John Doe', '555-1234', 'john@medsupply.com', '123 Main St'],
+    templateExample: ['Sample Supplier', 'John Doe', '555-1234', 'contact@example.com', '123 Main St'],
     requiredColumns: ['name'],
     displayColumns: ['Name', 'Contact', 'Status', 'Errors']
   }

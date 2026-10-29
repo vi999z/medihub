@@ -75,12 +75,14 @@ function timestamp(day, startHour = 8, endHour = 20) {
 }
 
 // ─── Reference data ────────────────────────────────────────────────────────
+// Fictional placeholders only — the pharmacy's real suppliers are confidential,
+// so no real company, person or phone number appears in the demo data.
 const SUPPLIERS = [
-  { name: 'PharmaLink Distributors', contact_person: 'Ana Reyes', phone: '+63 917 123 4567', email: `orders${DEMO_EMAIL_DOMAIN}`, address: 'Makati City, Metro Manila' },
-  { name: 'Unilab Partner Supply', contact_person: 'Mark Villanueva', phone: '+63 918 222 3344', email: `unilab${DEMO_EMAIL_DOMAIN}`, address: 'Mandaluyong City, Metro Manila' },
-  { name: 'MedExpress Lucena', contact_person: 'Joy Dela Cruz', phone: '(042) 710 5521', email: `medexpress${DEMO_EMAIL_DOMAIN}`, address: 'Quezon Avenue, Lucena City' },
-  { name: 'Quezon Pharma Trading', contact_person: 'Ramon Santos', phone: '+63 927 555 0101', email: `qpt${DEMO_EMAIL_DOMAIN}`, address: 'Tayabas City, Quezon' },
-  { name: 'HealthFirst Wholesale', contact_person: 'Liza Mercado', phone: '+63 939 888 1212', email: `healthfirst${DEMO_EMAIL_DOMAIN}`, address: 'Batangas City, Batangas' },
+  { name: 'Supplier A (Demo)', contact_person: 'Demo Contact A', phone: '+63 900 000 0001', email: `supplier-a${DEMO_EMAIL_DOMAIN}`, address: 'Sample Address A' },
+  { name: 'Supplier B (Demo)', contact_person: 'Demo Contact B', phone: '+63 900 000 0002', email: `supplier-b${DEMO_EMAIL_DOMAIN}`, address: 'Sample Address B' },
+  { name: 'Supplier C (Demo)', contact_person: 'Demo Contact C', phone: '+63 900 000 0003', email: `supplier-c${DEMO_EMAIL_DOMAIN}`, address: 'Sample Address C' },
+  { name: 'Supplier D (Demo)', contact_person: 'Demo Contact D', phone: '+63 900 000 0004', email: `supplier-d${DEMO_EMAIL_DOMAIN}`, address: 'Sample Address D' },
+  { name: 'Supplier E (Demo)', contact_person: 'Demo Contact E', phone: '+63 900 000 0005', email: `supplier-e${DEMO_EMAIL_DOMAIN}`, address: 'Sample Address E' },
 ];
 
 /*

@@ -382,7 +382,7 @@ async function downloadCsvTemplate(req, res) {
     '8.00',
     '2025-01-15',
     '2026-01-15',
-    'MedSupply Co.'
+    'Sample Supplier'
   ];
 
   const csv = [
