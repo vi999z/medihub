@@ -14,7 +14,7 @@ services, and fail for reasons unrelated to the code without them.
 **Services (check the day before)**
 - **Gemini API key** set and within quota (tests 25–27).
 - **OpenWeatherMap key** set (test 26). Without it the page shows "Seasonal est." instead of live weather.
-- **Cloudinary credentials** set (photo upload in test 1).
+- **Photos (test 1)** are stored in the MySQL database; nothing to set up.
 - Open the site a few minutes early. Free hosting sleeps when idle, and the first load can take about a minute.
 - **Camera tests (17):** use the HTTPS site, or `localhost` on the same computer. Browsers block the camera on plain `http://` addresses such as `http://192.168…`.
 

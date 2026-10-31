@@ -19,6 +19,7 @@ import ReceiveStockModal from '../components/ReceiveStockModal';
 import StockMovementModal from '../components/StockMovementModal';
 import ExportDropdown from '../components/ExportDropdown';
 import { downloadBlob } from '../utils/downloadFile';
+import { shrinkImage } from '../utils/image';
 
 const EXPORT_OPTIONS = [
   { label: 'Expired batches (Excel)', key: 'expired', format: 'excel' },
@@ -408,7 +409,7 @@ export default function Medicines() {
     setImageUploading(true);
     try {
       const body = new FormData();
-      body.append('image', file);
+      body.append('image', await shrinkImage(file));
       await api.post(`/medicines/${id}/image`, body, { headers: { 'Content-Type': 'multipart/form-data' } });
       api.invalidateCache('/medicines');
     } catch (err) {

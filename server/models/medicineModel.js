@@ -92,8 +92,44 @@ async function remove(id) {
   await pool.query('DELETE FROM medicines WHERE id = ?', [id]);
 }
 
+// Medicine photos live in the database (one row per medicine), so they need
+// no outside storage service and are deleted with their medicine.
+let imageTableReady = null;
+function ensureImageTable() {
+  imageTableReady ??= pool.query(
+    `CREATE TABLE IF NOT EXISTS medicine_images (
+       medicine_id INT PRIMARY KEY,
+       mime_type VARCHAR(50) NOT NULL,
+       data MEDIUMBLOB NOT NULL,
+       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+       FOREIGN KEY (medicine_id) REFERENCES medicines(id) ON DELETE CASCADE
+     )`
+  ).catch((err) => { imageTableReady = null; throw err; });
+  return imageTableReady;
+}
+
+async function saveImage(id, mimeType, data) {
+  await ensureImageTable();
+  await pool.query(
+    `INSERT INTO medicine_images (medicine_id, mime_type, data) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE mime_type = VALUES(mime_type), data = VALUES(data)`,
+    [id, mimeType, data]
+  );
+}
+
+async function getImage(id) {
+  await ensureImageTable();
+  const [rows] = await pool.query('SELECT mime_type, data FROM medicine_images WHERE medicine_id = ?', [id]);
+  return rows[0];
+}
+
+async function deleteImage(id) {
+  await ensureImageTable();
+  await pool.query('DELETE FROM medicine_images WHERE medicine_id = ?', [id]);
+}
+
 async function setImage(id, imageUrl) {
   await pool.query('UPDATE medicines SET image_url = ? WHERE id = ?', [imageUrl, id]);
 }
 
-module.exports = { getAll, getById, create, update, remove, setImage, CATEGORY_OPTIONS, normalizeCategory, BRANCH_OPTIONS, normalizeBranch };
+module.exports = { getAll, getById, create, update, remove, setImage, saveImage, getImage, deleteImage, CATEGORY_OPTIONS, normalizeCategory, BRANCH_OPTIONS, normalizeBranch };

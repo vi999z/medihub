@@ -73,9 +73,8 @@ app.get('/api/health/uploads', (req, res) => {
     uploadsRoot: UPLOADS_ROOT,
     uploadsDirEnvSet: Boolean(process.env.UPLOADS_DIR),
     writable,
-    // Medicine photos go to Cloudinary; this says whether credentials are set
-    // (never the credentials themselves).
-    cloudinaryConfigured: require('./config/cloudinary').isCloudinaryConfigured(),
+    // Medicine photos are stored in the MySQL database (medicine_images).
+    photoStorage: 'database',
   });
 });
 

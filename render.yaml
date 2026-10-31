@@ -8,8 +8,3 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      # Medicine photos are stored on Cloudinary (not local/mounted disk) so
-      # they survive deploys/restarts on the free plan — set the actual value
-      # in the Render dashboard's Environment tab, not here.
-      - key: CLOUDINARY_URL
-        sync: false

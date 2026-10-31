@@ -6,7 +6,6 @@ const { parse } = require('csv-parse');
 const fs = require('fs');
 const path = require('path');
 const { UPLOADS_ROOT } = require('../config/uploadPaths');
-const cloudinary = require('../config/cloudinary');
 const {
   createNearExpiryAlert,
   createExpiredAlert,
@@ -104,19 +103,11 @@ async function remove(req, res) {
   res.status(204).send();
 }
 
-// Best-effort cleanup of a previously-uploaded photo when it's replaced or
-// removed. Medicine photos now live on Cloudinary (see medicineRoutes.js) so
-// they survive Render deploys/restarts; this also still handles the old
-// local-disk path format for any medicine photographed before that change.
+// Photos uploaded before photos moved into the database were stored on local
+// disk; remove such a file when its medicine's photo is replaced or removed.
 function deleteOldImage(imageUrl) {
-  if (!imageUrl) return;
-  if (imageUrl.startsWith('/uploads/medicines/')) {
+  if (imageUrl && imageUrl.startsWith('/uploads/medicines/')) {
     fs.unlink(path.join(UPLOADS_ROOT, imageUrl.replace(/^\/uploads\//, '')), () => {});
-    return;
-  }
-  const match = imageUrl.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[a-zA-Z0-9]+)?$/);
-  if (match) {
-    cloudinary.uploader.destroy(match[1]).catch(() => {});
   }
 }
 
@@ -125,21 +116,35 @@ async function uploadImage(req, res) {
   if (!existing) return res.status(404).json({ error: 'Medicine not found' });
   if (!req.file) return res.status(400).json({ error: 'No image file uploaded' });
 
-  const imageUrl = req.file.path;
-  await medicineModel.setImage(req.params.id, imageUrl);
+  await medicineModel.saveImage(existing.id, req.file.mimetype, req.file.buffer);
+  // The version in the URL makes browsers fetch the new photo after a change.
+  const imageUrl = `/api/medicines/${existing.id}/image?v=${Date.now()}`;
+  await medicineModel.setImage(existing.id, imageUrl);
   deleteOldImage(existing.image_url);
   await logAudit(req.user.id, 'updated_medicine_image', `Updated photo for medicine: ${existing.name}`, req);
-  res.json({ id: req.params.id, image_url: imageUrl });
+  res.json({ id: existing.id, image_url: imageUrl });
+}
+
+// GET /api/medicines/:id/image — public so <img> tags can load it (they can't
+// send a login token); product photos aren't sensitive.
+async function getImage(req, res) {
+  const image = await medicineModel.getImage(Number(req.params.id) || 0);
+  if (!image) return res.status(404).json({ error: 'No photo for this medicine' });
+  res.set('Content-Type', image.mime_type);
+  // Safe to cache for a long time: a new photo gets a new ?v= URL.
+  res.set('Cache-Control', 'public, max-age=31536000, immutable');
+  res.send(image.data);
 }
 
 async function removeImage(req, res) {
   const existing = await medicineModel.getById(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Medicine not found' });
 
-  await medicineModel.setImage(req.params.id, null);
+  await medicineModel.deleteImage(existing.id);
+  await medicineModel.setImage(existing.id, null);
   deleteOldImage(existing.image_url);
   await logAudit(req.user.id, 'updated_medicine_image', `Removed photo for medicine: ${existing.name}`, req);
-  res.json({ id: req.params.id, image_url: null });
+  res.json({ id: existing.id, image_url: null });
 }
 
 function hasBatchData(row) {
@@ -395,4 +400,4 @@ async function downloadCsvTemplate(req, res) {
   res.send(csv);
 }
 
-module.exports = { getAll, getOne, create, update, remove, uploadImage, removeImage, validateCsvImport, commitCsvImport, downloadCsvTemplate };
+module.exports = { getAll, getOne, create, update, remove, uploadImage, getImage, removeImage, validateCsvImport, commitCsvImport, downloadCsvTemplate };
