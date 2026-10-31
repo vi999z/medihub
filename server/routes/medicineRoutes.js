@@ -42,7 +42,12 @@ router.get('/:id', ctrl.getOne);                                // pharmacist + 
 router.post('/', requireRole('admin', 'pharmacist'), ctrl.create);
 router.put('/:id', requireRole('admin', 'pharmacist'), ctrl.update);
 router.delete('/:id', requireRole('admin', 'pharmacist'), ctrl.remove);
-router.post('/:id/image', requireRole('admin', 'pharmacist'), imageUpload.single('image'), ctrl.uploadImage);
+// Fail clearly (instead of an opaque upload error) when photo storage isn't set up.
+function requirePhotoStorage(req, res, next) {
+  if (cloudinary.isCloudinaryConfigured()) return next();
+  return res.status(503).json({ error: 'Photo storage is not configured on the server (CLOUDINARY_URL is missing). The medicine was saved without a photo.' });
+}
+router.post('/:id/image', requireRole('admin', 'pharmacist'), requirePhotoStorage, imageUpload.single('image'), ctrl.uploadImage);
 router.delete('/:id/image', requireRole('admin', 'pharmacist'), ctrl.removeImage);
 router.post('/csv/validate', requireRole('admin', 'pharmacist'), upload.single('file'), ctrl.validateCsvImport);
 router.post('/csv/commit', requireRole('admin', 'pharmacist'), ctrl.commitCsvImport);
