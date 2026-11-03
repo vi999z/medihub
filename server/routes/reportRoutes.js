@@ -19,6 +19,7 @@ router.get('/export/batches', ctrl.batchesByStatus);
 // Export wasted/disposed medicines: ?format=excel|pdf|docx
 router.get('/export/wasted', ctrl.wastedMedicines);
 // Export transactions: ?days=30&type=sale|disposal|adjustment&format=excel|pdf|docx
+router.get('/export/sales', ctrl.salesReport);
 router.get('/export/transactions', ctrl.transactionsReport);
 // Export alerts/notifications: ?severity=critical|warning&unread=true&format=excel|pdf|docx
 router.get('/export/notifications', ctrl.notificationsReport);

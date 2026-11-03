@@ -1,25 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, X, ArrowDownLeft, ArrowUpRight, RefreshCw, Trash2, PackagePlus } from 'lucide-react';
+import { Plus, Search, X, ArrowDownLeft, ArrowUpRight, RefreshCw, Trash2, PackagePlus, Download } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import { downloadCsv } from '../utils/csv';
 import StockMovementModal from '../components/StockMovementModal';
-import ExportDropdown from '../components/ExportDropdown';
-import { downloadBlob } from '../utils/downloadFile';
+import ReportExportModal from '../components/ReportExportModal';
 import { localDateKey } from '../utils/date';
-
-const EXPORT_OPTIONS = [
-  { label: 'All transactions — 30d (Excel)', key: 'all', format: 'excel', days: 30 },
-  { label: 'Sales only — 30d (Excel)', key: 'sale', format: 'excel', days: 30 },
-  { label: 'Disposals only — 30d (Excel)', key: 'disposal', format: 'excel', days: 30 },
-  { label: 'All transactions — 90d (Excel)', key: 'all', format: 'excel', days: 90 },
-  null,
-  { label: 'All transactions — 30d (PDF)', key: 'all', format: 'pdf', days: 30 },
-  { label: 'All transactions — 30d (Word)', key: 'all', format: 'docx', days: 30 },
-  null,
-  { label: 'Current view (CSV)', key: 'csv', format: 'csv' },
-];
+import PageHeader from '../components/PageHeader';
+import { errorMessage } from '../utils/errors';
+import { useBranchFilter } from '../context/BranchContext';
+import useBranches from '../hooks/useBranches';
 
 const TYPE_FILTERS = [
   { value: 'all', label: 'All types' },
@@ -41,10 +32,11 @@ function transactionConfig(type) {
 // Maps transaction type severity onto the flat design system's palette.
 const TX_FLAT_CLS = { critical: 'red', warning: 'amber', safe: 'green' };
 
-const RECENT_LIMIT = 500;
+const PAGE_LIMIT = 500;
 
 export default function Transactions() {
   const { addToast } = useToast();
+  const [showExport, setShowExport] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,14 +45,17 @@ export default function Transactions() {
   const [formError, setFormError] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const { branch: branchFilter, setBranch: setBranchFilter } = useBranchFilter();
+  const { names: branchNames } = useBranches();
   const [searchParams, setSearchParams] = useSearchParams();
   const [dateFilter, setDateFilter] = useState(searchParams.get('date') || '');
+  const [recentLimit, setRecentLimit] = useState(PAGE_LIMIT);
 
   // A picked day loads every movement on that day; otherwise the latest
   // RECENT_LIMIT movements (the server's default of 50 hid older days).
   const transactionsUrl = dateFilter
     ? `/transactions/recent?date=${dateFilter}&limit=1000`
-    : `/transactions/recent?limit=${RECENT_LIMIT}`;
+    : `/transactions/recent?limit=${recentLimit}`;
 
   async function fetchAll() {
     try {
@@ -69,7 +64,7 @@ export default function Transactions() {
       setBatches(b.data || []);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load transactions');
+      setError(errorMessage(err, 'Failed to load transactions'));
     } finally {
       setLoading(false);
     }
@@ -92,19 +87,21 @@ export default function Transactions() {
     const term = search.trim().toLowerCase();
     return transactions.filter((t) => {
       if (typeFilter !== 'all' && t.transaction_type !== typeFilter) return false;
+      if (branchFilter !== 'all' && t.branch !== branchFilter) return false;
       if (dateFilter && localDateKey(t.created_at) !== dateFilter) return false;
       if (!term) return true;
       return [t.medicine_name, t.batch_number, t.user_name, t.reason]
         .some((value) => String(value || '').toLowerCase().includes(term));
     });
-  }, [transactions, search, typeFilter, dateFilter]);
+  }, [transactions, search, typeFilter, dateFilter, branchFilter]);
 
-  const filtersActive = Boolean(search) || typeFilter !== 'all' || Boolean(dateFilter);
+  const filtersActive = Boolean(search) || typeFilter !== 'all' || Boolean(dateFilter) || branchFilter !== 'all';
 
   function clearFilters() {
     setSearch('');
     setTypeFilter('all');
     setDateFilter('');
+    setBranchFilter('all');
   }
 
   async function handleSubmit(form) {
@@ -116,38 +113,29 @@ export default function Transactions() {
       await fetchAll();
       addToast('Transaction recorded', 'success');
     } catch (err) {
-      setFormError(err.response?.data?.error || 'Transaction failed');
+      setFormError(errorMessage(err, 'Transaction failed'));
       throw err;
     }
   }
 
-  async function handleExport(key, format, days = 30) {
-    if (key === 'csv') {
-      const rows = visibleTransactions.map(t => ({
-        id: t.id, type: t.transaction_type, medicine: t.medicine_name,
-        batch: t.batch_number, quantity: t.quantity, reason: t.reason || '',
-        user: t.user_name, date: new Date(t.created_at).toLocaleDateString()
-      }));
-      downloadCsv('transactions.csv', rows, ['id', 'type', 'medicine', 'batch', 'quantity', 'reason', 'user', 'date']);
-      return;
-    }
-    try {
-      const typeParam = key !== 'all' ? `&type=${key}` : '';
-      const res = await api.get(`/reports/export/transactions?days=${days}&format=${format}${typeParam}`, { responseType: 'blob' });
-      const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
-      const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-      downloadBlob(blob, `transactions_${key}_${days}d.${ext}`);
-      addToast('Transactions exported', 'success');
-    } catch (err) {
-      addToast('Export failed', 'error');
-    }
+  // The list currently on screen (respects the search, type, branch and date filters).
+  function exportCurrentView() {
+    const rows = visibleTransactions.map((t) => ({
+      id: t.id, branch: t.branch || '', type: t.transaction_type, medicine: t.medicine_name,
+      batch: t.batch_number, quantity: t.quantity, reason: t.reason || '',
+      user: t.user_name, date: new Date(t.created_at).toLocaleDateString(),
+    }));
+    downloadCsv('transactions.csv', rows, ['id', 'branch', 'type', 'medicine', 'batch', 'quantity', 'reason', 'user', 'date']);
   }
 
   return (
     <div className="flat-dashboard">
+      <PageHeader title="Transactions" description="Every stock movement: stock in, sales, adjustments, disposals and returns." legend />
       <div className="page-actions-only">
         <div className="page-header-actions">
-          <ExportDropdown options={EXPORT_OPTIONS} onSelect={({ key, format, days }) => handleExport(key, format, days)} />
+          <button type="button" className="flat-action-btn" onClick={() => setShowExport(true)}>
+            <Download size={15} /> Export
+          </button>
           <button type="button" className="flat-btn-primary" onClick={() => setShowForm(true)}>
             <Plus size={15} /> New transaction
           </button>
@@ -184,6 +172,12 @@ export default function Transactions() {
             </select>
           </div>
           <div className="field filter-select">
+            <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} aria-label="Filter by branch">
+              <option value="all">All branches</option>
+              {branchNames.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </div>
+          <div className="field filter-select">
             <input
               type="date"
               value={dateFilter}
@@ -205,8 +199,11 @@ export default function Transactions() {
         <div className="flat-table-header">
           <span className="flat-table-title">
             Movements
-            {!dateFilter && transactions.length >= RECENT_LIMIT && (
-              <span className="flat-med-meta" style={{ fontWeight: 400, marginLeft: 8 }}>latest {RECENT_LIMIT} shown</span>
+            {!dateFilter && transactions.length >= recentLimit && (
+              <span className="flat-med-meta" style={{ fontWeight: 400, marginLeft: 8 }}>latest {recentLimit} shown</span>
+            )}
+            {!dateFilter && transactions.length >= recentLimit && recentLimit < 5000 && (
+              <button type="button" className="flat-table-link" style={{ marginLeft: 10, fontWeight: 400 }} onClick={() => setRecentLimit((n) => n + PAGE_LIMIT)}>Load more</button>
             )}
           </span>
         </div>
@@ -267,6 +264,12 @@ export default function Transactions() {
           )}
         </div>
       </div>
+      <ReportExportModal
+        isOpen={showExport}
+        onClose={() => setShowExport(false)}
+        defaultReport="transactions"
+        onExportView={exportCurrentView}
+      />
     </div>
   );
 }

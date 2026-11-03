@@ -8,8 +8,8 @@ const { refreshAlertsForBatch } = require('../utils/alertHelpers');
 // POST /api/transactions
 // transaction_type: 'sale' | 'adjustment' | 'disposal' | 'return' (stock_in handled separately via batch creation)
 async function create(req, res) {
-  const { value, error } = validateTransaction(req.body);
-  if (error) return res.status(400).json({ error });
+  const { value, error, field } = validateTransaction(req.body);
+  if (error) return res.status(400).json({ error, field });
   const { batch_id, transaction_type, quantity: numericQuantity, direction, reason } = value;
 
   const conn = await pool.getConnection();
@@ -22,6 +22,12 @@ async function create(req, res) {
     if (!batch) {
       await conn.rollback();
       return res.status(404).json({ error: 'Batch not found' });
+    }
+
+    // Stock that isn't linked to a medicine has no price or stock count to sell against.
+    if (transaction_type === 'sale' && !batch.medicine_id) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Link this batch to a medicine before selling from it.' });
     }
 
     // Expired or recalled stock must never be dispensed — only disposed of.
@@ -98,7 +104,7 @@ async function getRecent(req, res) {
   if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
   }
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 1000);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 5000);
   const transactions = await transactionModel.getRecent({ limit, date: date || null });
   res.json(transactions);
 }

@@ -14,6 +14,29 @@ function parseDurationMs(str) {
   return n * ({ s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[match[2]] || 1000);
 }
 
+// Brute-force protection: after MAX_FAILED wrong passwords for one account the
+// account is locked for LOCK_MS, whoever is trying. (Kept in memory: a server
+// restart clears it, which is acceptable for a lock this short.)
+const MAX_FAILED = 5;
+const LOCK_MS = 15 * 60 * 1000;
+const failedLogins = new Map(); // email -> { count, lockedUntil }
+
+function lockMinutesLeft(key) {
+  const entry = failedLogins.get(key);
+  if (!entry || !entry.lockedUntil || entry.lockedUntil <= Date.now()) return 0;
+  return Math.ceil((entry.lockedUntil - Date.now()) / 60000);
+}
+
+function recordFailure(key) {
+  const entry = failedLogins.get(key) || { count: 0, lockedUntil: 0 };
+  // An expired lock starts a fresh count.
+  if (entry.lockedUntil && entry.lockedUntil <= Date.now()) { entry.count = 0; entry.lockedUntil = 0; }
+  entry.count += 1;
+  if (entry.count >= MAX_FAILED) entry.lockedUntil = Date.now() + LOCK_MS;
+  failedLogins.set(key, entry);
+  return entry;
+}
+
 // POST /api/auth/login
 async function login(req, res) {
   const { email, password } = req.body;
@@ -21,16 +44,25 @@ async function login(req, res) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
+  const key = String(email).trim().toLowerCase();
+  const minutes = lockMinutesLeft(key);
+  if (minutes > 0) {
+    return res.status(429).json({ error: `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.` });
+  }
+
   const user = await userModel.findByEmail(email);
   if (!user || !user.is_active) {
+    recordFailure(key);
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
   const match = await bcrypt.compare(password, user.password_hash);
   if (!match) {
-    await logAudit(user.id, 'failed_login', `Failed login attempt for ${email}`, req);
+    const entry = recordFailure(key);
+    await logAudit(user.id, 'failed_login', `Failed login attempt for ${email}${entry.lockedUntil ? ' — account locked for 15 minutes' : ''}`, req);
     return res.status(401).json({ error: 'Invalid credentials' });
   }
+  failedLogins.delete(key);
 
   const token = jwt.sign(
     { id: user.id, role: user.role, email: user.email },
@@ -84,13 +116,13 @@ async function logout(req, res) {
 
 // POST /api/auth/register  (admin-only — see route protection below)
 async function register(req, res) {
-  const { value, error } = validateUser(req.body, { isCreate: true });
-  if (error) return res.status(400).json({ error });
+  const { value, error, field } = validateUser(req.body, { isCreate: true });
+  if (error) return res.status(400).json({ error, field });
   const { full_name, email, password, role } = value;
 
   const existing = await userModel.findByEmail(email);
   if (existing) {
-    return res.status(409).json({ error: 'Email already in use' });
+    return res.status(409).json({ error: 'Email already in use', field: 'email' });
   }
 
   const password_hash = await bcrypt.hash(password, 12);

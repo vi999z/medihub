@@ -6,6 +6,8 @@ import { useToast } from '../context/ToastContext';
 import { useDialog } from '../context/DialogContext';
 import { downloadCsv } from '../utils/csv';
 import { validateSupplierForm, trimFields, MAX_LENGTH } from '../utils/validation';
+import PageHeader from '../components/PageHeader';
+import { errorMessage } from '../utils/errors';
 
 export default function Suppliers() {
   const { user } = useAuth();
@@ -27,7 +29,7 @@ export default function Suppliers() {
       setSuppliers(res.data || []);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load suppliers');
+      setError(errorMessage(err, 'Failed to load suppliers'));
     } finally {
       setLoading(false);
     }
@@ -84,7 +86,7 @@ export default function Suppliers() {
       resetForm();
       await fetchAll();
     } catch (err) {
-      setFormError(err.response?.data?.error || 'Failed to save supplier');
+      setFormError(errorMessage(err, 'Failed to save supplier'));
     } finally {
       setSaving(false);
     }
@@ -98,7 +100,7 @@ export default function Suppliers() {
       await fetchAll();
       addToast('Supplier removed', 'success');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to remove supplier', 'error');
+      addToast(errorMessage(err, 'Failed to remove supplier'), 'error');
     }
   }
 
@@ -122,6 +124,7 @@ export default function Suppliers() {
 
   return (
     <div className="flat-dashboard">
+      <PageHeader title="Suppliers" description="The companies you buy from. Link a supplier to a batch when receiving stock." />
       <div className="page-actions-only">
         <div className="page-header-actions">
           <button type="button" className="flat-action-btn" onClick={handleExport}>

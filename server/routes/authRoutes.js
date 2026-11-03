@@ -1,9 +1,19 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const { login, register, me, logout } = require('../controllers/authController');
 const { verifyToken, requireRole } = require('../middleware/auth');
 
-router.post('/login', login);
+// Per-address limit on top of the per-account lock in authController.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts from this device. Try again in a few minutes.' },
+});
+
+router.post('/login', loginLimiter, login);
 // logout must NOT require a valid token — the whole point is clearing an
 // expired or missing session. The handler does its own best-effort decode
 // for the audit log and always clears the cookie regardless.

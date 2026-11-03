@@ -1,5 +1,8 @@
 const reportModel = require('../models/reportModel');
-const { buildPdfBuffer, buildWordDocument, buildExcelWorkbook } = require('./exportController');
+const { buildPdfBuffer, buildWordDocument, buildExcelWorkbook, buildReportExport } = require('./exportController');
+const { logAudit } = require('../utils/auditLogger');
+const branchModel = require('../models/branchModel');
+const { localDateKey, addDays } = require('../utils/dates');
 
 async function summary(req, res) {
   try {
@@ -84,57 +87,134 @@ async function byCategory(req, res) {
   }
 }
 
-// ── Status-based batch export ────────────────────────────────────────────────
+// ── Report exports ───────────────────────────────────────────────────────────
+// Every report accepts ?branch=<name|all>&format=excel|pdf|docx|csv. Reports about
+// activity (sales, movements) also take ?from=YYYY-MM-DD&to=YYYY-MM-DD.
+const MAX_PERIOD_DAYS = 366;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function httpError(status, message) {
+  return Object.assign(new Error(message), { status });
+}
+
+function isRealDate(value) {
+  const d = new Date(`${value}T00:00:00Z`);
+  return DATE_RE.test(value) && !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+
+// Reads and checks the branch and period filters from the query string.
+async function parseFilters(req) {
+  const requested = String(req.query.branch || '').trim();
+  let branch = null;
+  if (requested && requested.toLowerCase() !== 'all') {
+    const found = await branchModel.getByName(requested);
+    if (!found) throw httpError(400, `Unknown branch: ${requested}`);
+    branch = found.name;
+  }
+
+  const today = localDateKey();
+  let { from, to } = req.query;
+  if (!from && !to) {
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), MAX_PERIOD_DAYS);
+    to = today;
+    from = addDays(today, -(days - 1));
+  } else {
+    from = from || to;
+    to = to || from;
+    if (!isRealDate(from) || !isRealDate(to)) throw httpError(400, 'Dates must be real dates in YYYY-MM-DD form');
+    if (from > to) throw httpError(400, 'The start date must not be after the end date');
+    if ((new Date(`${to}T00:00:00Z`) - new Date(`${from}T00:00:00Z`)) / 86400000 >= MAX_PERIOD_DAYS) {
+      throw httpError(400, `Choose a period of ${MAX_PERIOD_DAYS} days or less`);
+    }
+  }
+  return { branch, from, to };
+}
+
+const branchLabel = (branch) => branch || 'All branches';
+const periodLabel = (from, to) => (from === to ? from : `${from} to ${to}`);
+const slug = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+const peso = (n) => `₱${Number(n || 0).toFixed(2)}`;
+const fileBase = (name, branch) => `${name}_${branch ? slug(branch) : 'all_branches'}`;
+
+// Expected problems (bad filter) answer 400 with their message; anything else is a 500.
+function failExport(res, err, what) {
+  if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
+  console.error(`Error exporting ${what}:`, err);
+  return res.status(500).json({ error: `Failed to export ${what}` });
+}
+
 async function batchesByStatus(req, res) {
   try {
-    const { status = 'expired', format = 'excel' } = req.query;
-    const rows = await reportModel.getBatchesByStatus(status);
-    const title = `${status.charAt(0).toUpperCase() + status.slice(1)} Batches Report`;
-    const totalValue = rows.reduce((sum, r) => sum + Number(r.quantity_remaining * (r.cost_price || 0)), 0);
+    const { status = 'active', format = 'excel' } = req.query;
+    const { branch } = await parseFilters(req);
+    const rows = await reportModel.getBatchesByStatus(status, { branch });
+    const safeStatus = ['active', 'expired', 'depleted', 'recalled'].includes(status) ? status : 'active';
+    const totalValue = rows.reduce((sum, r) => sum + Number(r.quantity_remaining) * Number(r.cost_price || 0), 0);
     await sendFormattedReport(res, {
-      title,
+      title: `${safeStatus.charAt(0).toUpperCase() + safeStatus.slice(1)} Batches — ${branchLabel(branch)}`,
       summary: {
+        branch: branchLabel(branch),
         total_batches: rows.length,
         total_remaining_quantity: rows.reduce((sum, r) => sum + Number(r.quantity_remaining), 0),
-        estimated_value: `₱${totalValue.toFixed(2)}`
+        estimated_value: peso(totalValue),
       },
-      rows
-    }, format, `${status}_batches`);
-  } catch (err) {
-    console.error('Error fetching batches by status:', err);
-    res.status(500).json({ error: 'Failed to export batches report' });
-  }
+      rows,
+    }, format, fileBase(`${safeStatus}_batches`, branch));
+  } catch (err) { failExport(res, err, 'the batches report'); }
 }
 
 async function wastedMedicines(req, res) {
   try {
     const { format = 'excel' } = req.query;
-    const rows = await reportModel.getWastedMedicines();
+    const { branch } = await parseFilters(req);
+    const rows = await reportModel.getWastedMedicines({ branch });
     const totalWaste = rows.reduce((sum, r) => sum + Number(r.estimated_waste_value || 0), 0);
     await sendFormattedReport(res, {
-      title: 'Wasted / Disposed Medicines Report',
-      summary: { total_wasted_batches: rows.length, estimated_total_waste_value: `₱${totalWaste.toFixed(2)}` },
+      title: `Wasted / Disposed Medicines — ${branchLabel(branch)}`,
+      summary: { branch: branchLabel(branch), wasted_batches: rows.length, estimated_total_waste_value: peso(totalWaste) },
       rows,
-    }, format, 'wasted_medicines');
-  } catch (err) {
-    console.error('Error fetching wasted medicines:', err);
-    res.status(500).json({ error: 'Failed to export wasted medicines report' });
-  }
+    }, format, fileBase('wasted_medicines', branch));
+  } catch (err) { failExport(res, err, 'the wasted medicines report'); }
 }
 
 async function transactionsReport(req, res) {
   try {
-    const { format = 'excel', days = 30, type } = req.query;
-    const rows = await reportModel.getTransactionsReport(Number(days), type || null);
+    const { format = 'excel', type } = req.query;
+    if (type && !['stock_in', 'sale', 'adjustment', 'disposal', 'return'].includes(type)) throw httpError(400, 'Unknown movement type');
+    const { branch, from, to } = await parseFilters(req);
+    const rows = await reportModel.getTransactionsReport({ from, to, type: type || null, branch });
     await sendFormattedReport(res, {
-      title: `Transactions Report (Last ${days} days${type ? ` — ${type}` : ''})`,
-      summary: { total_transactions: rows.length, period_days: days },
-      rows,
-    }, format, 'transactions');
-  } catch (err) {
-    console.error('Error fetching transactions report:', err);
-    res.status(500).json({ error: 'Failed to export transactions report' });
-  }
+      title: `Stock Movements — ${branchLabel(branch)}${type ? ` — ${type.replace('_', ' ')}` : ''}`,
+      summary: { branch: branchLabel(branch), period: periodLabel(from, to), total_movements: rows.length },
+      rows: rows.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString().slice(0, 16).replace('T', ' ') })),
+    }, format, fileBase('stock_movements', branch));
+  } catch (err) { failExport(res, err, 'the stock movements report'); }
+}
+
+async function salesReport(req, res) {
+  try {
+    const { format = 'excel' } = req.query;
+    const { branch, from, to } = await parseFilters(req);
+    const rows = await reportModel.getSalesReport({ from, to, branch });
+    const sum = (key) => rows.reduce((total, r) => total + Number(r[key] || 0), 0);
+    const summary = {
+      branch: branchLabel(branch),
+      period: periodLabel(from, to),
+      medicines_sold: rows.length,
+      units_sold: sum('units_sold'),
+      units_returned: sum('units_returned'),
+      net_sales: peso(sum('net_sales')),
+      estimated_cost: peso(sum('estimated_cost')),
+      estimated_profit: peso(sum('estimated_profit')),
+    };
+    // With every branch selected, also show each branch's share.
+    if (!branch) {
+      for (const name of [...new Set(rows.map((r) => r.branch))].sort()) {
+        summary[`net_sales_${slug(name)}`] = peso(rows.filter((r) => r.branch === name).reduce((t, r) => t + r.net_sales, 0));
+      }
+    }
+    await sendFormattedReport(res, { title: `Sales — ${branchLabel(branch)}`, summary, rows }, format, fileBase('sales', branch));
+  } catch (err) { failExport(res, err, 'the sales report'); }
 }
 
 async function notificationsReport(req, res) {
@@ -152,88 +232,80 @@ async function notificationsReport(req, res) {
         date: new Date(n.created_at).toLocaleDateString()
       })),
     }, format, 'alerts_notifications');
-  } catch (err) {
-    console.error('Error fetching notifications report:', err);
-    res.status(500).json({ error: 'Failed to export notifications report' });
-  }
+  } catch (err) { failExport(res, err, 'the alerts report'); }
 }
 
 async function expiringSoonReport(req, res) {
   try {
-    const { format = 'excel', days = 14 } = req.query;
-    const rows = await reportModel.getExpiringSoon(Number(days));
-    const totalQuantity = rows.reduce((sum, r) => sum + Number(r.quantity_remaining), 0);
+    const { format = 'excel' } = req.query;
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 14, 1), 365);
+    const { branch } = await parseFilters(req);
+    const rows = await reportModel.getExpiringSoon(days, { branch });
     await sendFormattedReport(res, {
-      title: `Expiring Within ${days} Days Report`,
+      title: `Expiring Within ${days} Days — ${branchLabel(branch)}`,
       summary: {
+        branch: branchLabel(branch),
         total_batches: rows.length,
-        total_quantity: totalQuantity,
+        total_quantity: rows.reduce((sum, r) => sum + Number(r.quantity_remaining), 0),
         critical_urgent: rows.filter(r => r.days_left <= 3).length,
-        urgent: rows.filter(r => r.days_left > 3 && r.days_left <= 7).length
+        urgent: rows.filter(r => r.days_left > 3 && r.days_left <= 7).length,
       },
-      rows
-    }, format, `expiring_${days}_days`);
-  } catch (err) {
-    console.error('Error fetching expiring soon report:', err);
-    res.status(500).json({ error: 'Failed to export expiring soon report' });
-  }
+      rows,
+    }, format, fileBase(`expiring_${days}_days`, branch));
+  } catch (err) { failExport(res, err, 'the expiring soon report'); }
 }
 
 async function lowStockReport(req, res) {
   try {
     const { format = 'excel' } = req.query;
-    const rows = await reportModel.getLowStock();
-    const totalDeficit = rows.reduce((sum, r) => sum + (Number(r.reorder_level) - Number(r.total_remaining)), 0);
+    const { branch } = await parseFilters(req);
+    const rows = await reportModel.getLowStock({ branch });
     await sendFormattedReport(res, {
-      title: 'Low Stock Medicines Report',
+      title: `Low Stock Medicines — ${branchLabel(branch)}`,
       summary: {
+        branch: branchLabel(branch),
         total_medicines: rows.length,
-        total_remaining: rows.reduce((sum, r) => sum + Number(r.total_remaining), 0),
-        total_deficit: totalDeficit,
-        critical: rows.filter(r => r.total_remaining === 0).length
+        out_of_stock: rows.filter(r => Number(r.total_remaining) === 0).length,
+        total_deficit: rows.reduce((sum, r) => sum + (Number(r.reorder_level) - Number(r.total_remaining)), 0),
       },
-      rows
-    }, format, 'low_stock');
-  } catch (err) {
-    console.error('Error fetching low stock report:', err);
-    res.status(500).json({ error: 'Failed to export low stock report' });
-  }
+      rows,
+    }, format, fileBase('low_stock', branch));
+  } catch (err) { failExport(res, err, 'the low stock report'); }
 }
 
 async function inventoryValueReport(req, res) {
   try {
     const { format = 'excel' } = req.query;
-    const summary = await reportModel.getSummary();
-    const { pool } = require('../config/db');
-    const [rows] = await pool.query(
-      `SELECT m.id, m.name, m.category, m.unit, m.reorder_level,
-              COALESCE(SUM(b.quantity_remaining), 0) AS total_quantity,
-              COALESCE(SUM(b.quantity_remaining * COALESCE(b.cost_price, 0)), 0) AS total_value,
-              COALESCE(AVG(b.cost_price), 0) AS avg_cost
-       FROM medicines m
-       LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active' AND b.expiry_date >= CURDATE()
-       GROUP BY m.id, m.name, m.category, m.unit, m.reorder_level
-       HAVING total_quantity > 0
-       ORDER BY total_value DESC`
-    );
+    const { branch } = await parseFilters(req);
+    const rows = await reportModel.getInventoryValue({ branch });
     await sendFormattedReport(res, {
-      title: 'Inventory Value Report',
+      title: `Inventory Value — ${branchLabel(branch)}`,
       summary: {
-        total_medicines: rows.length,
-        total_inventory_value: `₱${summary.inventory_value.toFixed(2)}`,
-        total_quantity: rows.reduce((sum, r) => sum + Number(r.total_quantity), 0)
+        branch: branchLabel(branch),
+        medicines_in_stock: rows.length,
+        total_quantity: rows.reduce((sum, r) => sum + r.total_quantity, 0),
+        value_at_cost: peso(rows.reduce((sum, r) => sum + r.value_at_cost, 0)),
+        value_at_retail: peso(rows.reduce((sum, r) => sum + r.value_at_retail, 0)),
       },
-      rows
-    }, format, 'inventory_value');
-  } catch (err) {
-    console.error('Error fetching inventory value report:', err);
-    res.status(500).json({ error: 'Failed to export inventory value report' });
-  }
+      rows,
+    }, format, fileBase('inventory_value', branch));
+  } catch (err) { failExport(res, err, 'the inventory value report'); }
 }
 
 // ── Helper: send a report in the requested format ────────────────────────────
 async function sendFormattedReport(res, reportData, format, basename) {
   const fmt = (format || 'excel').toLowerCase();
+  // Every export is recorded, so who downloaded which report can be traced.
+  if (res.req?.user) {
+    logAudit(res.req.user.id, 'export_report', `Exported ${basename} as ${fmt}`, res.req);
+  }
+  if (fmt === 'csv') {
+    const csv = buildReportExport(reportData, 'csv');
+    // BOM so Excel opens non-English characters correctly.
+    return res.setHeader('Content-Type', csv.contentType)
+      .setHeader('Content-Disposition', `attachment; filename="${basename}.csv"`)
+      .send(`﻿${csv.body}`);
+  }
   if (fmt === 'pdf') {
     const buf = await buildPdfBuffer(reportData);
     return res.setHeader('Content-Type', 'application/pdf')
@@ -253,4 +325,4 @@ async function sendFormattedReport(res, reportData, format, basename) {
     .send(buf);
 }
 
-module.exports = { summary, todaySales, needsAttention, topSellers, expiringSoon, lowStock, salesTrend, byCategory, batchesByStatus, wastedMedicines, transactionsReport, notificationsReport, expiringSoonReport, lowStockReport, inventoryValueReport };
+module.exports = { salesReport, summary, todaySales, needsAttention, topSellers, expiringSoon, lowStock, salesTrend, byCategory, batchesByStatus, wastedMedicines, transactionsReport, notificationsReport, expiringSoonReport, lowStockReport, inventoryValueReport };

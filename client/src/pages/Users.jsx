@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useDialog } from '../context/DialogContext';
 import { validateUserForm, trimFields, MAX_LENGTH } from '../utils/validation';
+import PageHeader from '../components/PageHeader';
+import { errorMessage } from '../utils/errors';
 
 export default function Users() {
   const { user: me } = useAuth();
@@ -26,7 +28,7 @@ export default function Users() {
       setUsers(res.data);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load accounts');
+      setError(errorMessage(err, 'Failed to load accounts'));
     } finally {
       setLoading(false);
     }
@@ -76,7 +78,7 @@ export default function Users() {
       resetForm();
       await fetchAll();
     } catch (err) {
-      setFormError(err.response?.data?.error || 'Failed to save account');
+      setFormError(errorMessage(err, 'Failed to save account'));
     } finally {
       setSaving(false);
     }
@@ -90,7 +92,7 @@ export default function Users() {
       await fetchAll();
       addToast(`${u.full_name} ${u.is_active ? 'deactivated' : 'reactivated'}`, 'success');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to update account status', 'error');
+      addToast(errorMessage(err, 'Failed to update account status'), 'error');
     }
   }
 
@@ -101,12 +103,13 @@ export default function Users() {
       await alert({ title: 'Temporary password', message: `Temporary password for ${u.full_name}:\n\n${res.data.temporary_password}\n\nThis password will not be shown again.` });
       addToast('Temporary password generated', 'success');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to reset password', 'error');
+      addToast(errorMessage(err, 'Failed to reset password'), 'error');
     }
   }
 
   return (
     <div className="flat-dashboard">
+      <PageHeader title="Users" description="Accounts for pharmacists and administrators. Deactivate people who should no longer have access." />
       <div className="page-actions-only">
         <div className="page-header-actions">
           <button type="button" className="flat-btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}>

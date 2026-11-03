@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import api from '../../api/axios';
 import { useToast } from '../../context/ToastContext';
 import { downloadBlob } from '../../utils/downloadFile';
+import { errorMessage } from '../../utils/errors';
 
 const STARTER_PROMPTS = [
   "What's expiring this week?",
@@ -324,7 +325,7 @@ export default function ChatTab() {
       await handleNormalResponse(userMessage, imageToSend);
     } catch (err) {
       console.error('Chat error:', err);
-      const errorMsg = err.response?.data?.error || err.message || 'Failed to get response. Please try again.';
+      const errorMsg = errorMessage(err, 'Failed to get response. Please try again.');
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: errorMsg,
@@ -728,7 +729,7 @@ export default function ChatTab() {
                 borderRadius: 8,
                 fontSize: 14,
                 fontFamily: 'inherit',
-                background: '#fff'
+                background: 'var(--flat-surface)'
               }}
             />
             {loading || streaming ? (

@@ -13,6 +13,7 @@ const PHONE_PATTERN = /^[0-9+\-() ]+$/;
 const TEXT_PATTERN = /^[^<>{}\u0000-\u001f]+$/u;
 const INTEGER_PATTERN = /^\d+$/;
 const MONEY_PATTERN = /^\d+(\.\d{1,2})?$/;
+const BARCODE_PATTERN = /^[A-Za-z0-9._-]{4,64}$/;
 
 const NAME_HINT = "can only contain letters, numbers, spaces and . , ' & / ( ) -";
 const TEXT_HINT = 'cannot contain < > { } characters';
@@ -24,6 +25,7 @@ export const MAX_LENGTH = {
   batchNumber: 80, reason: 255,
   supplierName: 150, contactPerson: 100, phone: 30, email: 100, address: 255,
   fullName: 100, password: 72,
+  branchName: 60, barcode: 64,
 };
 
 function str(value) {
@@ -74,14 +76,32 @@ export function validateMedicineForm(form) {
     checkText(form.dosage_form, 'Dosage form', { max: MAX_LENGTH.dosageForm, optional: true }) ||
     checkText(form.strength, 'Strength', { max: MAX_LENGTH.strength, optional: true, pattern: STRENGTH_PATTERN, hint: 'can only contain letters, numbers, spaces and . , % / + -' }) ||
     checkText(form.unit, 'Unit', { max: MAX_LENGTH.unit }) ||
-    checkInteger(form.reorder_level, 'Reorder level', { min: 0, max: 100000 })
+    checkInteger(form.reorder_level, 'Reorder level', { min: 0, max: 100000 }) ||
+    (str(form.barcode) && !BARCODE_PATTERN.test(str(form.barcode)) ? 'Barcode must be 4 to 64 characters: letters, numbers, . _ -' : '')
+  );
+}
+
+export function validateBranchForm(form) {
+  return (
+    checkText(form.name, 'Branch name', { max: MAX_LENGTH.branchName }) ||
+    checkText(form.address, 'Address', { max: MAX_LENGTH.address, optional: true, pattern: TEXT_PATTERN, hint: TEXT_HINT })
   );
 }
 
 // `isEditing` switches to the edit rules (quantity remaining, past expiry allowed).
 export function validateBatchForm(form, { isEditing, needsMedicine }) {
   const today = localDateKey();
-  if (needsMedicine && !str(form.medicine_id)) return 'Select a medicine';
+  // An unlinked batch keeps what is known about its medicine instead of a medicine id.
+  const unlinked = Boolean(form.unlinked);
+  if (unlinked) {
+    const pendingError =
+      checkText(form.pending_name, 'Medicine name', { max: MAX_LENGTH.medicineName }) ||
+      checkText(form.pending_strength, 'Strength', { max: MAX_LENGTH.strength, optional: true, pattern: STRENGTH_PATTERN, hint: 'can only contain letters, numbers, spaces and . , % / + -' }) ||
+      checkText(form.pending_dosage_form, 'Dosage form', { max: MAX_LENGTH.dosageForm, optional: true }) ||
+      (str(form.pending_barcode) && !BARCODE_PATTERN.test(str(form.pending_barcode)) ? 'Barcode must be 4 to 64 characters: letters, numbers, . _ -' : '') ||
+      (str(form.pending_branch) ? '' : 'Select a branch');
+    if (pendingError) return pendingError;
+  } else if (needsMedicine && !str(form.medicine_id)) return 'Select a medicine';
   const error =
     checkText(form.batch_number, 'Batch number', { max: MAX_LENGTH.batchNumber, pattern: CODE_PATTERN, hint: 'can only contain letters, numbers, - and _' }) ||
     checkInteger(form.quantity_received, 'Quantity received', { min: 1 }) ||
@@ -100,6 +120,7 @@ export function validateBatchForm(form, { isEditing, needsMedicine }) {
 
 export function validateMovementForm(form) {
   if (!str(form.batch_id)) return 'Select a batch';
+  if (form.transaction_type === 'adjustment' && !str(form.reason)) return 'Give a reason for the adjustment';
   return (
     checkInteger(form.quantity, 'Quantity', { min: 1 }) ||
     checkText(form.reason, 'Reason', { max: MAX_LENGTH.reason, optional: true, pattern: TEXT_PATTERN, hint: TEXT_HINT })

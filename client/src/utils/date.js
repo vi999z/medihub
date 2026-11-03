@@ -15,3 +15,10 @@ const dayFormatter = new Intl.DateTimeFormat('en-CA', {
 export function localDateKey(date = new Date()) {
   return dayFormatter.format(new Date(date));
 }
+
+// Shift a YYYY-MM-DD day key by whole days (calendar arithmetic, no timezone surprises).
+export function addDays(key, n) {
+  const d = new Date(`${key}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}

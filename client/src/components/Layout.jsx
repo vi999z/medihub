@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useBranchFilter } from '../context/BranchContext';
+import useBranches from '../hooks/useBranches';
 import { useMemo } from 'react';
 import {
   IconLayoutDashboard, IconPill, IconReceipt, IconBellRinging, IconBox,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
-  IconTools, IconQrcode, IconSun, IconMoon, IconHelpCircle, IconMenu2, IconX
+  IconTools, IconQrcode, IconSun, IconMoon, IconHelpCircle, IconMenu2, IconX, IconMapPin, IconTextSize, IconReportAnalytics
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -18,16 +20,34 @@ const NAV_GROUP_PRIMARY = [
   { to: '/batches', label: 'Batches', icon: IconBox },
   { to: '/suppliers', label: 'Suppliers', icon: IconTruck },
   { to: '/transactions', label: 'Transactions', icon: IconReceipt },
+  { to: '/reports', label: 'Reports', icon: IconReportAnalytics },
   { to: '/scanner', label: 'Scanner', icon: IconQrcode },
 ];
 const NAV_GROUP_SECONDARY = [
   { to: '/ai-assistant', label: 'AI Assistant', icon: IconBrain },
   { to: '/notifications', label: 'Alerts', icon: IconBellRinging },
   { to: '/audit-log', label: 'Audit Log', icon: IconFileText, adminOnly: true },
+  { to: '/branches', label: 'Branches', icon: IconMapPin, adminOnly: true },
   { to: '/users', label: 'Users', icon: IconUsers, adminOnly: true },
   { to: '/maintenance', label: 'Maintenance', icon: IconTools, adminOnly: true },
 ];
 const ALL_ITEMS = [...NAV_GROUP_PRIMARY, ...NAV_GROUP_SECONDARY];
+
+const HELP_BY_PAGE = {
+  '/dashboard': ['See sales today, stock levels and what needs attention at a glance.', 'Use the branch, category and date filters at the top.', 'Click a stock box (out of stock, low, expiring, healthy) to filter the list below.'],
+  '/medicines': ['Search by name, or use the filters and category chips.', 'Click a medicine to see its batches and expiry dates.', 'Use "Receive stock" when a delivery arrives, and "QR" to print a code for a medicine.'],
+  '/batches': ['Each batch is one delivery with its own expiry date.', 'Filter by branch or status; use "Receive stock" to add a delivery.', 'Colours show how soon a batch expires.'],
+  '/suppliers': ['Add the companies you buy from.', 'Choose a supplier when you receive stock to link them to a batch.'],
+  '/transactions': ['Every stock movement is listed here: stock in, sale, adjustment, disposal and return.', 'Use "New transaction" to record one; adjustments need a reason.', 'Filter by type or pick a date.'],
+  '/reports': ['Pick a report, a branch and a format, then press Download.', 'Sales and stock movement reports also let you choose the dates.'],
+  '/scanner': ['Scan a barcode or QR code with the camera, or upload a photo of one.', 'A known code opens its medicine. An unknown code lets you add a new medicine or receive stock.'],
+  '/notifications': ['Alerts warn about low stock, medicines close to expiry and expired batches.', 'Red is critical and needs action first. Click "Mark as read" once handled.'],
+  '/ai-assistant': ['Chat: ask about stock and expiring medicines in plain language.', 'Insights: expiry risk, demand forecast, reorder suggestions and unusual movements.', 'Weather Restock: what to stock for the current weather and season.'],
+  '/audit-log': ['A permanent record of who did what, and when. It cannot be deleted.'],
+  '/users': ['Add accounts, change roles and deactivate people who should no longer have access.'],
+  '/branches': ['Add a branch or change its name and address. Every medicine belongs to one branch.'],
+  '/maintenance': ['Download a backup regularly. Restoring replaces all current data, so be careful.', 'Demo data is for testing only and can be removed.'],
+};
 
 function NavItem({ to, label, icon: Icon, isActive, showLabel }) {
   return (
@@ -48,6 +68,12 @@ function TopBar({ pageTitle, onOpenNav }) {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { branch, setBranch } = useBranchFilter();
+  const { names: branchNames } = useBranches();
+  const [textSize, setTextSize] = useState(() => {
+    try { return localStorage.getItem('medihub_text_size') || 'normal'; } catch { return 'normal'; }
+  });
   const [query, setQuery] = useState('');
   const [medicines, setMedicines] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -75,6 +101,16 @@ function TopBar({ pageTitle, onOpenNav }) {
       window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, loadUnread);
     };
   }, []);
+
+  // Text size (normal / large / extra large) scales the page content for readability.
+  useEffect(() => {
+    document.documentElement.dataset.textSize = textSize;
+    try { localStorage.setItem('medihub_text_size', textSize); } catch { /* storage unavailable */ }
+  }, [textSize]);
+
+  function cycleTextSize() {
+    setTextSize((current) => (current === 'normal' ? 'large' : current === 'large' ? 'xlarge' : 'normal'));
+  }
 
   useEffect(() => {
     function handleClick(e) {
@@ -132,6 +168,18 @@ function TopBar({ pageTitle, onOpenNav }) {
       </div>
 
       <div className="topbar-actions" style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <label className="branch-picker" title="Show data for one branch or all branches">
+          <IconMapPin size={15} stroke={1.8} aria-hidden="true" />
+          <select
+            value={branchNames.includes(branch) ? branch : 'all'}
+            onChange={(e) => setBranch(e.target.value)}
+            aria-label="Branch"
+          >
+            <option value="all">All branches</option>
+            {branchNames.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
+
         <form className="search-bar" ref={searchRef} onSubmit={handleSearchSubmit} role="search">
           <IconSearch size={15} className="search-icon" stroke={1.8} />
           <input
@@ -166,6 +214,15 @@ function TopBar({ pageTitle, onOpenNav }) {
 
         <button className="icon-btn desktop-only" onClick={() => setHelpOpen(true)} aria-label="Help">
           <IconHelpCircle size={18} stroke={1.8} />
+        </button>
+
+        <button
+          className="icon-btn"
+          onClick={cycleTextSize}
+          aria-label={`Text size: ${textSize === 'normal' ? 'normal' : textSize === 'large' ? 'large' : 'extra large'}. Click to change`}
+          title={`Text size: ${textSize === 'normal' ? 'normal' : textSize === 'large' ? 'large' : 'extra large'}`}
+        >
+          <IconTextSize size={18} stroke={1.8} />
         </button>
 
         <button className="icon-btn desktop-only" onClick={toggle} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
@@ -210,15 +267,37 @@ function TopBar({ pageTitle, onOpenNav }) {
 
       <AnimatedModal isOpen={helpOpen} onClose={() => setHelpOpen(false)}>
         <h3 style={{ margin: '0 0 12px' }}>Help &amp; support</h3>
-        <p style={{ color: 'var(--steel)', fontSize: 13.5, lineHeight: 1.6, margin: '0 0 16px' }}>
+        <p style={{ color: 'var(--steel)', fontSize: 13.5, lineHeight: 1.6, margin: '0 0 12px' }}>
           MediHub helps you track medicine inventory, batches, suppliers, and expiry risk.
-          Use the sidebar to jump between sections, or the search bar above to find a
-          specific medicine. For anything else, reach out to your system administrator.
+          Use the menu on the left to move between pages, or the search bar above to find a medicine.
         </p>
+        {(HELP_BY_PAGE[location.pathname] || []).length > 0 && (
+          <>
+            <h4 style={{ margin: '0 0 6px', fontSize: 13.5 }}>On this page</h4>
+            <ul style={{ margin: '0 0 16px', paddingLeft: 18, fontSize: 13.5, lineHeight: 1.6, color: 'var(--steel)' }}>
+              {HELP_BY_PAGE[location.pathname].map((tip) => <li key={tip}>{tip}</li>)}
+            </ul>
+          </>
+        )}
+        <p style={{ color: 'var(--steel)', fontSize: 13, margin: '0 0 16px' }}>For anything else, reach out to your system administrator.</p>
         <button className="flat-btn-primary" onClick={() => setHelpOpen(false)}>Got it</button>
       </AnimatedModal>
     </header>
   );
+}
+
+// Shown whenever the browser loses its connection, so a failed save isn't a mystery.
+function ConnectionBanner() {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const goOnline = () => setOnline(true);
+    const goOffline = () => setOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline); };
+  }, []);
+  if (online) return null;
+  return <div className="offline-banner" role="alert">You are offline. MEDIHUB can't save changes until your connection is back.</div>;
 }
 
 export default function Layout({ children }) {
@@ -284,6 +363,7 @@ export default function Layout({ children }) {
       </aside>
       <div className="shell-main">
         <TopBar pageTitle={pageTitle} onOpenNav={() => setNavOpen(true)} />
+        <ConnectionBanner />
         <main className="main-content" style={{ position: 'relative' }}>
           {children}
         </main>

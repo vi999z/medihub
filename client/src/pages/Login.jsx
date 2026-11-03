@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pill, LoaderCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { errorMessage } from '../utils/errors';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -29,7 +30,7 @@ export default function Login() {
       await login(email.trim(), password);
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      const message = err.response?.data?.error || 'Login failed';
+      const message = errorMessage(err, 'Login failed');
       setError(message);
     } finally {
       setLoading(false);
@@ -60,7 +61,7 @@ export default function Login() {
             </div>
             <p style={{ color: 'var(--steel)', fontSize: 13, margin: '0 0 24px' }}>Secure access for inventory, procurement, and dispensing workflows.</p>
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div className="field"><label>Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+              <div className="field"><label>Username (email address)</label><input type="email" value={email} autoComplete="username" placeholder="you@example.com" aria-label="Username (email address)" onChange={(e) => setEmail(e.target.value)} required /></div>
               <div className="field"><label>Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
               {error && <p className="error-text">{error}</p>}
               <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', marginTop: 6 }} disabled={loading}>Log in</button>

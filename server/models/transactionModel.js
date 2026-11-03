@@ -36,10 +36,11 @@ async function getRecent({ limit = 50, date = null } = {}) {
   const where = date ? 'WHERE st.created_at >= ? AND st.created_at < ?' : '';
   const params = date ? [startOfLocalDay(date), startOfLocalDay(addDays(date, 1))] : [];
   const [rows] = await pool.query(
-    `SELECT st.*, b.batch_number, m.name AS medicine_name, u.full_name AS user_name
+    `SELECT st.*, b.batch_number, COALESCE(m.name, b.pending_name) AS medicine_name,
+            COALESCE(m.branch, b.pending_branch) AS branch, u.full_name AS user_name
      FROM stock_transactions st
      JOIN batches b ON st.batch_id = b.id
-     JOIN medicines m ON b.medicine_id = m.id
+     LEFT JOIN medicines m ON b.medicine_id = m.id
      JOIN users u ON st.user_id = u.id
      ${where}
      ORDER BY st.created_at DESC LIMIT ?`,

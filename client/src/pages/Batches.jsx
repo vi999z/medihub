@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Pencil, Search, X, QrCode, Package } from 'lucide-react';
+import { Plus, Trash2, Pencil, Search, X, QrCode, Package, Download, Link2 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -7,37 +7,20 @@ import { useDialog } from '../context/DialogContext';
 import { downloadCsv } from '../utils/csv';
 import { daysUntil } from '../utils/date';
 import { batchStatus } from '../utils/batchStatus';
-import BatchQrModal from '../components/BatchQrModal';
+import QrModal from '../components/QrModal';
+import AnimatedModal from '../components/AnimatedModal';
+import PageHeader from '../components/PageHeader';
+import useBranches from '../hooks/useBranches';
 import ReceiveStockModal from '../components/ReceiveStockModal';
-import ExportDropdown from '../components/ExportDropdown';
-import { downloadBlob } from '../utils/downloadFile';
-
-// Every report in Excel and PDF; Word for the expired and wasted reports.
-const EXPORT_OPTIONS = [
-  { label: 'Active batches (Excel)', key: 'active', format: 'excel' },
-  { label: 'Expiring soon (Excel)', key: 'expiring', format: 'excel' },
-  { label: 'Expired batches (Excel)', key: 'expired', format: 'excel' },
-  { label: 'Depleted batches (Excel)', key: 'depleted', format: 'excel' },
-  { label: 'Recalled batches (Excel)', key: 'recalled', format: 'excel' },
-  { label: 'Wasted medicines (Excel)', key: 'wasted', format: 'excel' },
-  null,
-  { label: 'Active batches (PDF)', key: 'active', format: 'pdf' },
-  { label: 'Expiring soon (PDF)', key: 'expiring', format: 'pdf' },
-  { label: 'Expired batches (PDF)', key: 'expired', format: 'pdf' },
-  { label: 'Depleted batches (PDF)', key: 'depleted', format: 'pdf' },
-  { label: 'Recalled batches (PDF)', key: 'recalled', format: 'pdf' },
-  { label: 'Wasted medicines (PDF)', key: 'wasted', format: 'pdf' },
-  null,
-  { label: 'Expired batches (Word)', key: 'expired', format: 'docx' },
-  { label: 'Wasted medicines (Word)', key: 'wasted', format: 'docx' },
-  null,
-  { label: 'Current view (CSV)', key: 'csv', format: 'csv' },
-];
+import ReportExportModal from '../components/ReportExportModal';
+import { errorMessage } from '../utils/errors';
+import { useBranchFilter } from '../context/BranchContext';
 
 const STATUS_FILTERS = [
   { value: 'all', label: 'All statuses' },
   { value: 'active', label: 'Active' },
   { value: 'expiring', label: 'Expiring in 14 days' },
+  { value: 'unlinked', label: 'Not linked to a medicine' },
   { value: 'expired', label: 'Expired' },
   { value: 'depleted', label: 'Depleted' },
   { value: 'recalled', label: 'Recalled' }
@@ -57,7 +40,14 @@ export default function Batches() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const { branch: branchFilter, setBranch: setBranchFilter } = useBranchFilter();
+  const [showExport, setShowExport] = useState(false);
+  const { names: branchNames } = useBranches();
   const [qrBatch, setQrBatch] = useState(null);
+  const [linkBatch, setLinkBatch] = useState(null);
+  const [linkMedicineId, setLinkMedicineId] = useState('');
+  const [linkError, setLinkError] = useState('');
+  const [linking, setLinking] = useState(false);
 
   async function fetchAll() {
     try {
@@ -67,7 +57,7 @@ export default function Batches() {
       setSuppliers(s.data);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load batches');
+      setError(errorMessage(err, 'Failed to load batches'));
     } finally {
       setLoading(false);
     }
@@ -78,8 +68,11 @@ export default function Batches() {
   const visibleBatches = useMemo(() => {
     const term = search.trim().toLowerCase();
     return batches.filter((batch) => {
+      if (branchFilter !== 'all' && batch.branch !== branchFilter) return false;
       if (statusFilter === 'all' && Number(batch.quantity_remaining) <= 0) return false;
-      if (statusFilter === 'expiring') {
+      if (statusFilter === 'unlinked') {
+        if (batch.linked) return false;
+      } else if (statusFilter === 'expiring') {
         if (batch.status !== 'active' || daysUntil(batch.expiry_date) > 14) return false;
       } else if (statusFilter !== 'all' && batch.status !== statusFilter) {
         return false;
@@ -88,13 +81,14 @@ export default function Batches() {
       return [batch.medicine_name, batch.batch_number, batch.supplier_name]
         .some((value) => String(value || '').toLowerCase().includes(term));
     });
-  }, [batches, search, statusFilter]);
+  }, [batches, search, statusFilter, branchFilter]);
 
-  const filtersActive = Boolean(search) || statusFilter !== 'all';
+  const filtersActive = Boolean(search) || statusFilter !== 'all' || branchFilter !== 'all';
 
   function clearFilters() {
     setSearch('');
     setStatusFilter('all');
+    setBranchFilter('all');
   }
 
   function resetForm() {
@@ -123,8 +117,45 @@ export default function Batches() {
       resetForm();
       await fetchAll();
     } catch (err) {
-      setFormError(err.response?.data?.error || 'Failed to save batch');
+      setFormError(errorMessage(err, 'Failed to save batch'));
       throw err;
+    }
+  }
+
+  function openLink(batch) {
+    setLinkBatch(batch);
+    setLinkMedicineId('');
+    setLinkError('');
+  }
+
+  // Medicines the batch can be linked to: the ones in the branch it was received for.
+  const linkChoices = linkBatch
+    ? medicines.filter((m) => m.branch === linkBatch.branch)
+    : [];
+  const suggested = linkBatch
+    ? linkChoices.find((m) => (linkBatch.pending_barcode && m.barcode === linkBatch.pending_barcode) ||
+        String(m.name).toLowerCase() === String(linkBatch.medicine_name || '').toLowerCase())
+    : null;
+
+  async function handleLink(event) {
+    event.preventDefault();
+    if (!linkMedicineId) { setLinkError('Choose a medicine to link'); return; }
+    setLinking(true);
+    setLinkError('');
+    try {
+      await api.post(`/batches/${linkBatch.id}/link`, { medicine_id: Number(linkMedicineId) });
+      api.invalidateCache('/batches');
+      api.invalidateCache('/medicines');
+      api.invalidateCache('/reports/needs-attention?days=14');
+      api.invalidateCache('/notifications');
+      api.invalidateCache('/notifications?unread=true');
+      setLinkBatch(null);
+      addToast('Batch linked to the medicine', 'success');
+      await fetchAll();
+    } catch (err) {
+      setLinkError(errorMessage(err, 'Could not link this batch'));
+    } finally {
+      setLinking(false);
     }
   }
 
@@ -138,43 +169,29 @@ export default function Batches() {
       await fetchAll();
       addToast(res.data.message || 'Depleted batches removed', 'success');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Could not remove depleted batches', 'error');
+      addToast(errorMessage(err, 'Could not remove depleted batches'), 'error');
     }
   }
 
-  async function handleExport(status, format) {
-    if (status === 'csv') {
-      // CSV of currently visible batches
-      const rows = visibleBatches.map((batch) => ({
-        id: batch.id, medicine: batch.medicine_name, batch_number: batch.batch_number,
-        supplier: batch.supplier_name || '—', quantity_remaining: batch.quantity_remaining,
-        expiry_date: batch.expiry_date ? String(batch.expiry_date).slice(0, 10) : '',
-        status: batch.status, selling_price: batch.selling_price || ''
-      }));
-      downloadCsv('batches.csv', rows, ['id', 'medicine', 'batch_number', 'supplier', 'quantity_remaining', 'expiry_date', 'status', 'selling_price']);
-      return;
-    }
-    try {
-      const endpoint = status === 'wasted'
-        ? `/reports/export/wasted?format=${format}`
-        : status === 'expiring'
-          ? `/reports/export/expiring?days=14&format=${format}`
-          : `/reports/export/batches?status=${status}&format=${format}`;
-      const res = await api.get(endpoint, { responseType: 'blob' });
-      const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
-      const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-      downloadBlob(blob, `${status}_batches_${new Date().toISOString().slice(0, 10)}.${ext}`);
-      addToast(`Export downloaded`, 'success');
-    } catch (err) {
-      addToast('Export failed', 'error');
-    }
+  // The list currently on screen (respects the search, branch and status filters).
+  function exportCurrentView() {
+    const rows = visibleBatches.map((batch) => ({
+      id: batch.id, branch: batch.branch, medicine: batch.medicine_name, linked: batch.linked ? 'yes' : 'no', batch_number: batch.batch_number,
+      supplier: batch.supplier_name || '—', quantity_remaining: batch.quantity_remaining,
+      expiry_date: batch.expiry_date ? String(batch.expiry_date).slice(0, 10) : '',
+      status: batch.status, selling_price: batch.selling_price || ''
+    }));
+    downloadCsv('batches.csv', rows, ['id', 'branch', 'medicine', 'linked', 'batch_number', 'supplier', 'quantity_remaining', 'expiry_date', 'status', 'selling_price']);
   }
 
   return (
     <div className="flat-dashboard">
+      <PageHeader title="Batches" description="Every delivery received, with its quantity, expiry date, branch and status." legend />
       <div className="page-actions-only">
         <div className="page-header-actions">
-          <ExportDropdown options={EXPORT_OPTIONS} onSelect={({ key, format }) => handleExport(key, format)} />
+          <button type="button" className="flat-action-btn" onClick={() => setShowExport(true)}>
+            <Download size={15} /> Export
+          </button>
           {user.role === 'admin' && (
             <button type="button" className="flat-action-btn" onClick={handleRemoveDepleted}>
               <Trash2 size={15} /> Remove depleted
@@ -211,6 +228,12 @@ export default function Batches() {
                 <X size={14} />
               </button>
             )}
+          </div>
+          <div className="field filter-select">
+            <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} aria-label="Filter by branch">
+              <option value="all">All branches</option>
+              {branchNames.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
           </div>
           <div className="field filter-select">
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
@@ -267,7 +290,11 @@ export default function Batches() {
                     </div>
                     <div className="flat-med-name">{b.medicine_name}</div>
                     <div className="flat-med-meta">{b.supplier_name || 'No supplier listed'}</div>
-                    <span className="flat-tag">Batch {b.batch_number}</span>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <span className="flat-tag">Batch {b.batch_number}</span>
+                      <span className="flat-tag">{b.branch}</span>
+                      {!b.linked && <span className="flat-tag" title="Not counted in any medicine stock until it is linked">Not linked</span>}
+                    </div>
                     <div className="flat-item-row">
                       <span>Remaining</span>
                       <strong>{b.quantity_remaining}</strong>
@@ -283,6 +310,11 @@ export default function Batches() {
                       <button type="button" className="flat-action-btn" onClick={() => setQrBatch(b)}>
                         <QrCode size={13} /> QR
                       </button>
+                      {!b.linked && (
+                        <button type="button" className="flat-btn-primary" onClick={() => openLink(b)}>
+                          <Link2 size={13} /> Link to medicine
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -292,7 +324,47 @@ export default function Batches() {
         </div>
       </div>
 
-      <BatchQrModal batch={qrBatch} onClose={() => setQrBatch(null)} />
+      <AnimatedModal isOpen={Boolean(linkBatch)} onClose={() => setLinkBatch(null)}>
+        {linkBatch && (
+          <form onSubmit={handleLink} noValidate className="card" style={{ padding: 24, border: 'none', boxShadow: 'none' }}>
+            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}><Link2 size={20} /> Link to a medicine</h2>
+            <p style={{ margin: '6px 0 16px', color: 'var(--steel)', fontSize: 13 }}>
+              Batch {linkBatch.batch_number} was received as <strong>{linkBatch.medicine_name}</strong>
+              {linkBatch.pending_strength ? ` ${linkBatch.pending_strength}` : ''} for {linkBatch.branch}. After linking, its {linkBatch.quantity_remaining} units count toward that medicine's stock and alerts.
+            </p>
+            <div className="field">
+              <label>Medicine in {linkBatch.branch}</label>
+              <select value={linkMedicineId} onChange={(e) => setLinkMedicineId(e.target.value)} autoFocus>
+                <option value="">{linkChoices.length ? 'Choose a medicine' : 'No medicines in this branch yet'}</option>
+                {linkChoices.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}{m.strength ? ` · ${m.strength}` : ''}{m.id === suggested?.id ? ' (suggested)' : ''}</option>
+                ))}
+              </select>
+            </div>
+            {suggested && !linkMedicineId && (
+              <button type="button" className="flat-action-btn" style={{ marginTop: 8 }} onClick={() => setLinkMedicineId(String(suggested.id))}>
+                Use suggested: {suggested.name}
+              </button>
+            )}
+            {linkError && <p className="error-text" role="alert">{linkError}</p>}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button type="button" className="flat-action-btn" onClick={() => setLinkBatch(null)}>Cancel</button>
+              <button type="submit" className="flat-btn-primary" disabled={linking}>{linking ? 'Linking...' : 'Link batch'}</button>
+            </div>
+          </form>
+        )}
+      </AnimatedModal>
+
+      <QrModal
+        target={qrBatch && { kind: 'batch', id: qrBatch.id, title: qrBatch.medicine_name, subtitle: `Batch ${qrBatch.batch_number}` }}
+        onClose={() => setQrBatch(null)}
+      />
+      <ReportExportModal defaultReport="batches"
+        isOpen={showExport}
+        onClose={() => setShowExport(false)}
+        onExportView={exportCurrentView}
+        viewLabel="Download this list (CSV)"
+      />
     </div>
   );
 }

@@ -212,6 +212,15 @@ const MEDICINES = [
     ] },
 ];
 
+// Barcodes for the scanner demo (fictional, not real product codes). The same
+// product shares its barcode across both branches.
+const BARCODES = {
+  'Biogesic': 'DEMO480100001', 'Neozep Forte': 'DEMO480100002', 'Bioflu': 'DEMO480100003',
+  'Solmux': 'DEMO480100004', 'Cetirizine': 'DEMO480100005', 'Amoxicillin': 'DEMO480100006',
+  'Losartan': 'DEMO480100007', 'Oresol': 'DEMO480100008', 'Vitamin C': 'DEMO480100009',
+  'Omeprazole': 'DEMO480100010', 'Loratadine': 'DEMO480100011', 'Mefenamic Acid': 'DEMO480100012',
+};
+
 // ─── Plan check (runs before touching the database) ────────────────────────
 // Every batch's numbers must add up, so remaining stock always matches its
 // movement history.
@@ -315,6 +324,11 @@ async function seedDemoData() {
   const staff = pharmacists.length ? pharmacists : [admin];
   const pickStaff = () => staff[randInt(0, staff.length - 1)].id;
 
+  const [branchRows] = await pool.query('SELECT name FROM branches');
+  const knownBranches = new Set(branchRows.map((b) => b.name));
+  const missing = [...new Set(MEDICINES.map((m) => m.branch))].filter((b) => !knownBranches.has(b));
+  if (missing.length) throw new Error(`Branch not found: ${missing.join(', ')}. Start the server once so the branches table is created.`);
+
   const conn = await pool.getConnection();
   const createdBatchIds = [];
   const audit = [];
@@ -347,9 +361,9 @@ async function seedDemoData() {
 
       const firstDay = -Math.max(...med.batches.map((b) => b.ago));
       const [medRes] = await conn.query(
-        `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [med.name, med.generic_name, med.category, med.dosage_form, med.strength, med.unit, med.reorder_level, med.rx, med.branch, timestamp(firstDay, 8, 9)]
+        `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch, barcode, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [med.name, med.generic_name, med.category, med.dosage_form, med.strength, med.unit, med.reorder_level, med.rx, med.branch, BARCODES[med.name] || null, timestamp(firstDay, 8, 9)]
       );
       const medicineId = medRes.insertId;
       counts.medicines++;

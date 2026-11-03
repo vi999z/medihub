@@ -1,4 +1,6 @@
 const medicineModel = require('../models/medicineModel');
+const branchModel = require('../models/branchModel');
+const batchModel = require('../models/batchModel');
 const { pool } = require('../config/db');
 const { logAudit } = require('../utils/auditLogger');
 const { validateMedicine, validateBatch, validateSupplier } = require('../utils/validators');
@@ -12,12 +14,27 @@ const {
   createLowStockAlert
 } = require('../utils/alertHelpers');
 
-const MEDICINE_COLUMNS = ['name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'reorder_level', 'requires_prescription'];
+const MEDICINE_COLUMNS = ['name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'reorder_level', 'requires_prescription', 'branch', 'barcode'];
 const BATCH_COLUMNS = ['batch_number', 'quantity_received', 'cost_price', 'selling_price', 'manufacture_date', 'expiry_date', 'supplier_name'];
 
 async function getAll(req, res) {
   const medicines = await medicineModel.getAll();
   res.json(medicines);
+}
+
+// GET /api/medicines/lookup?code=… — what a scanned code refers to.
+async function lookup(req, res) {
+  const code = String(req.query.code || '').trim();
+  if (!code || code.length > 200) return res.status(400).json({ error: 'code is required' });
+  const found = await medicineModel.findByCode(code);
+  if (!found) return res.status(404).json({ error: 'No medicine or batch matches this code', code });
+  const medicine = await medicineModel.getById(found.medicine_id);
+  const batch = found.batch_id ? await batchModel.getById(found.batch_id) : null;
+  res.json({
+    code, ...found,
+    medicine_name: medicine?.name, branch: medicine?.branch,
+    batch_number: batch?.batch_number,
+  });
 }
 
 async function getOne(req, res) {
@@ -26,10 +43,11 @@ async function getOne(req, res) {
   res.json(medicine);
 }
 
-function parseMedicine(body) {
+// `branchNames` = the active branches (from the `branches` table).
+function parseMedicine(body, branchNames) {
   return validateMedicine(body, {
     categoryOptions: medicineModel.CATEGORY_OPTIONS,
-    branchOptions: medicineModel.BRANCH_OPTIONS,
+    branchOptions: branchNames,
   });
 }
 
@@ -46,12 +64,23 @@ async function findDuplicate(medicine, excludeId = 0) {
   return rows[0];
 }
 
+async function barcodeTaken(medicine, excludeId = 0) {
+  if (!medicine.barcode) return false;
+  const [rows] = await pool.query(
+    'SELECT id FROM medicines WHERE barcode = ? AND branch = ? AND id <> ? LIMIT 1',
+    [medicine.barcode, medicine.branch, excludeId]
+  );
+  return rows.length > 0;
+}
+
+const DUPLICATE_BARCODE_ERROR = 'Another medicine in this branch already uses this barcode';
 const DUPLICATE_MEDICINE_ERROR = 'This medicine (same name, strength and dosage form) is already listed for this branch';
 
 async function create(req, res) {
-  const { value, error } = parseMedicine(req.body);
-  if (error) return res.status(400).json({ error });
-  if (await findDuplicate(value)) return res.status(409).json({ error: DUPLICATE_MEDICINE_ERROR });
+  const { value, error, field } = parseMedicine(req.body, await branchModel.activeNames());
+  if (error) return res.status(400).json({ error, field });
+  if (await findDuplicate(value)) return res.status(409).json({ error: DUPLICATE_MEDICINE_ERROR, field: 'name' });
+  if (await barcodeTaken(value)) return res.status(409).json({ error: DUPLICATE_BARCODE_ERROR, field: 'barcode' });
 
   const id = await medicineModel.create(value);
   await logAudit(req.user.id, 'created_medicine', `Created medicine: ${value.name}`, req);
@@ -62,9 +91,12 @@ async function update(req, res) {
   const existing = await medicineModel.getById(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Medicine not found' });
 
-  const { value, error } = parseMedicine(req.body);
-  if (error) return res.status(400).json({ error });
-  if (await findDuplicate(value, existing.id)) return res.status(409).json({ error: DUPLICATE_MEDICINE_ERROR });
+  // Editing keeps working for a medicine whose branch was later deactivated.
+  const branchNames = [...new Set([...(await branchModel.activeNames()), existing.branch])];
+  const { value, error, field } = parseMedicine(req.body, branchNames);
+  if (error) return res.status(400).json({ error, field });
+  if (await findDuplicate(value, existing.id)) return res.status(409).json({ error: DUPLICATE_MEDICINE_ERROR, field: 'name' });
+  if (await barcodeTaken(value, existing.id)) return res.status(409).json({ error: DUPLICATE_BARCODE_ERROR, field: 'barcode' });
 
   await medicineModel.update(req.params.id, value);
   await logAudit(req.user.id, 'updated_medicine', `Updated medicine: ${value.name}`, req);
@@ -154,11 +186,11 @@ function hasBatchData(row) {
 // Validates one CSV row with the same rules as the Add medicine / Receive
 // stock forms. Used when previewing a file AND again when committing it, so
 // the server never trusts the preview's "valid" flags sent back by the browser.
-function checkCsvRow(row, existingNames) {
+function checkCsvRow(row, existingNames, branchNames) {
   const errors = [];
   const warnings = [];
 
-  const medicine = parseMedicine(row);
+  const medicine = parseMedicine(row, branchNames);
   if (medicine.error) errors.push(medicine.error);
   if (row.requires_prescription && !['true', 'false', 'yes', 'no', '1', '0'].includes(String(row.requires_prescription).trim().toLowerCase())) {
     errors.push('requires_prescription must be true/false, yes/no, or 1/0');
@@ -193,6 +225,7 @@ async function validateCsvImport(req, res) {
   }
 
   const results = [];
+  const branchNames = await branchModel.activeNames();
 
   // Get existing medicine names for duplicate check
   const [existingMedicines] = await pool.query('SELECT name FROM medicines');
@@ -206,7 +239,7 @@ async function validateCsvImport(req, res) {
 
   parser.on('data', (row) => {
     const rowNum = parser.info.lines;
-    const { errors, warnings, hasBatch } = checkCsvRow(row, existingNames);
+    const { errors, warnings, hasBatch } = checkCsvRow(row, existingNames, branchNames);
     // Later rows with the same name in this file are duplicates too.
     if (row.name) existingNames.add(String(row.name).trim().toLowerCase());
 
@@ -263,6 +296,7 @@ async function commitCsvImport(req, res) {
   // Only rows the preview marked valid are imported, but each is re-checked
   // here — the flags come from the browser and can't be trusted.
   const rows = results.filter(r => r && r.valid);
+  const branchNames = await branchModel.activeNames();
   const [existingMedicines] = await pool.query('SELECT name FROM medicines');
   const existingNames = new Set(existingMedicines.map((m) => m.name.toLowerCase()));
   const created = [];
@@ -277,7 +311,7 @@ async function commitCsvImport(req, res) {
 
     for (const row of rows) {
       try {
-        const check = checkCsvRow(row.data || {}, existingNames);
+        const check = checkCsvRow(row.data || {}, existingNames, branchNames);
         if (check.errors.length) {
           failed.push({ name: row.data?.name || `Row ${row.row}`, error: check.errors.join('; ') });
           continue;
@@ -286,9 +320,9 @@ async function commitCsvImport(req, res) {
         existingNames.add(data.name.toLowerCase());
 
         const [medicineResult] = await conn.query(
-          `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [data.name, data.generic_name, data.category, data.dosage_form, data.strength, data.unit, data.reorder_level, data.requires_prescription, data.branch]
+          `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch, barcode)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [data.name, data.generic_name, data.category, data.dosage_form, data.strength, data.unit, data.reorder_level, data.requires_prescription, data.branch, data.barcode]
         );
         const medicineId = medicineResult.insertId;
         created.push({ id: medicineId, name: data.name });
@@ -381,6 +415,8 @@ async function downloadCsvTemplate(req, res) {
     'tablet',
     '50',
     'false',
+    'QMC',
+    'SAMPLE-0001',
     'BATCH-001',
     '100',
     '5.00',
@@ -400,4 +436,4 @@ async function downloadCsvTemplate(req, res) {
   res.send(csv);
 }
 
-module.exports = { getAll, getOne, create, update, remove, uploadImage, getImage, removeImage, validateCsvImport, commitCsvImport, downloadCsvTemplate };
+module.exports = { getAll, getOne, lookup, create, update, remove, uploadImage, getImage, removeImage, validateCsvImport, commitCsvImport, downloadCsvTemplate };

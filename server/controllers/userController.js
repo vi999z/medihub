@@ -14,8 +14,8 @@ async function update(req, res) {
   const existing = await userModel.findById(req.params.id);
   if (!existing) return res.status(404).json({ error: 'User not found' });
 
-  const { value, error } = validateUser(req.body, { isCreate: false });
-  if (error) return res.status(400).json({ error });
+  const { value, error, field } = validateUser(req.body, { isCreate: false });
+  if (error) return res.status(400).json({ error, field });
   const { full_name, email, role, is_active } = value;
 
   // Same rule as setStatus/remove: an admin can't take away their own access.
@@ -32,7 +32,7 @@ async function update(req, res) {
 
   const emailOwner = await userModel.findByEmail(email);
   if (emailOwner && emailOwner.id !== Number(req.params.id)) {
-    return res.status(409).json({ error: 'Email already in use' });
+    return res.status(409).json({ error: 'Email already in use', field: 'email' });
   }
 
   await userModel.updateUser(req.params.id, {

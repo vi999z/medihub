@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { downloadBlob } from '../../utils/downloadFile';
 import TableSkeleton from '../../components/TableSkeleton';
 import ExportDropdown from '../../components/ExportDropdown';
+import { errorMessage } from '../../utils/errors';
 
 const EXPORT_OPTIONS = [
   { label: 'Expiry risk (Excel)', key: 'risk', format: 'excel' },
@@ -110,7 +111,7 @@ export default function InsightsTab({ onBadgeChange }) {
       setAnomalies(a.data?.anomalies || []);
       setForecasts(f.data?.forecasts || []);
     } catch (err) {
-      setError(err.response?.data?.error || 'Unable to load AI insights right now.');
+      setError(errorMessage(err, 'Unable to load AI insights right now.'));
       setRisk([]);
       setReorder([]);
       setAnomalies([]);
@@ -160,7 +161,7 @@ export default function InsightsTab({ onBadgeChange }) {
       }
     } catch (err) {
       setTrainStatus('error');
-      const serverError = err.response?.data?.error || 'Training failed';
+      const serverError = errorMessage(err, 'Training failed');
       const serverDetail = err.response?.data?.detail || err.message;
       setTrainMsg(`${serverError}: ${serverDetail}`);
     } finally {

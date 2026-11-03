@@ -29,13 +29,6 @@ function normalizeCategory(value) {
   return trimmed;
 }
 
-const BRANCH_OPTIONS = ['QMC', 'MT Carmel'];
-
-function normalizeBranch(value) {
-  const match = BRANCH_OPTIONS.find((option) => option.toLowerCase() === String(value || '').trim().toLowerCase());
-  return match || 'QMC';
-}
-
 async function getAll() {
   const [rows] = await pool.query(
     `SELECT m.*,
@@ -66,30 +59,60 @@ async function getById(id) {
 }
 
 async function create(data) {
-  const { name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch } = data;
+  const { name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch, barcode } = data;
   const normalizedCategory = normalizeCategory(category);
-  const normalizedBranch = normalizeBranch(branch);
   const [result] = await pool.query(
-    `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, generic_name, normalizedCategory, dosage_form, strength, unit, reorder_level ?? 10, !!requires_prescription, normalizedBranch]
+    `INSERT INTO medicines (name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch, barcode)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, generic_name, normalizedCategory, dosage_form, strength, unit, reorder_level ?? 10, !!requires_prescription, branch, barcode || null]
   );
   return result.insertId;
 }
 
 async function update(id, data) {
-  const { name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch } = data;
+  const { name, generic_name, category, dosage_form, strength, unit, reorder_level, requires_prescription, branch, barcode } = data;
   const normalizedCategory = normalizeCategory(category);
-  const normalizedBranch = normalizeBranch(branch);
   await pool.query(
-    `UPDATE medicines SET name=?, generic_name=?, category=?, dosage_form=?, strength=?, unit=?, reorder_level=?, requires_prescription=?, branch=?
+    `UPDATE medicines SET name=?, generic_name=?, category=?, dosage_form=?, strength=?, unit=?, reorder_level=?, requires_prescription=?, branch=?, barcode=?
      WHERE id=?`,
-    [name, generic_name, normalizedCategory, dosage_form, strength, unit, reorder_level, !!requires_prescription, normalizedBranch, id]
+    [name, generic_name, normalizedCategory, dosage_form, strength, unit, reorder_level, !!requires_prescription, branch, barcode || null, id]
   );
 }
 
 async function remove(id) {
   await pool.query('DELETE FROM medicines WHERE id = ?', [id]);
+}
+
+// Resolves a scanned code to a medicine (and batch, when the code names one).
+// Order: product barcode, medicine QR (MEDIHUB:M:<id>), batch QR (MEDIHUB:B:<id>),
+// a batch number typed into a label, and finally a plain number as a batch id
+// (the format QR codes had before medicines got their own).
+async function findByCode(rawCode) {
+  const code = String(rawCode || '').trim();
+  if (!code) return null;
+
+  const [byBarcode] = await pool.query('SELECT id FROM medicines WHERE barcode = ? ORDER BY id LIMIT 1', [code]);
+  if (byBarcode[0]) return { kind: 'medicine', medicine_id: byBarcode[0].id };
+
+  const qr = code.match(/^MEDIHUB:([MB]):(\d+)$/i);
+  if (qr) {
+    const id = Number(qr[2]);
+    if (qr[1].toUpperCase() === 'M') {
+      const [rows] = await pool.query('SELECT id FROM medicines WHERE id = ?', [id]);
+      return rows[0] ? { kind: 'medicine', medicine_id: rows[0].id } : null;
+    }
+    const [rows] = await pool.query('SELECT id, medicine_id FROM batches WHERE id = ?', [id]);
+    return rows[0] ? { kind: 'batch', medicine_id: rows[0].medicine_id, batch_id: rows[0].id } : null;
+  }
+
+  const [byNumber] = await pool.query('SELECT id, medicine_id FROM batches WHERE batch_number = ? ORDER BY id DESC LIMIT 1', [code]);
+  if (byNumber[0]) return { kind: 'batch', medicine_id: byNumber[0].medicine_id, batch_id: byNumber[0].id };
+
+  if (/^\d{1,9}$/.test(code)) {
+    const [legacy] = await pool.query('SELECT id, medicine_id FROM batches WHERE id = ?', [Number(code)]);
+    if (legacy[0]) return { kind: 'batch', medicine_id: legacy[0].medicine_id, batch_id: legacy[0].id };
+  }
+  return null;
 }
 
 // Medicine photos live in the database (one row per medicine), so they need
@@ -132,4 +155,4 @@ async function setImage(id, imageUrl) {
   await pool.query('UPDATE medicines SET image_url = ? WHERE id = ?', [imageUrl, id]);
 }
 
-module.exports = { getAll, getById, create, update, remove, setImage, saveImage, getImage, deleteImage, CATEGORY_OPTIONS, normalizeCategory, BRANCH_OPTIONS, normalizeBranch };
+module.exports = { getAll, getById, create, update, remove, setImage, saveImage, getImage, deleteImage, findByCode, CATEGORY_OPTIONS, normalizeCategory };

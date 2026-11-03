@@ -5,6 +5,8 @@ services:
     rootDir: .
     buildCommand: cd client && npm install && npm run build && cd ../server && npm install
     startCommand: cd server && node server.js
+    # Render restarts the service if the API or its database stops answering.
+    healthCheckPath: /api/health/db
     envVars:
       - key: NODE_ENV
         value: production

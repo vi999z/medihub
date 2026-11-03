@@ -20,6 +20,13 @@ export default function StockMovementModal({ isOpen, onClose, medicine, batches,
   const [localError, setLocalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Fail safe: expired and recalled stock can never be sold, so it isn't even
+  // listed for a sale (and empty batches can't be sold from). Disposals,
+  // returns and adjustments can use any batch.
+  const offered = form.transaction_type === 'sale'
+    ? batches.filter((b) => b.status === 'active' && Number(b.quantity_remaining) > 0)
+    : batches;
+
   useEffect(() => {
     if (isOpen) {
       setForm({ ...emptyForm, batch_id: batches[0]?.id || '' });
@@ -88,7 +95,7 @@ export default function StockMovementModal({ isOpen, onClose, medicine, batches,
             <label>Batch</label>
             <select value={form.batch_id} onChange={(event) => setForm({ ...form, batch_id: event.target.value })} required>
               <option value="">Choose a batch</option>
-              {batches.map((batch) => (
+              {offered.map((batch) => (
                 <option key={batch.id} value={batch.id}>
                   {medicine ? '' : `${batch.medicine_name} — `}{batch.batch_number} ({batch.quantity_remaining} {medicine?.unit || ''} left{batch.status !== 'active' ? `, ${batch.status}` : ''})
                 </option>
@@ -97,7 +104,13 @@ export default function StockMovementModal({ isOpen, onClose, medicine, batches,
           </div>
           <div className="field">
             <label>What happened?</label>
-            <select value={form.transaction_type} onChange={(event) => setForm({ ...form, transaction_type: event.target.value })}>
+            <select value={form.transaction_type} onChange={(event) => {
+              const type = event.target.value;
+              // Keep the chosen batch only if it can take this kind of movement.
+              const stillValid = type !== 'sale' || batches.some((b) => String(b.id) === String(form.batch_id) && b.status === 'active' && Number(b.quantity_remaining) > 0);
+              const firstSellable = batches.find((b) => b.status === 'active' && Number(b.quantity_remaining) > 0);
+              setForm({ ...form, transaction_type: type, batch_id: stillValid ? form.batch_id : (firstSellable?.id || '') });
+            }}>
               {types.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
             </select>
           </div>
@@ -115,7 +128,9 @@ export default function StockMovementModal({ isOpen, onClose, medicine, batches,
             <input type="number" inputMode="numeric" min="1" step="1" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} required autoFocus />
           </div>
           <div className="field">
-            <label>Reason <span style={{ color: 'var(--steel)', fontWeight: 400 }}>(optional)</span></label>
+            <label>Reason {form.transaction_type === 'adjustment'
+              ? <span style={{ color: 'var(--red)', fontWeight: 600 }}>(required)</span>
+              : <span style={{ color: 'var(--steel)', fontWeight: 400 }}>(optional)</span>}</label>
             <input value={form.reason} maxLength={MAX_LENGTH.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="e.g. damaged stock" />
           </div>
         </div>
@@ -123,7 +138,7 @@ export default function StockMovementModal({ isOpen, onClose, medicine, batches,
         {displayError && <p className="error-text" role="alert">{displayError}</p>}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
           <button type="button" className="flat-action-btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="flat-btn-primary" disabled={submitting || batches.length === 0}>
+          <button type="submit" className="flat-btn-primary" disabled={submitting || offered.length === 0}>
             {submitting ? 'Saving...' : 'Save movement'}
           </button>
         </div>

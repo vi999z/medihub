@@ -97,8 +97,8 @@ async function refreshLowStockAlert(medicineId) {
 async function refreshAlertsForBatch(batchId) {
   const [rows] = await pool.query(
     `SELECT b.id, b.medicine_id, b.batch_number, b.expiry_date, b.quantity_remaining, b.status,
-            (b.expiry_date < CURDATE()) AS is_past_expiry, m.name AS medicine_name
-     FROM batches b JOIN medicines m ON b.medicine_id = m.id
+            (b.expiry_date < CURDATE()) AS is_past_expiry, COALESCE(m.name, b.pending_name) AS medicine_name
+     FROM batches b LEFT JOIN medicines m ON b.medicine_id = m.id
      WHERE b.id = ?`,
     [batchId]
   );
@@ -113,7 +113,8 @@ async function refreshAlertsForBatch(batchId) {
   } else if (batch.status === 'active' && Number(batch.quantity_remaining) > 0) {
     await createNearExpiryAlert(batch);
   }
-  await refreshLowStockAlert(batch.medicine_id);
+  // Stock levels are per medicine, so an unlinked batch has none to check.
+  if (batch.medicine_id) await refreshLowStockAlert(batch.medicine_id);
 }
 
 module.exports = {

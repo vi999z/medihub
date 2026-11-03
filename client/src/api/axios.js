@@ -8,8 +8,11 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 // page's own origin.
 const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
 
+// Generous timeout: the free hosting plan can take up to a minute to wake the
+// server after a quiet spell, and AI answers can take a while.
 const api = axios.create({
   baseURL: API_BASE,
+  timeout: 90000,
 });
 
 // Resolves a possibly-relative file URL (e.g. medicine photo `/uploads/...`
@@ -76,10 +79,31 @@ api.setAuthLogout = function setAuthLogout(callback) {
   on401Callback = callback;
 };
 
+const RETRY_STATUSES = new Set([502, 503, 504]);
+const MAX_RETRIES = 2;
+
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    const requestUrl = err.config?.url || '';
+  async (err) => {
+    const config = err.config;
+
+    // Reads are safe to repeat: a server that is waking up or briefly
+    // unreachable usually answers on the second or third try.
+    const isRead = config && ['get', 'head'].includes((config.method || 'get').toLowerCase());
+    const transient = !err.response ? err.code !== 'ERR_CANCELED' : RETRY_STATUSES.has(err.response.status);
+    if (isRead && transient && (config.__retries || 0) < MAX_RETRIES) {
+      config.__retries = (config.__retries || 0) + 1;
+      await new Promise((resolve) => setTimeout(resolve, 800 * config.__retries));
+      return api(config);
+    }
+
+    // A failed download arrives as a Blob; read the server's JSON message out of it.
+    const body = err.response?.data;
+    if (typeof Blob !== 'undefined' && body instanceof Blob && body.type.includes('json')) {
+      try { err.response.data = JSON.parse(await body.text()); } catch { /* keep the blob */ }
+    }
+
+    const requestUrl = config?.url || '';
     const isLoginRequest = requestUrl.endsWith('/auth/login');
     if (err.response?.status === 401 && on401Callback && !isLoginRequest) {
       on401Callback();

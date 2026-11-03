@@ -17,6 +17,8 @@ const TEXT_PATTERN = /^[^<>{}\u0000-\u001f]+$/u;
 const INTEGER_PATTERN = /^\d+$/;
 const MONEY_PATTERN = /^\d+(\.\d{1,2})?$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+// Product barcodes / QR text: letters, digits and . _ - only, 4-64 characters.
+const BARCODE_PATTERN = /^[A-Za-z0-9._-]{4,64}$/;
 
 const MAX_QUANTITY = 1000000;
 const MAX_REORDER_LEVEL = 100000;
@@ -90,6 +92,7 @@ function validateMedicine(body, { categoryOptions, branchOptions }) {
     unit: str(body.unit),
     requires_prescription: parseBoolean(body.requires_prescription),
     branch: str(body.branch) || branchOptions[0],
+    barcode: str(body.barcode),
   };
   const error =
     checkText(v.name, 'Medicine name', { max: 150 }) ||
@@ -108,6 +111,11 @@ function validateMedicine(body, { categoryOptions, branchOptions }) {
   if (!branch) return { error: `Branch must be one of: ${branchOptions.join(', ')}` };
   v.branch = branch;
 
+  if (v.barcode && !BARCODE_PATTERN.test(v.barcode)) {
+    return { error: 'Barcode must be 4 to 64 characters: letters, numbers, . _ -' };
+  }
+  v.barcode = v.barcode || null;
+
   const reorderRaw = str(body.reorder_level);
   const reorder = parseInteger(reorderRaw === '' ? '10' : reorderRaw, 'Reorder level', { min: 0, max: MAX_REORDER_LEVEL });
   if (reorder.error) return reorder;
@@ -118,6 +126,27 @@ function validateMedicine(body, { categoryOptions, branchOptions }) {
   return { value: v };
 }
 
+// What is known about the medicine of an unlinked batch.
+function validatePending(body, existing) {
+  const pick = (key) => (body[key] !== undefined ? body[key] : existing?.[key]);
+  const v = {
+    pending_name: str(pick('pending_name')),
+    pending_strength: str(pick('pending_strength')),
+    pending_dosage_form: str(pick('pending_dosage_form')),
+    pending_barcode: str(pick('pending_barcode')),
+    pending_branch: str(pick('pending_branch')),
+  };
+  const error =
+    checkText(v.pending_name, 'Medicine name', { max: 150 }) ||
+    checkText(v.pending_strength, 'Strength', { max: 50, optional: true, pattern: STRENGTH_PATTERN, hint: 'can only contain letters, numbers, spaces and . , % / + -' }) ||
+    checkText(v.pending_dosage_form, 'Dosage form', { max: 50, optional: true }) ||
+    (v.pending_barcode && !BARCODE_PATTERN.test(v.pending_barcode) ? 'Barcode must be 4 to 64 characters: letters, numbers, . _ -' : null) ||
+    (v.pending_branch ? null : 'Branch is required');
+  if (error) return { error };
+  for (const key of ['pending_strength', 'pending_dosage_form', 'pending_barcode']) if (!v[key]) v[key] = null;
+  return { value: v };
+}
+
 // `existing` is the current batch row when editing, undefined when creating.
 // Options for CSV imports: `withoutMedicine` (the medicine is created in the
 // same step) and `allowPastExpiry` (expired stock is imported as 'expired').
@@ -125,9 +154,18 @@ function validateBatch(body, existing, { withoutMedicine = false, allowPastExpir
   const today = localDateKey();
   const v = {};
 
-  if (!withoutMedicine) {
+  // A batch is linked to a catalog medicine, or "unlinked" (received before the
+  // medicine exists): then what is known about the medicine is kept on the batch.
+  const unlinked = body.unlinked === true || body.unlinked === 'true' || (existing && existing.medicine_id === null);
+  if (!withoutMedicine && unlinked) {
+    v.medicine_id = null;
+    const pending = validatePending(body, existing);
+    if (pending.error) return pending;
+    Object.assign(v, pending.value);
+  } else if (!withoutMedicine) {
     v.medicine_id = existing && body.medicine_id === undefined ? existing.medicine_id : parseId(body.medicine_id);
     if (!v.medicine_id) return { error: 'Select a medicine' };
+    Object.assign(v, { pending_name: null, pending_strength: null, pending_dosage_form: null, pending_barcode: null, pending_branch: null });
   }
 
   v.batch_number = str(body.batch_number);
@@ -237,15 +275,49 @@ function validateTransaction(body) {
     if (!['increase', 'decrease'].includes(direction)) return { error: 'Adjustment direction must be increase or decrease' };
   }
   const reason = str(body.reason);
+  if (type === 'adjustment' && !reason) return { error: 'Give a reason for the adjustment' };
   const reasonError = checkText(reason, 'Reason', { max: 255, optional: true, pattern: TEXT_PATTERN, hint: TEXT_HINT });
   if (reasonError) return { error: reasonError };
   return { value: { batch_id, transaction_type: type, quantity: quantity.value, direction, reason: reason || null } };
 }
 
+function validateBranch(body) {
+  const v = { name: str(body.name), address: str(body.address) };
+  const error =
+    checkText(v.name, 'Branch name', { max: 60 }) ||
+    checkText(v.address, 'Address', { max: 255, optional: true, pattern: TEXT_PATTERN, hint: TEXT_HINT });
+  if (error) return { error };
+  v.address = v.address || null;
+  return { value: v };
+}
+
+// Each message starts with the field's label; this maps it back to the field
+// key so forms can show the message next to the right input.
+const FIELD_LABELS = {
+  medicine: { 'Medicine name': 'name', 'Generic name': 'generic_name', Category: 'category', 'Dosage form': 'dosage_form', Strength: 'strength', Unit: 'unit', 'Reorder level': 'reorder_level', Barcode: 'barcode', Branch: 'branch' },
+  batch: { 'Select a medicine': 'medicine_id', 'Medicine name': 'pending_name', Strength: 'pending_strength', 'Dosage form': 'pending_dosage_form', Barcode: 'pending_barcode', Branch: 'pending_branch', 'Batch number': 'batch_number', 'Quantity received': 'quantity_received', 'Quantity remaining': 'quantity_remaining', 'Expiry date': 'expiry_date', 'Manufacture date': 'manufacture_date', 'Cost price': 'cost_price', 'Selling price': 'selling_price', 'Choose a valid supplier': 'supplier_id', Status: 'status' },
+  supplier: { 'Supplier name': 'name', 'Contact person': 'contact_person', Phone: 'phone', Email: 'email', Address: 'address' },
+  user: { 'Full name': 'full_name', Email: 'email', Role: 'role', 'Temporary password': 'password' },
+  transaction: { 'Select a batch': 'batch_id', 'Movement type': 'transaction_type', 'Adjustment direction': 'direction', Quantity: 'quantity', Reason: 'reason', 'Give a reason': 'reason' },
+  branch: { 'Branch name': 'name', Address: 'address' },
+};
+
+function withField(kind, fn) {
+  return (...args) => {
+    const result = fn(...args);
+    if (result.error && !result.field) {
+      const label = Object.keys(FIELD_LABELS[kind]).find((l) => result.error.startsWith(l));
+      if (label) result.field = FIELD_LABELS[kind][label];
+    }
+    return result;
+  };
+}
+
 module.exports = {
-  validateMedicine,
-  validateBatch,
-  validateSupplier,
-  validateUser,
-  validateTransaction,
+  validateBranch: withField('branch', validateBranch),
+  validateMedicine: withField('medicine', validateMedicine),
+  validateBatch: withField('batch', validateBatch),
+  validateSupplier: withField('supplier', validateSupplier),
+  validateUser: withField('user', validateUser),
+  validateTransaction: withField('transaction', validateTransaction),
 };

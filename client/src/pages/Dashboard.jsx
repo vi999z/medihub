@@ -5,6 +5,10 @@ import api from '../api/axios';
 import { downloadCsv } from '../utils/csv';
 import AnimatedModal from '../components/AnimatedModal';
 import { localDateKey } from '../utils/date';
+import useBranches from '../hooks/useBranches';
+import PageHeader from '../components/PageHeader';
+import { errorMessage } from '../utils/errors';
+import { useBranchFilter } from '../context/BranchContext';
 
 function peso(n) {
   const value = Number(n) || 0;
@@ -91,7 +95,7 @@ export default function Dashboard() {
   const [topSellers, setTopSellers] = useState([]);
   const [error, setError] = useState('');
 
-  const [branchFilter, setBranchFilter] = useState('all');
+  const { branch: branchFilter, setBranch: setBranchFilter } = useBranchFilter();
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState(DEFAULT_DATE_FILTER);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -119,7 +123,7 @@ export default function Dashboard() {
         setError('');
       })
       .catch((err) => {
-        if (mounted) setError(err.response?.data?.error || 'Failed to load  data');
+        if (mounted) setError(errorMessage(err, 'Failed to load  data'));
       });
     return () => { mounted = false; };
   }, [horizonDays]);
@@ -129,11 +133,12 @@ export default function Dashboard() {
     return [{ value: 'all', label: 'All categories' }, ...[...names].sort().map((c) => ({ value: c, label: c }))];
   }, [needsAttention]);
 
-  // Both branches are always offered, even if one has nothing listed yet.
+  // Every active branch is offered, even if one has nothing listed yet.
+  const { names: branchNames } = useBranches();
   const branchOptions = useMemo(() => {
-    const names = new Set(['QMC', 'MT Carmel', ...(needsAttention?.items || []).map((i) => i.branch || 'QMC')]);
+    const names = new Set([...branchNames, ...(needsAttention?.items || []).map((i) => i.branch || 'QMC')]);
     return [{ value: 'all', label: 'All branches' }, ...[...names].sort().map((b) => ({ value: b, label: b }))];
-  }, [needsAttention]);
+  }, [needsAttention, branchNames]);
 
   // Items in the selected branch and category; the stock-status counts and
   // the "needs attention" list both follow these filters.
@@ -173,6 +178,31 @@ export default function Dashboard() {
       ['name', 'branch', 'category', 'dosage_form', 'in_stock', 'unit', 'expires', 'status']
     );
   }
+
+  // Stock by category for the selected branch: medicines, units in stock and how many need attention.
+  const categoryBreakdown = useMemo(() => {
+    const groups = new Map();
+    for (const i of needsAttention?.items || []) {
+      if (branchFilter !== 'all' && (i.branch || 'QMC') !== branchFilter) continue;
+      const name = i.category || 'Uncategorized';
+      const g = groups.get(name) || { name, medicines: 0, units: 0, attention: 0 };
+      g.medicines += 1;
+      g.units += Number(i.total_remaining) || 0;
+      if (i.status !== 'healthy') g.attention += 1;
+      groups.set(name, g);
+    }
+    return [...groups.values()].sort((a, b) => b.units - a.units);
+  }, [needsAttention, branchFilter]);
+  const maxCategoryUnits = Math.max(1, ...categoryBreakdown.map((g) => g.units));
+
+  const [criticalAlerts, setCriticalAlerts] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    api.cachedGet('/notifications?unread=true')
+      .then((res) => { if (mounted) setCriticalAlerts((res.data || []).filter((n) => n.severity === 'critical').length); })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
 
   const maxRevenue = Math.max(1, ...salesTrend.map((d) => d.revenue || 0));
   const trendTotal = salesTrend.reduce((sum, d) => sum + (d.revenue || 0), 0);
@@ -219,6 +249,13 @@ export default function Dashboard() {
 
   return (
     <div className="flat-dashboard">
+      <PageHeader title="Dashboard" description="Today's sales, stock levels and the medicines that need attention." legend />
+      {criticalAlerts > 0 && (
+        <button type="button" className="flat-banner flat-banner--red flat-card critical-banner" onClick={() => navigate('/notifications')}>
+          <span className="flat-banner__title">{criticalAlerts} critical alert{criticalAlerts === 1 ? '' : 's'} need{criticalAlerts === 1 ? 's' : ''} your attention</span>
+          <span className="flat-med-meta">Open Alerts to see what to do</span>
+        </button>
+      )}
       {error && (
         <div className="flat-card" style={{ padding: 20 }}>
           <strong>Unable to load dashboard</strong>
@@ -300,6 +337,30 @@ export default function Dashboard() {
 
           {/* d. Bottom row — analytics (charts) stay grouped with the rest of
               the analytics above the medicine list, per request. */}
+          {/* d. Stock by category */}
+          <div className="flat-card">
+            <div className="flat-table-header">
+              <span className="flat-table-title">Stock by category</span>
+              <span className="flat-med-meta">{branchFilter === 'all' ? 'All branches' : branchFilter}</span>
+            </div>
+            <div style={{ padding: '8px 20px 16px' }}>
+              {loading && <div className="flat-empty">Loading…</div>}
+              {!loading && categoryBreakdown.length === 0 && <div className="flat-empty">No medicines to show yet.</div>}
+              {categoryBreakdown.map((g) => (
+                <div key={g.name} className="flat-cat-row">
+                  <div className="flat-cat-row__label">
+                    <strong>{g.name}</strong>
+                    <span className="flat-med-meta">{g.medicines} medicine{g.medicines === 1 ? '' : 's'}{g.attention ? ` · ${g.attention} need attention` : ''}</span>
+                  </div>
+                  <div className="flat-cat-row__track" aria-hidden="true">
+                    <div className="flat-cat-row__bar" style={{ width: `${Math.max(2, (g.units / maxCategoryUnits) * 100)}%` }} />
+                  </div>
+                  <span className="flat-cat-row__value">{g.units.toLocaleString()} units</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="flat-bottom-row">
             <div className="flat-card">
               <div className="flat-card-header">

@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Search, X, RefreshCw, FileText } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
+import PageHeader from '../components/PageHeader';
+import { errorMessage } from '../utils/errors';
 
 // Maps the action verb (first word of e.g. "create_medicine") onto the flat
 // design system's palette; anything unlisted gets the neutral card.
+const PAGE_SIZE = 100;
 const ACTION_FLAT_CLS = { create: 'green', login: 'green', update: 'amber', export: 'amber', delete: 'red', ai: 'accent' };
 
 function actionLabel(action = '') {
@@ -17,20 +20,22 @@ export default function AuditLog() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   async function fetchAll() {
     try {
-      const res = await api.get('/audit-logs');
+      const res = await api.get(`/audit-logs?limit=${limit}`);
       setLogs(res.data || []);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load audit logs');
+      setError(errorMessage(err, 'Failed to load audit logs'));
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { fetchAll(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchAll(); }, [limit]);
 
   async function handleRefresh() {
     await fetchAll();
@@ -45,6 +50,7 @@ export default function AuditLog() {
 
   return (
     <div className="flat-dashboard">
+      <PageHeader title="Audit Log" description="A permanent record of who did what, and when. Entries cannot be deleted." />
       <div className="page-actions-only">
         <div className="page-header-actions">
           <button type="button" className="flat-action-btn" onClick={handleRefresh}>
@@ -128,6 +134,11 @@ export default function AuditLog() {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {!error && !loading && logs.length >= limit && limit < 2000 && (
+            <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <button type="button" className="flat-action-btn" onClick={() => setLimit((n) => n + PAGE_SIZE)}>Load more</button>
             </div>
           )}
         </div>

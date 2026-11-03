@@ -6,6 +6,7 @@ import {
 import api from '../../api/axios';
 import Skeleton from '../../components/Skeleton';
 import TableSkeleton from '../../components/TableSkeleton';
+import { errorMessage } from '../../utils/errors';
 
 // ─── Utility helpers ──────────────────────────────────────────────────────────
 
@@ -337,7 +338,7 @@ export default function WeatherTab({ onBadgeChange }) {
       const res = await api.get(`/ai/weather-recommendations?city=${encodeURIComponent(targetCity)}`);
       setData(res.data);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load weather recommendations');
+      setError(errorMessage(err, 'Failed to load weather recommendations'));
     } finally {
       setLoading(false);
     }

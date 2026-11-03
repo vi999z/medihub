@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { validateMedicine, validateBatch, validateSupplier, validateUser, validateTransaction } = require('../utils/validators');
+const { validateMedicine, validateBatch, validateSupplier, validateUser, validateTransaction, validateBranch } = require('../utils/validators');
 
 const medOpts = { categoryOptions: ['Analgesic', 'Other'], branchOptions: ['QMC', 'MT Carmel'] };
 const batch = (overrides = {}) => ({ medicine_id: 1, batch_number: 'B-1', quantity_received: 5, expiry_date: '2099-01-01', ...overrides });
@@ -55,5 +55,31 @@ test('supplier and user formats', () => {
 test('transaction: whole quantities and a valid adjustment direction', () => {
   assert.ok(validateTransaction({ batch_id: 1, transaction_type: 'sale', quantity: '1.5' }).error);
   assert.ok(validateTransaction({ batch_id: 1, transaction_type: 'adjustment', quantity: 1, direction: 'sideways' }).error);
-  assert.equal(validateTransaction({ batch_id: 1, transaction_type: 'adjustment', quantity: 2, direction: 'decrease' }).value.direction, 'decrease');
+  assert.equal(validateTransaction({ batch_id: 1, transaction_type: 'adjustment', quantity: 2, direction: 'decrease', reason: 'Recount' }).value.direction, 'decrease');
+});
+
+test('transaction: an adjustment needs a reason; other movements do not', () => {
+  assert.match(validateTransaction({ batch_id: 1, transaction_type: 'adjustment', quantity: 2, direction: 'increase' }).error, /reason/i);
+  assert.match(validateTransaction({ batch_id: 1, transaction_type: 'adjustment', quantity: 2, reason: '   ' }).error, /reason/i);
+  assert.ok(validateTransaction({ batch_id: 1, transaction_type: 'sale', quantity: 2 }).value);
+});
+
+test('medicine: barcode is optional but must be a sensible code', () => {
+  assert.equal(validateMedicine({ name: 'A', unit: 'box' }, medOpts).value.barcode, null);
+  assert.equal(validateMedicine({ name: 'A', unit: 'box', barcode: ' 4800010000011 ' }, medOpts).value.barcode, '4800010000011');
+  assert.match(validateMedicine({ name: 'A', unit: 'box', barcode: 'ab' }, medOpts).error, /Barcode/);
+  assert.match(validateMedicine({ name: 'A', unit: 'box', barcode: 'bad code!' }, medOpts).error, /Barcode/);
+});
+
+test('medicine: branch must be one of the active branches', () => {
+  const opts = { categoryOptions: ['Other'], branchOptions: ['QMC', 'MT Carmel', 'New Branch'] };
+  assert.equal(validateMedicine({ name: 'A', unit: 'box', branch: 'new branch' }, opts).value.branch, 'New Branch');
+  assert.match(validateMedicine({ name: 'A', unit: 'box', branch: 'Mars' }, opts).error, /Branch/);
+});
+
+test('branch: name required, length limited, no markup', () => {
+  assert.match(validateBranch({ name: ' ' }).error, /required/);
+  assert.match(validateBranch({ name: 'x'.repeat(61) }).error, /60 characters/);
+  assert.match(validateBranch({ name: 'Main', address: '<b>' }).error, /Address/);
+  assert.deepEqual(validateBranch({ name: ' Main ', address: '' }).value, { name: 'Main', address: null });
 });

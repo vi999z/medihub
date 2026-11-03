@@ -2,13 +2,14 @@ import { useState, useRef } from 'react';
 import { Upload, X, Check, AlertTriangle, Download, FileText } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
+import { errorMessage } from '../utils/errors';
 
 const ENTITY_CONFIG = {
   medicines: {
     label: 'Medicine',
     plural: 'Medicines',
-    templateHeaders: ['name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'reorder_level', 'requires_prescription'],
-    templateExample: ['Paracetamol', 'Acetaminophen', 'Analgesic', 'Tablet', '500mg', 'tablet', '50', 'false'],
+    templateHeaders: ['name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'reorder_level', 'requires_prescription', 'branch', 'barcode'],
+    templateExample: ['Paracetamol', 'Acetaminophen', 'Analgesic', 'Tablet', '500mg', 'tablet', '50', 'false', 'QMC', 'SAMPLE-0001'],
     requiredColumns: ['name', 'unit'],
     displayColumns: ['Medicine', 'Batch #', 'Expiry', 'Status', 'Errors']
   },
@@ -88,7 +89,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
       setValidationResult(res.data);
       setStep('preview');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to validate CSV file', 'error');
+      addToast(errorMessage(err, 'Failed to validate CSV file'), 'error');
       setFile(null);
     }
   };
@@ -105,7 +106,7 @@ export default function CsvImport({ onClose, onImportComplete, entityType = 'med
         onImportComplete(res.data);
       }
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to import data', 'error');
+      addToast(errorMessage(err, 'Failed to import data'), 'error');
     } finally {
       setImporting(false);
     }

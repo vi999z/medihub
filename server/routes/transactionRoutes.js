@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const { numericIdParams } = require('../utils/idParams');
+numericIdParams(router, 'batchId', 'medicineId');
 const ctrl = require('../controllers/transactionController');
 const { verifyToken, requireRole } = require('../middleware/auth');
 

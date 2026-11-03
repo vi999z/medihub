@@ -1,22 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCheck, RefreshCw, Search, X, AlertTriangle, Info } from 'lucide-react';
+import { CheckCheck, RefreshCw, Search, X, AlertTriangle, Info, Download } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
-import ExportDropdown from '../components/ExportDropdown';
-import { downloadBlob } from '../utils/downloadFile';
+import ReportExportModal from '../components/ReportExportModal';
 import { NOTIFICATIONS_CHANGED_EVENT } from '../utils/events';
+import PageHeader from '../components/PageHeader';
+import { errorMessage } from '../utils/errors';
 
 const UNREAD_URL = '/notifications?unread=true';
-
-const EXPORT_OPTIONS = [
-  { label: 'All alerts (Excel)', severity: null, format: 'excel' },
-  { label: 'Critical only (Excel)', severity: 'critical', format: 'excel' },
-  { label: 'Warnings only (Excel)', severity: 'warning', format: 'excel' },
-  null,
-  { label: 'All alerts (PDF)', severity: null, format: 'pdf' },
-  { label: 'Critical alerts (PDF)', severity: 'critical', format: 'pdf' },
-  { label: 'All alerts (Word)', severity: null, format: 'docx' },
-];
 
 // Maps alert severity onto the flat design system's palette.
 function severityConfig(sev) {
@@ -31,6 +22,7 @@ function typeLabel(type) {
 
 export default function Notifications() {
   const { addToast } = useToast();
+  const [showExport, setShowExport] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -43,7 +35,7 @@ export default function Notifications() {
       setNotifications(res.data || []);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load alerts');
+      setError(errorMessage(err, 'Failed to load alerts'));
     } finally {
       setLoading(false);
     }
@@ -82,7 +74,7 @@ export default function Notifications() {
       refreshCaches();
       await fetchAll();
     } catch (err) {
-      addToast(err.response?.data?.error || 'Could not mark alert as read', 'error');
+      addToast(errorMessage(err, 'Could not mark alert as read'), 'error');
     }
   }
 
@@ -93,7 +85,7 @@ export default function Notifications() {
       await fetchAll();
       addToast('All alerts marked as read', 'success');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Could not mark alerts as read', 'error');
+      addToast(errorMessage(err, 'Could not mark alerts as read'), 'error');
     }
   }
 
@@ -103,25 +95,14 @@ export default function Notifications() {
     addToast('Alerts refreshed', 'success');
   }
 
-  async function handleExport(severity, format) {
-    try {
-      const params = new URLSearchParams({ format });
-      if (severity) params.set('severity', severity);
-      const res = await api.get(`/reports/export/notifications?${params}`, { responseType: 'blob' });
-      const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
-      const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-      downloadBlob(blob, `alerts${severity ? `_${severity}` : ''}_${new Date().toISOString().slice(0, 10)}.${ext}`);
-      addToast('Alerts exported', 'success');
-    } catch (err) {
-      addToast('Export failed', 'error');
-    }
-  }
-
   return (
     <div className="flat-dashboard">
+      <PageHeader title="Alerts" description="Warnings about low stock, medicines close to expiry and expired batches. Red needs action first." legend />
       <div className="page-actions-only">
         <div className="page-header-actions">
-          <ExportDropdown options={EXPORT_OPTIONS} onSelect={({ severity, format }) => handleExport(severity, format)} />
+          <button type="button" className="flat-action-btn" onClick={() => setShowExport(true)}>
+            <Download size={15} /> Export
+          </button>
           <button type="button" className="flat-action-btn" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
@@ -225,6 +206,12 @@ export default function Notifications() {
           )}
         </div>
       </div>
+      <ReportExportModal
+        isOpen={showExport}
+        onClose={() => setShowExport(false)}
+        defaultReport="notifications"
+
+      />
     </div>
   );
 }

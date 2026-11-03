@@ -1,6 +1,7 @@
 import { useState, useCallback, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MessageCircle, Brain, CloudRain } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
 
 // Lazy per tab so switching between Chat/Insights/Weather only downloads
 // that tab's code — this page combines what used to be three separate
@@ -35,8 +36,7 @@ export default function AiAssistant() {
 
   return (
     <div className="flat-dashboard">
-      {/* The page title already sits in the topbar; only the per-tab blurb goes here. */}
-      <p className="flat-med-meta" style={{ margin: 0 }}>{active.subtitle}</p>
+      <PageHeader title="AI Assistant" description={active.subtitle} />
 
       <div className="ai-assistant-tabs">
         {TABS.map((t) => {

@@ -1,8 +1,9 @@
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { useAuth, AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { DialogProvider } from './context/DialogContext';
+import { BranchProvider } from './context/BranchContext';
 import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
@@ -21,6 +22,21 @@ const Users = lazy(() => import('./pages/Users'));
 const AuditLog = lazy(() => import('./pages/AuditLog'));
 const Maintenance = lazy(() => import('./pages/Maintenance'));
 const Scanner = lazy(() => import('./pages/Scanner'));
+const Branches = lazy(() => import('./pages/Branches'));
+const Reports = lazy(() => import('./pages/Reports'));
+
+// A page inside the app shell. Each page has its own error boundary (reset when
+// you navigate), so one page crashing leaves the menu and every other page working.
+function Page({ children, roles }) {
+  const location = useLocation();
+  return (
+    <ProtectedRoute allowedRoles={roles}>
+      <Layout>
+        <ErrorBoundary compact key={location.pathname}>{children}</ErrorBoundary>
+      </Layout>
+    </ProtectedRoute>
+  );
+}
 
 function AuthRedirect() {
   const { user, authReady } = useAuth();
@@ -35,26 +51,30 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
         <DialogProvider>
+          <BranchProvider>
           <Router>
             <ScrollToTop />
             <Suspense fallback={<div className="page-loader">Loading your workspace…</div>}>
               <Routes>
                 <Route path="/login" element={<Login />} />
-                <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
-                <Route path="/medicines" element={<ProtectedRoute><Layout><Medicines /></Layout></ProtectedRoute>} />
-                <Route path="/batches" element={<ProtectedRoute><Layout><Batches /></Layout></ProtectedRoute>} />
-                <Route path="/transactions" element={<ProtectedRoute><Layout><Transactions /></Layout></ProtectedRoute>} />
-                <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
-                <Route path="/scanner" element={<ProtectedRoute><Layout><Scanner /></Layout></ProtectedRoute>} />
-                <Route path="/ai-assistant" element={<ProtectedRoute><Layout><AiAssistant /></Layout></ProtectedRoute>} />
-                <Route path="/suppliers" element={<ProtectedRoute><Layout><Suppliers /></Layout></ProtectedRoute>} />
-                <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><Layout><Users /></Layout></ProtectedRoute>} />
-                <Route path="/audit-log" element={<ProtectedRoute allowedRoles={['admin']}><Layout><AuditLog /></Layout></ProtectedRoute>} />
-                <Route path="/maintenance" element={<ProtectedRoute allowedRoles={['admin']}><Layout><Maintenance /></Layout></ProtectedRoute>} />
+                <Route path="/dashboard" element={<Page><Dashboard /></Page>} />
+                <Route path="/medicines" element={<Page><Medicines /></Page>} />
+                <Route path="/batches" element={<Page><Batches /></Page>} />
+                <Route path="/transactions" element={<Page><Transactions /></Page>} />
+                <Route path="/notifications" element={<Page><Notifications /></Page>} />
+                <Route path="/scanner" element={<Page><Scanner /></Page>} />
+                <Route path="/ai-assistant" element={<Page><AiAssistant /></Page>} />
+                <Route path="/suppliers" element={<Page><Suppliers /></Page>} />
+                <Route path="/users" element={<Page roles={['admin']}><Users /></Page>} />
+                <Route path="/audit-log" element={<Page roles={['admin']}><AuditLog /></Page>} />
+                <Route path="/reports" element={<Page><Reports /></Page>} />
+                <Route path="/branches" element={<Page roles={['admin']}><Branches /></Page>} />
+                <Route path="/maintenance" element={<Page roles={['admin']}><Maintenance /></Page>} />
                 <Route path="*" element={<AuthRedirect />} />
               </Routes>
             </Suspense>
           </Router>
+          </BranchProvider>
         </DialogProvider>
         </ToastProvider>
       </AuthProvider>

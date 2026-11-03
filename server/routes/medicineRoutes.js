@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const { numericIdParams } = require('../utils/idParams');
+numericIdParams(router, 'id');
 const ctrl = require('../controllers/medicineController');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const multer = require('multer');
@@ -30,6 +32,7 @@ router.get('/:id/image', ctrl.getImage);
 router.use(verifyToken); // all medicine routes require login
 
 router.get('/', ctrl.getAll);                                   // pharmacist + admin
+router.get('/lookup', ctrl.lookup);                               // must come before '/:id'
 router.get('/csv/template', requireRole('admin', 'pharmacist'), ctrl.downloadCsvTemplate);
 router.get('/:id', ctrl.getOne);                                // pharmacist + admin
 router.post('/', requireRole('admin', 'pharmacist'), ctrl.create);

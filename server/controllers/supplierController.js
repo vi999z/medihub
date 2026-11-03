@@ -21,9 +21,9 @@ async function nameTaken(name, excludeId = 0) {
 
 async function create(req, res) {
   try {
-    const { value, error } = validateSupplier(req.body);
-    if (error) return res.status(400).json({ error });
-    if (await nameTaken(value.name)) return res.status(409).json({ error: 'A supplier with this name already exists' });
+    const { value, error, field } = validateSupplier(req.body);
+    if (error) return res.status(400).json({ error, field });
+    if (await nameTaken(value.name)) return res.status(409).json({ error: 'A supplier with this name already exists', field: 'name' });
 
     const id = await supplierModel.create(value);
     await logAudit(req.user.id, 'created_supplier', `Added supplier: ${value.name}`, req);
@@ -39,9 +39,9 @@ async function update(req, res) {
     const existing = await supplierModel.getById(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Supplier not found' });
 
-    const { value, error } = validateSupplier(req.body);
-    if (error) return res.status(400).json({ error });
-    if (await nameTaken(value.name, existing.id)) return res.status(409).json({ error: 'A supplier with this name already exists' });
+    const { value, error, field } = validateSupplier(req.body);
+    if (error) return res.status(400).json({ error, field });
+    if (await nameTaken(value.name, existing.id)) return res.status(409).json({ error: 'A supplier with this name already exists', field: 'name' });
 
     await supplierModel.update(req.params.id, value);
     await logAudit(req.user.id, 'updated_supplier', `Updated supplier: ${value.name}`, req);

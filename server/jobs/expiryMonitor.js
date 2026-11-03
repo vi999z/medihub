@@ -12,8 +12,8 @@ const {
 // 1. Flag batches approaching expiry (respects EXPIRY_ALERT_TIERS from .env)
 async function checkExpiringBatches() {
   const [batches] = await pool.query(
-    `SELECT b.id, b.batch_number, b.expiry_date, b.quantity_remaining, m.name AS medicine_name
-     FROM batches b JOIN medicines m ON b.medicine_id = m.id
+    `SELECT b.id, b.batch_number, b.expiry_date, b.quantity_remaining, COALESCE(m.name, b.pending_name) AS medicine_name
+     FROM batches b LEFT JOIN medicines m ON b.medicine_id = m.id
      WHERE b.status = 'active' AND b.quantity_remaining > 0`
   );
 
@@ -25,8 +25,8 @@ async function checkExpiringBatches() {
 // 2. Flip genuinely expired batches to 'expired' status
 async function flipExpiredBatches() {
   const [expired] = await pool.query(
-    `SELECT b.id, b.batch_number, m.name AS medicine_name
-     FROM batches b JOIN medicines m ON b.medicine_id = m.id
+    `SELECT b.id, b.batch_number, COALESCE(m.name, b.pending_name) AS medicine_name
+     FROM batches b LEFT JOIN medicines m ON b.medicine_id = m.id
      WHERE b.status = 'active' AND b.expiry_date < CURDATE()`
   );
 

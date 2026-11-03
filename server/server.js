@@ -2,11 +2,16 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
+const compression = require('compression');
+const crypto = require('crypto');
 require('dotenv').config();
-const { testConnection } = require('./config/db');
+const { testConnection, pool } = require('./config/db');
+const { runMigrations } = require('./config/migrations');
 const { UPLOADS_ROOT } = require('./config/uploadPaths');
 const authRoutes = require('./routes/authRoutes');
 const medicineRoutes = require('./routes/medicineRoutes');
+const branchRoutes = require('./routes/branchRoutes');
 const batchRoutes = require('./routes/batchRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
@@ -49,11 +54,38 @@ app.use(cors({
   },
   credentials: true,
 }));
+// Behind Render's proxy: lets rate limiting see the real client address.
+app.set('trust proxy', 1);
+// Security headers. Photos are loaded by the website from this API's address,
+// so cross-origin reads must stay allowed; the API serves no HTML of its own
+// worth a CSP.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(compression());
 app.use(cookieParser());
-app.use(express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '25mb' })); // backups restore through this limit
+
+// Any successful change through the API invalidates cached data lookups.
+app.use('/api', (req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'OPTIONS') {
+    res.on('finish', () => { if (res.statusCode < 400) require('./utils/dataVersion').bump(); });
+  }
+  next();
+});
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'MediHub API running', version: '2.0', ai: 'modern-llm' });
+});
+
+// Deeper check for the host's health monitor: answers 503 when the database
+// can't be reached, so a broken connection is noticed and restarted.
+app.get('/api/health/db', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', database: 'connected' });
+  } catch (err) {
+    console.error('Health check: database unreachable:', err.message);
+    res.status(503).json({ status: 'error', database: 'unreachable' });
+  }
 });
 
 // Lets you confirm from the deployed URL (no dashboard access needed)
@@ -80,6 +112,7 @@ app.get('/api/health/uploads', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/medicines', medicineRoutes);
+app.use('/api/branches', branchRoutes);
 app.use('/api/batches', batchRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/notifications', notificationRoutes);
@@ -125,17 +158,48 @@ app.use((req, res) => {
 
 // Global error handler — catches errors from middleware/routes that didn't
 // handle them (e.g. multer file validation) so the client always gets JSON.
+// Turns low-level failures into a status and a message a person can act on.
+function describeError(err) {
+  const code = err.code || err.type || '';
+  if (code === 'ER_DUP_ENTRY') return { status: 409, message: 'That already exists. Check for a duplicate and try again' };
+  if (code === 'ER_NO_REFERENCED_ROW_2') return { status: 400, message: 'This refers to something that no longer exists. Refresh the page and try again' };
+  if (code === 'ER_ROW_IS_REFERENCED_2') return { status: 409, message: 'This is still used by other records, so it cannot be removed' };
+  if (code === 'ER_DATA_TOO_LONG' || code === 'ER_WARN_DATA_OUT_OF_RANGE') return { status: 400, message: 'One of the values is too long or out of range' };
+  if (code === 'ER_LOCK_DEADLOCK' || code === 'ER_LOCK_WAIT_TIMEOUT') return { status: 503, message: 'The system is busy right now. Please try again' };
+  if (['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'PROTOCOL_CONNECTION_LOST', 'ECONNRESET', 'ER_CON_COUNT_ERROR'].includes(code)) {
+    return { status: 503, message: 'The database is temporarily unavailable. Please try again in a moment' };
+  }
+  if (code === 'LIMIT_FILE_SIZE') return { status: 413, message: 'That file is too large' };
+  if (code === 'entity.too.large') return { status: 413, message: 'That request is too large' };
+  if (code === 'entity.parse.failed') return { status: 400, message: 'The request was not understood' };
+  if (err.status && err.status < 500) return { status: err.status, message: err.message };
+  return { status: 500, message: 'Something went wrong on the server' };
+}
+
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
+  // A short reference shown to the user and logged with the details, so a
+  // problem reported by a tester can be found in the server log.
+  const ref = crypto.randomBytes(3).toString('hex');
+  console.error(`Unhandled error [${ref}] ${req.method} ${req.originalUrl} user=${req.user?.id ?? '-'}:`, err);
   if (res.headersSent) return next(err);
-  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+  const { status, message } = describeError(err);
+  res.status(status).json({ error: status >= 500 ? `${message} (ref ${ref})` : message, ref });
 });
+
+// A forgotten await somewhere must be logged, not silently kill the process.
+process.on('unhandledRejection', (reason) => console.error('Unhandled promise rejection:', reason));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   try {
     await testConnection();
+    try {
+      await runMigrations();
+    } catch (err) {
+      // Don't take the whole app down: the older features keep working.
+      console.error('Database migration failed — branches and barcodes may not work until it succeeds:', err.message);
+    }
     startExpiryMonitor();
   } catch (err) {
     console.error('Startup check failed:', err.message);

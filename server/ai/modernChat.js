@@ -40,7 +40,7 @@ const SAFETY_SETTINGS = [
 // Source: https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5#default-effort-level
 function getThinkingLevel(intention) {
   if (['analysis', 'forecasting', 'anomaly', 'performance'].includes(intention)) {
-    return 'medium'; // complex multi-step — use full default reasoning
+    return 'medium'; // complex multi-step — enough reasoning without a long wait
   }
   if (['expiry', 'reorder', 'trend', 'weather', 'pricing'].includes(intention)) {
     return 'low'; // data lookup + light reasoning — fast and cheap
@@ -71,15 +71,41 @@ function buildConfig(modelName, intention, systemText, tools) {
 
 // Map thinking level name → numeric budget (used by thinkingConfig.thinkingBudget)
 // Values sourced from SDK defaults and Gemini docs context:
-//   minimal ≈ 0, low ≈ 1024, medium ≈ 8192, high ≈ 24576
+//   minimal ≈ 0, low ≈ 1024, medium ≈ 2048, high ≈ 24576
 function thinkingLevelToBudget(level) {
   switch (level) {
     case 'minimal': return 0;
     case 'low':     return 1024;
-    case 'medium':  return 8192;
+    case 'medium':  return 2048; // was 8192: answers were slow for little gain
     case 'high':    return 24576;
     default:        return 8192;
   }
+}
+
+// ─── Speed: skip models that are known to be unavailable, start with the one
+// that last worked, and reuse data lookups until something is saved. ───
+const DEAD_MODEL_MS = 60 * 60 * 1000;
+const deadModels = new Map(); // model name -> time it may be tried again
+let lastGoodModel = null;
+
+function modelOrder() {
+  const live = MODEL_CHAIN.filter((name) => !(deadModels.get(name) > Date.now()));
+  const chain = live.length ? live : MODEL_CHAIN;
+  return lastGoodModel && chain.includes(lastGoodModel)
+    ? [lastGoodModel, ...chain.filter((name) => name !== lastGoodModel)]
+    : chain;
+}
+
+const lookupCache = new Map(); // "version|name|args" -> result
+const { current: dataVersion } = require('../utils/dataVersion');
+
+async function cachedCallFunction(name, args) {
+  const key = `${dataVersion()}|${name}|${JSON.stringify(args || {})}`;
+  if (lookupCache.has(key)) return lookupCache.get(key);
+  const result = await callFunction(name, args || {});
+  if (lookupCache.size > 200) lookupCache.clear();
+  lookupCache.set(key, result);
+  return result;
 }
 
 async function modernChat(question, userId, context = null, imageBase64 = null, mimeType = null) {
@@ -99,13 +125,14 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
   const contents = [{ role: 'user', parts: userParts }];
 
   const thinkingLevel = getThinkingLevel(intention);
-  console.log(`[AI] intention=${intention}  thinking=${thinkingLevel}  primary=${MODEL_CHAIN[0]}`);
+  const chain = modelOrder();
+  console.log(`[AI] intention=${intention}  thinking=${thinkingLevel}  primary=${chain[0]}`);
 
   const ai = new GoogleGenAI({ apiKey });
 
   let lastError = null;
 
-  for (const modelName of MODEL_CHAIN) {
+  for (const modelName of chain) {
     try {
       const config = buildConfig(modelName, intention, systemText, tools);
 
@@ -126,7 +153,7 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
           fnCallParts.map(async p => {
             const { name, args, id } = p.functionCall;
             console.log(`[AI] fn: ${name}`, JSON.stringify(args || {}));
-            const result = await callFunction(name, args || {});
+            const result = await cachedCallFunction(name, args);
             // Gemini 3.x requires id + name to match the originating FunctionCall
             const response = { name, response: { result } };
             if (id) response.id = id;
@@ -148,6 +175,7 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
         });
 
         const finalText = extractGeneratedText(secondResult) || await buildFallbackInventoryResponse(question);
+        lastGoodModel = modelName;
         return {
           response: finalText,
           visualizations: buildChatVisualizations(toolResults),
@@ -160,9 +188,16 @@ async function modernChat(question, userId, context = null, imageBase64 = null, 
       // ── No function call — use direct text ──
       const aiText    = extractGeneratedText(firstResult);
       const finalText = aiText || await buildFallbackInventoryResponse(question);
+      lastGoodModel = modelName;
       return { response: finalText, visualizations: [], intention, model: modelName, timestamp: new Date().toISOString() };
     } catch (err) {
       console.warn(`[AI] ${modelName} failed: ${err.message}`);
+      // A model this key can't use is skipped for the next hour instead of
+      // costing a failed request on every message.
+      if (err.status === 404 || /not found|not supported|no longer available/i.test(err.message || '')) {
+        deadModels.set(modelName, Date.now() + DEAD_MODEL_MS);
+      }
+      if (lastGoodModel === modelName) lastGoodModel = null;
       lastError = err;
     }
   }

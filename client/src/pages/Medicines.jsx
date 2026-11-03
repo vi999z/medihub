@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus, Pencil, Trash2, RefreshCw, Search, X,
-  Upload, QrCode, Pill, PillBottle, Droplet, Syringe, Camera
+  Upload, QrCode, Download, Pill, PillBottle, Droplet, Syringe, Camera
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api, { resolveFileUrl } from '../api/axios';
@@ -14,32 +14,22 @@ import { batchStatus } from '../utils/batchStatus';
 import { validateMedicineForm, trimFields, MAX_LENGTH } from '../utils/validation';
 import CsvImport from '../components/CsvImport';
 import AnimatedModal from '../components/AnimatedModal';
-import BatchQrModal from '../components/BatchQrModal';
+import QrModal from '../components/QrModal';
+import PageHeader from '../components/PageHeader';
+import ReportExportModal from '../components/ReportExportModal';
+import useBranches from '../hooks/useBranches';
 import ReceiveStockModal from '../components/ReceiveStockModal';
 import StockMovementModal from '../components/StockMovementModal';
-import ExportDropdown from '../components/ExportDropdown';
-import { downloadBlob } from '../utils/downloadFile';
 import { shrinkImage } from '../utils/image';
-
-const EXPORT_OPTIONS = [
-  { label: 'Expired batches (Excel)', key: 'expired', format: 'excel' },
-  { label: 'Depleted batches (Excel)', key: 'depleted', format: 'excel' },
-  { label: 'Recalled batches (Excel)', key: 'recalled', format: 'excel' },
-  { label: 'Wasted medicines (Excel)', key: 'wasted', format: 'excel' },
-  null,
-  { label: 'Expired batches (PDF)', key: 'expired', format: 'pdf' },
-  { label: 'Wasted medicines (PDF)', key: 'wasted', format: 'pdf' },
-  null,
-  { label: 'Current view (CSV)', key: 'csv', format: 'csv' },
-];
+import { errorMessage } from '../utils/errors';
+import { takeScanPrefill } from '../utils/qrData';
+import { useBranchFilter } from '../context/BranchContext';
 
 const CATEGORY_OPTIONS = [
   'Anti-inflammatory', 'Antibiotic', 'Antihistamine', 'Analgesic', 'Antacid', 'Antiemetic', 'Antipyretic',
   'Antifungal', 'Antiviral', 'Cardiovascular', 'Respiratory', 'Dermatology', 'Gastrointestinal',
   'Vitamins & Supplements', 'Hormonal', 'Diagnostic', 'Other'
 ];
-
-const BRANCH_OPTIONS = ['QMC', 'MT Carmel'];
 
 const STOCK_FILTERS = [
   { value: 'all', label: 'All stock levels' },
@@ -62,7 +52,7 @@ const SORT_OPTIONS = [
 
 const emptyForm = {
   name: '', generic_name: '', category: 'Other', dosage_form: '',
-  strength: '', unit: '', reorder_level: 10, requires_prescription: false, branch: 'QMC'
+  strength: '', unit: '', reorder_level: 10, requires_prescription: false, branch: 'QMC', barcode: ''
 };
 
 function categoryOf(medicine) {
@@ -129,6 +119,7 @@ export default function Medicines() {
   const [showReceiveStock, setShowReceiveStock] = useState(false);
   const [receiveStockError, setReceiveStockError] = useState('');
   const [scannedCode, setScannedCode] = useState('');
+  const [scanPrefill, setScanPrefill] = useState(null);
   const [showStockMovement, setShowStockMovement] = useState(false);
   const [stockMovementError, setStockMovementError] = useState('');
   const [editingId, setEditingId] = useState(null);
@@ -150,17 +141,21 @@ export default function Medicines() {
   const [showBatchForm, setShowBatchForm] = useState(false);
   const [editingBatch, setEditingBatch] = useState(null);
   const [batchError, setBatchError] = useState('');
-  const [qrBatch, setQrBatch] = useState(null);
+  const [qrTarget, setQrTarget] = useState(null);
+  const [showExport, setShowExport] = useState(false);
+  const [newCategory, setNewCategory] = useState(false);
+  const { names: branchNames } = useBranches();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get('q') || '';
   const [activeCategory, setActiveCategory] = useState('All');
   const [stockFilter, setStockFilter] = useState('all');
-  const [branchFilter, setBranchFilter] = useState('all');
+  const { branch: branchFilter, setBranch: setBranchFilter } = useBranchFilter();
   const [prescriptionOnly, setPrescriptionOnly] = useState(false);
   const [sortBy, setSortBy] = useState(() => searchParams.get('sort') || 'name-asc');
 
   function resetForm() {
+    setNewCategory(false);
     setFormError('');
     setForm(emptyForm);
     setEditingId(null);
@@ -201,7 +196,7 @@ export default function Medicines() {
       setMedicineStatusById(statusMap);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load medicines');
+      setError(errorMessage(err, 'Failed to load medicines'));
     } finally {
       setLoading(false);
     }
@@ -241,7 +236,7 @@ export default function Medicines() {
       await Promise.all([fetchBatches(), fetchMedicines()]);
       addToast('Stock received', 'success');
     } catch (err) {
-      const message = err.response?.data?.error || 'Failed to receive stock';
+      const message = errorMessage(err, 'Failed to receive stock');
       setReceiveStockError(message);
       throw err;
     }
@@ -260,7 +255,7 @@ export default function Medicines() {
       await Promise.all([fetchBatches(), fetchMedicines()]);
       addToast('Stock movement recorded', 'success');
     } catch (err) {
-      const message = err.response?.data?.error || 'Failed to record stock movement';
+      const message = errorMessage(err, 'Failed to record stock movement');
       setStockMovementError(message);
       throw err;
     }
@@ -278,6 +273,7 @@ export default function Medicines() {
   useEffect(() => {
     if (searchParams.get('addBatch') === 'true') {
       setScannedCode(searchParams.get('code') || '');
+      setScanPrefill(takeScanPrefill());
       setReceiveStockError('');
       setShowReceiveStock(true);
       // Clear the param so it doesn't re-trigger
@@ -285,8 +281,41 @@ export default function Medicines() {
     }
   }, [searchParams, setSearchParams]);
 
+  // Scanner: a known code opens that medicine's record.
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || !medicines.length) return;
+    const target = medicines.find((m) => String(m.id) === openId);
+    setSearchParams({}, { replace: true });
+    if (target) setDetailMedicine(target);
+    else addToast('That medicine could not be found', 'error');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, medicines]);
+
+  // Scanner: an unknown code offers to add a new medicine with it as the barcode.
+  useEffect(() => {
+    if (searchParams.get('newMedicine') !== 'true') return;
+    const code = searchParams.get('barcode') || '';
+    const scanned = takeScanPrefill()?.medicine || {};
+    setSearchParams({}, { replace: true });
+    setEditingId(null);
+    setForm({
+      ...emptyForm,
+      branch: scanned.branch && branchNames.includes(scanned.branch) ? scanned.branch : branchNames[0] || 'QMC',
+      barcode: code || scanned.barcode || '',
+      name: scanned.name || '',
+      strength: scanned.strength || '',
+      dosage_form: scanned.dosage_form || '',
+      unit: scanned.unit || emptyForm.unit,
+      category: scanned.category || emptyForm.category,
+    });
+    setShowForm(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   function openCreate() {
     resetForm();
+    setForm({ ...emptyForm, branch: branchNames[0] || 'QMC' });
     setShowForm(true);
   }
 
@@ -371,8 +400,10 @@ export default function Medicines() {
       unit: medicine.unit || '',
       reorder_level: medicine.reorder_level || 10,
       requires_prescription: Boolean(medicine.requires_prescription),
-      branch: medicine.branch || 'QMC'
+      branch: medicine.branch || 'QMC',
+      barcode: medicine.barcode || ''
     });
+    setNewCategory(false);
     setImageFile(null);
     setImagePreview(resolveFileUrl(medicine.image_url) || '');
     setShowForm(true);
@@ -401,7 +432,7 @@ export default function Medicines() {
       await fetchMedicines();
       addToast('Photo removed', 'success');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to remove photo', 'error');
+      addToast(errorMessage(err, 'Failed to remove photo'), 'error');
     }
   }
 
@@ -413,7 +444,7 @@ export default function Medicines() {
       await api.post(`/medicines/${id}/image`, body, { headers: { 'Content-Type': 'multipart/form-data' } });
       api.invalidateCache('/medicines');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Medicine saved, but the photo failed to upload', 'error');
+      addToast(errorMessage(err, 'Medicine saved, but the photo failed to upload'), 'error');
     } finally {
       setImageUploading(false);
     }
@@ -448,7 +479,7 @@ export default function Medicines() {
       resetForm();
       await fetchMedicines();
     } catch (err) {
-      setFormError(err.response?.data?.error || 'Failed to save medicine');
+      setFormError(errorMessage(err, 'Failed to save medicine'));
     } finally {
       setSaving(false);
     }
@@ -479,7 +510,7 @@ export default function Medicines() {
       await fetchBatches();
       addToast(`${medicine.name} deleted`, 'success');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to delete medicine', 'error');
+      addToast(errorMessage(err, 'Failed to delete medicine'), 'error');
     }
   }
 
@@ -492,32 +523,19 @@ export default function Medicines() {
     addToast('Catalog refreshed', 'success');
   }
 
-  async function handleExport(key, format) {
-    if (key === 'csv') {
-      const rows = visibleMedicines.map((medicine) => ({
-        id: medicine.id, name: medicine.name, generic_name: medicine.generic_name || '',
-        category: categoryOf(medicine), dosage_form: medicine.dosage_form || '',
-        strength: medicine.strength || '', unit: medicine.unit || '',
-        total_stock: medicine.total_stock ?? '', reorder_level: medicine.reorder_level || '',
-        stock_status: stockStateOf(medicine).label,
-        nearest_expiry: medicine.nearest_expiry ? String(medicine.nearest_expiry).slice(0, 10) : '',
-        requires_prescription: medicine.requires_prescription ? 'Yes' : 'No'
-      }));
-      downloadCsv('medicines.csv', rows, ['id', 'name', 'generic_name', 'category', 'dosage_form', 'strength', 'unit', 'total_stock', 'reorder_level', 'stock_status', 'nearest_expiry', 'requires_prescription']);
-      return;
-    }
-    try {
-      const endpoint = key === 'wasted'
-        ? `/reports/export/wasted?format=${format}`
-        : `/reports/export/batches?status=${key}&format=${format}`;
-      const res = await api.get(endpoint, { responseType: 'blob' });
-      const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'xlsx';
-      const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-      downloadBlob(blob, `${key}_${new Date().toISOString().slice(0, 10)}.${ext}`);
-      addToast('Export downloaded', 'success');
-    } catch (err) {
-      addToast('Export failed', 'error');
-    }
+  // The list currently on screen (respects every filter on the page).
+  function exportCurrentView() {
+    const rows = visibleMedicines.map((medicine) => ({
+      id: medicine.id, name: medicine.name, generic_name: medicine.generic_name || '',
+      branch: medicine.branch || '', barcode: medicine.barcode || '',
+      category: categoryOf(medicine), dosage_form: medicine.dosage_form || '',
+      strength: medicine.strength || '', unit: medicine.unit || '',
+      total_stock: medicine.total_stock ?? '', reorder_level: medicine.reorder_level || '',
+      stock_status: stockStateOf(medicine).label,
+      nearest_expiry: medicine.nearest_expiry ? String(medicine.nearest_expiry).slice(0, 10) : '',
+      requires_prescription: medicine.requires_prescription ? 'Yes' : 'No'
+    }));
+    downloadCsv('medicines.csv', rows, ['id', 'name', 'generic_name', 'branch', 'barcode', 'category', 'dosage_form', 'strength', 'unit', 'total_stock', 'reorder_level', 'stock_status', 'nearest_expiry', 'requires_prescription']);
   }
 
   // ---- Batch handlers (integrated into medicine detail modal) ----
@@ -577,7 +595,7 @@ export default function Medicines() {
       const updated = medicines.find((m) => Number(m.id) === Number(detailMedicine.id));
       if (updated) setDetailMedicine(updated);
     } catch (err) {
-      setBatchError(err.response?.data?.error || 'Failed to save batch');
+      setBatchError(errorMessage(err, 'Failed to save batch'));
       throw err;
     }
   }
@@ -596,15 +614,18 @@ export default function Medicines() {
       if (updated) setDetailMedicine(updated);
       addToast('Batch deleted', 'success');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to delete batch', 'error');
+      addToast(errorMessage(err, 'Failed to delete batch'), 'error');
     }
   }
 
   return (
     <div className="flat-dashboard">
+      <PageHeader title="Medicines" description="The catalog for each branch. Add medicines, receive stock, and watch stock levels and expiry dates." legend />
       <div className="page-actions-only">
         <div className="page-header-actions">
-          <ExportDropdown options={EXPORT_OPTIONS} onSelect={({ key, format }) => handleExport(key, format)} />
+          <button type="button" className="flat-action-btn" onClick={() => setShowExport(true)}>
+            <Download size={15} /> Export
+          </button>
           <button className="flat-action-btn" onClick={handleRefresh}>
             <RefreshCw size={15} /> Refresh
           </button>
@@ -687,20 +708,34 @@ export default function Medicines() {
           <div className="field"><label>Generic name</label><input value={form.generic_name} maxLength={MAX_LENGTH.genericName} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} /></div>
           <div className="field">
             <label>Category</label>
-            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+            <select
+              value={newCategory ? '__new__' : form.category}
+              onChange={(e) => {
+                if (e.target.value === '__new__') { setNewCategory(true); setForm({ ...form, category: '' }); }
+                else { setNewCategory(false); setForm({ ...form, category: e.target.value }); }
+              }}
+            >
               {CATEGORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
               {/* Keep a custom category (e.g. from a CSV import) selectable when editing */}
-              {form.category && !CATEGORY_OPTIONS.includes(form.category) && <option value={form.category}>{form.category}</option>}
+              {form.category && !newCategory && !CATEGORY_OPTIONS.includes(form.category) && <option value={form.category}>{form.category}</option>}
+              <option value="__new__">New category…</option>
             </select>
           </div>
+          {newCategory && (
+            <div className="field">
+              <label>New category name</label>
+              <input value={form.category} maxLength={MAX_LENGTH.category} onChange={(e) => setForm({ ...form, category: e.target.value })} autoFocus required />
+            </div>
+          )}
           <div className="field"><label>Dosage form</label><input value={form.dosage_form} maxLength={MAX_LENGTH.dosageForm} placeholder="e.g. Tablet" onChange={(e) => setForm({ ...form, dosage_form: e.target.value })} /></div>
           <div className="field"><label>Strength</label><input value={form.strength} maxLength={MAX_LENGTH.strength} placeholder="e.g. 500mg" onChange={(e) => setForm({ ...form, strength: e.target.value })} /></div>
+          <div className="field"><label>Barcode <span style={{ color: 'var(--steel)', fontWeight: 400 }}>(optional)</span></label><input value={form.barcode} maxLength={MAX_LENGTH.barcode} placeholder="Scan or type the product barcode" onChange={(e) => setForm({ ...form, barcode: e.target.value })} /></div>
           <div className="field"><label>Unit</label><input value={form.unit} maxLength={MAX_LENGTH.unit} placeholder="e.g. box" onChange={(e) => setForm({ ...form, unit: e.target.value })} required /></div>
           <div className="field"><label>Reorder level</label><input type="number" inputMode="numeric" min="0" max="100000" step="1" value={form.reorder_level} onChange={(e) => setForm({ ...form, reorder_level: e.target.value })} required /></div>
           <div className="field">
             <label>Branch</label>
             <select value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })}>
-              {BRANCH_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              {[...new Set([...branchNames, form.branch].filter(Boolean))].map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
@@ -741,7 +776,7 @@ export default function Medicines() {
           <div className="field filter-select">
             <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} aria-label="Filter by branch">
               <option value="all">All branches</option>
-              {BRANCH_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              {branchNames.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </div>
           <div className="field filter-select">
@@ -840,6 +875,9 @@ export default function Medicines() {
                         <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); openEdit(m); }}>
                           <Pencil size={13} /> Edit
                         </button>
+                        <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); setQrTarget({ kind: 'medicine', id: m.id, title: m.name, subtitle: [m.strength, m.branch].filter(Boolean).join(' · ') }); }} title="Show this medicine's QR code">
+                          <QrCode size={13} /> QR
+                        </button>
                         {(user.role === 'admin' || user.role === 'pharmacist') && (
                           <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); handleDelete(m); }}>
                             <Trash2 size={13} /> Delete
@@ -876,7 +914,8 @@ export default function Medicines() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className={`flat-status-label ${STOCK_FLAT_CLS[stockStateOf(detailMedicine).key]}`}>{stockStateOf(detailMedicine).label}</span>
-                <button type="button" className="btn-icon" onClick={closeDetail} title="Close medicine details"><X size={18} /></button>
+                <button type="button" className="btn-icon" onClick={() => setQrTarget({ kind: 'medicine', id: detailMedicine.id, title: detailMedicine.name, subtitle: [detailMedicine.strength, detailMedicine.branch].filter(Boolean).join(' · ') })} title="Medicine QR code" aria-label="Medicine QR code"><QrCode size={18} /></button>
+                <button type="button" className="btn-icon" onClick={closeDetail} title="Close medicine details" aria-label="Close medicine details"><X size={18} /></button>
               </div>
             </div>
 
@@ -937,7 +976,7 @@ export default function Medicines() {
                         <button type="button" className="flat-action-btn" onClick={() => openBatchEdit(b)} title="Edit batch">
                           <Pencil size={13} /> Edit
                         </button>
-                        <button type="button" className="flat-action-btn" onClick={() => setQrBatch(b)} title="Show QR code">
+                        <button type="button" className="flat-action-btn" onClick={() => setQrTarget({ kind: 'batch', id: b.id, title: detailMedicine.name, subtitle: `Batch ${b.batch_number}` })} title="Show QR code">
                           <QrCode size={13} /> QR
                         </button>
                         {(user.role === 'admin' || user.role === 'pharmacist') && (
@@ -955,7 +994,8 @@ export default function Medicines() {
         )}
       </AnimatedModal>
 
-      <BatchQrModal batch={qrBatch} onClose={() => setQrBatch(null)} />
+      <QrModal target={qrTarget} onClose={() => setQrTarget(null)} />
+      <ReportExportModal isOpen={showExport} onClose={() => setShowExport(false)} onExportView={exportCurrentView} viewLabel="Download this list (CSV)" />
 
       <AnimatedModal isOpen={showCsvImport} onClose={() => setShowCsvImport(false)}>
         <CsvImport
@@ -967,8 +1007,9 @@ export default function Medicines() {
 
       <ReceiveStockModal
         isOpen={showReceiveStock}
-        onClose={() => { setShowReceiveStock(false); setScannedCode(''); }}
+        onClose={() => { setShowReceiveStock(false); setScannedCode(''); setScanPrefill(null); }}
         initialBatchNumber={scannedCode}
+        prefill={scanPrefill}
         medicines={medicines}
         suppliers={suppliers}
         onSubmit={handleReceiveStock}

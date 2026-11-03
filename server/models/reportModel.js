@@ -129,26 +129,33 @@ async function getTopSellers(limit = 5, days = 30) {
   return rows.map((r) => ({ ...r, quantity_sold: Number(r.quantity_sold), revenue: parseFloat(r.revenue) }));
 }
 
-async function getExpiringSoon(days = 14) {
+async function getExpiringSoon(days = 14, { branch } = {}) {
+  const f = branchFilter(branch, 'COALESCE(m.branch, b.pending_branch)');
   const [rows] = await pool.query(
-    `SELECT b.id, b.batch_number, b.expiry_date, b.quantity_remaining, m.name AS medicine_name,
+    `SELECT b.id, COALESCE(m.branch, b.pending_branch) AS branch,
+            COALESCE(m.name, b.pending_name) AS medicine_name,
+            b.batch_number, b.expiry_date, b.quantity_remaining,
             DATEDIFF(b.expiry_date, CURDATE()) AS days_left
-     FROM batches b JOIN medicines m ON b.medicine_id = m.id
-     WHERE b.status = 'active' AND b.expiry_date BETWEEN CURDATE() AND (CURDATE() + INTERVAL ? DAY)
+     FROM batches b LEFT JOIN medicines m ON b.medicine_id = m.id
+     WHERE b.status = 'active' AND b.quantity_remaining > 0
+       AND b.expiry_date BETWEEN CURDATE() AND (CURDATE() + INTERVAL ? DAY)${f.sql}
      ORDER BY b.expiry_date ASC`,
-    [days]
+    [days, ...f.params]
   );
   return rows;
 }
 
-async function getLowStock() {
+async function getLowStock({ branch } = {}) {
+  const f = branchFilter(branch, 'm.branch');
   const [rows] = await pool.query(
-    `SELECT m.id, m.name, m.reorder_level, COALESCE(SUM(b.quantity_remaining), 0) AS total_remaining
+    `SELECT m.id, m.branch, m.name, m.reorder_level, COALESCE(SUM(b.quantity_remaining), 0) AS total_remaining
      FROM medicines m
-     LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active'
-     GROUP BY m.id, m.name, m.reorder_level
+     LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active' AND b.expiry_date >= CURDATE()
+     WHERE 1 = 1${f.sql}
+     GROUP BY m.id, m.branch, m.name, m.reorder_level
      HAVING total_remaining <= m.reorder_level
-     ORDER BY total_remaining ASC`
+     ORDER BY total_remaining ASC`,
+    f.params
   );
   return rows;
 }
@@ -193,48 +200,65 @@ async function getByCategory() {
   return rows;
 }
 
-async function getBatchesByStatus(status) {
+// ── Report filters ──────────────────────────────────────────────────────────
+// `branch` (a branch name, or empty for all branches) and a date range
+// (`from` / `to`, both YYYY-MM-DD, inclusive, in the pharmacy's timezone).
+function branchFilter(branch, column) {
+  return branch ? { sql: ` AND ${column} = ?`, params: [branch] } : { sql: '', params: [] };
+}
+
+function periodBounds(from, to) {
+  return [startOfLocalDay(from), startOfLocalDay(addDays(to, 1))];
+}
+
+async function getBatchesByStatus(status, { branch } = {}) {
   const validStatuses = ['active', 'expired', 'depleted', 'recalled'];
   const safeStatus = validStatuses.includes(status) ? status : 'active';
+  const f = branchFilter(branch, 'COALESCE(m.branch, b.pending_branch)');
   const [rows] = await pool.query(
-    `SELECT b.id, b.batch_number, b.status, b.quantity_received, b.quantity_remaining,
+    `SELECT COALESCE(m.branch, b.pending_branch) AS branch,
+            COALESCE(m.name, b.pending_name) AS medicine_name,
+            b.batch_number, b.status, b.quantity_received, b.quantity_remaining,
             b.cost_price, b.selling_price, b.expiry_date, b.manufacture_date,
-            b.created_at,
-            m.name AS medicine_name, m.category, m.unit,
+            COALESCE(m.category, 'Not linked') AS category, m.unit,
             s.name AS supplier_name,
             DATEDIFF(b.expiry_date, CURDATE()) AS days_until_expiry
      FROM batches b
-     JOIN medicines m ON b.medicine_id = m.id
+     LEFT JOIN medicines m ON b.medicine_id = m.id
      LEFT JOIN suppliers s ON b.supplier_id = s.id
-     WHERE b.status = ?
+     WHERE b.status = ?${f.sql}
      ORDER BY b.expiry_date ASC`,
-    [safeStatus]
+    [safeStatus, ...f.params]
   );
   return rows;
 }
 
-async function getWastedMedicines() {
+async function getWastedMedicines({ branch } = {}) {
   // Wasted = stock disposed of (disposal movements) plus stock still sitting
   // in expired batches. Batches that simply sold out are not waste.
+  const f = branchFilter(branch, 'COALESCE(m.branch, b.pending_branch)');
   const [rows] = await pool.query(
-    `SELECT b.id, b.batch_number, b.status, b.quantity_received, b.quantity_remaining,
-            b.cost_price, b.selling_price, b.expiry_date,
+    `SELECT COALESCE(m.branch, b.pending_branch) AS branch,
+            COALESCE(m.name, b.pending_name) AS medicine_name,
+            b.batch_number, b.status, b.quantity_received,
             COALESCE(d.disposed, 0) AS quantity_disposed,
+            CASE WHEN b.status = 'expired' THEN b.quantity_remaining ELSE 0 END AS quantity_expired_in_stock,
             COALESCE(d.disposed, 0) + CASE WHEN b.status = 'expired' THEN b.quantity_remaining ELSE 0 END AS quantity_wasted,
+            b.cost_price, b.expiry_date,
             (COALESCE(d.disposed, 0) + CASE WHEN b.status = 'expired' THEN b.quantity_remaining ELSE 0 END)
               * COALESCE(b.cost_price, 0) AS estimated_waste_value,
-            m.name AS medicine_name, m.category, m.unit,
             s.name AS supplier_name
      FROM batches b
-     JOIN medicines m ON b.medicine_id = m.id
+     LEFT JOIN medicines m ON b.medicine_id = m.id
      LEFT JOIN suppliers s ON b.supplier_id = s.id
      LEFT JOIN (
        SELECT batch_id, SUM(-quantity) AS disposed
        FROM stock_transactions WHERE transaction_type = 'disposal'
        GROUP BY batch_id
      ) d ON d.batch_id = b.id
-     WHERE COALESCE(d.disposed, 0) > 0 OR (b.status = 'expired' AND b.quantity_remaining > 0)
-     ORDER BY estimated_waste_value DESC`
+     WHERE (COALESCE(d.disposed, 0) > 0 OR (b.status = 'expired' AND b.quantity_remaining > 0))${f.sql}
+     ORDER BY estimated_waste_value DESC`,
+    f.params
   );
   return rows;
 }
@@ -256,25 +280,82 @@ async function getNotificationsReport(severity = null, unreadOnly = false) {
   return rows;
 }
 
-async function getTransactionsReport(days = 30, type = null) {
-  const params = [days];
-  const typeClause = type ? 'AND st.transaction_type = ?' : '';
-  if (type) params.push(type);
+// Stock movements in a date range, optionally for one branch and/or one type.
+async function getTransactionsReport({ from, to, type = null, branch } = {}) {
+  const [start, end] = periodBounds(from, to);
+  const f = branchFilter(branch, 'COALESCE(m.branch, b.pending_branch)');
+  const params = [start, end, ...f.params];
+  let typeClause = '';
+  if (type) { typeClause = ' AND st.transaction_type = ?'; params.push(type); }
   const [rows] = await pool.query(
-    `SELECT st.id, st.transaction_type, st.quantity, st.reason, st.created_at,
-            m.name AS medicine_name, m.category,
-            b.batch_number, b.expiry_date,
-            u.full_name AS user_name
+    `SELECT st.id, st.created_at, COALESCE(m.branch, b.pending_branch) AS branch, st.transaction_type,
+            COALESCE(m.name, b.pending_name) AS medicine_name, b.batch_number, st.quantity,
+            st.reason, u.full_name AS user_name
      FROM stock_transactions st
      JOIN batches b ON st.batch_id = b.id
-     JOIN medicines m ON b.medicine_id = m.id
+     LEFT JOIN medicines m ON b.medicine_id = m.id
      LEFT JOIN users u ON st.user_id = u.id
-     WHERE st.created_at >= (CURDATE() - INTERVAL ? DAY)
-     ${typeClause}
+     WHERE st.created_at >= ? AND st.created_at < ?${f.sql}${typeClause}
      ORDER BY st.created_at DESC`,
     params
   );
   return rows;
 }
 
-module.exports = { getSummary, getTodaySales, getNeedsAttention, getTopSellers, getExpiringSoon, getLowStock, getSalesTrend, getByCategory, getBatchesByStatus, getWastedMedicines, getTransactionsReport, getNotificationsReport };
+// Sales by medicine for a date range, optionally one branch. Returns count
+// against sales, so "net" figures are sales minus returned stock.
+async function getSalesReport({ from, to, branch } = {}) {
+  const [start, end] = periodBounds(from, to);
+  const f = branchFilter(branch, 'm.branch');
+  const [rows] = await pool.query(
+    `SELECT m.branch, m.name AS medicine_name, m.category, m.unit,
+            SUM(CASE WHEN st.transaction_type = 'sale' THEN -st.quantity ELSE 0 END) AS units_sold,
+            SUM(CASE WHEN st.transaction_type = 'return' THEN st.quantity ELSE 0 END) AS units_returned,
+            SUM(-st.quantity) AS net_units,
+            SUM(-st.quantity * COALESCE(b.selling_price, 0)) AS net_sales,
+            SUM(-st.quantity * COALESCE(b.cost_price, 0)) AS net_cost
+     FROM stock_transactions st
+     JOIN batches b ON st.batch_id = b.id
+     JOIN medicines m ON b.medicine_id = m.id
+     WHERE st.transaction_type IN ('sale', 'return') AND st.created_at >= ? AND st.created_at < ?${f.sql}
+     GROUP BY m.id, m.branch, m.name, m.category, m.unit
+     HAVING units_sold > 0 OR units_returned > 0
+     ORDER BY net_sales DESC`,
+    [start, end, ...f.params]
+  );
+  return rows.map((r) => {
+    const netSales = Math.round(Number(r.net_sales) * 100) / 100;
+    const netCost = Math.round(Number(r.net_cost) * 100) / 100;
+    return {
+      branch: r.branch, medicine_name: r.medicine_name, category: r.category, unit: r.unit,
+      units_sold: Number(r.units_sold), units_returned: Number(r.units_returned), net_units: Number(r.net_units),
+      net_sales: netSales, estimated_cost: netCost, estimated_profit: Math.round((netSales - netCost) * 100) / 100,
+    };
+  });
+}
+
+// Stock value per medicine (active, unexpired batches), optionally one branch.
+async function getInventoryValue({ branch } = {}) {
+  const f = branchFilter(branch, 'm.branch');
+  const [rows] = await pool.query(
+    `SELECT m.branch, m.name AS medicine_name, m.category, m.unit,
+            COALESCE(SUM(b.quantity_remaining), 0) AS total_quantity,
+            COALESCE(SUM(b.quantity_remaining * COALESCE(b.cost_price, 0)), 0) AS value_at_cost,
+            COALESCE(SUM(b.quantity_remaining * COALESCE(b.selling_price, 0)), 0) AS value_at_retail
+     FROM medicines m
+     LEFT JOIN batches b ON b.medicine_id = m.id AND b.status = 'active' AND b.expiry_date >= CURDATE()
+     WHERE 1 = 1${f.sql}
+     GROUP BY m.id, m.branch, m.name, m.category, m.unit
+     HAVING total_quantity > 0
+     ORDER BY value_at_cost DESC`,
+    f.params
+  );
+  return rows.map((r) => ({
+    ...r,
+    total_quantity: Number(r.total_quantity),
+    value_at_cost: Math.round(Number(r.value_at_cost) * 100) / 100,
+    value_at_retail: Math.round(Number(r.value_at_retail) * 100) / 100,
+  }));
+}
+
+module.exports = { getSalesReport, getInventoryValue, getSummary, getTodaySales, getNeedsAttention, getTopSellers, getExpiringSoon, getLowStock, getSalesTrend, getByCategory, getBatchesByStatus, getWastedMedicines, getTransactionsReport, getNotificationsReport };
