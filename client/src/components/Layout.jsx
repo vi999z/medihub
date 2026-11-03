@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import {
   IconLayoutDashboard, IconPill, IconReceipt, IconBellRinging, IconBox,
   IconBrain, IconTruck, IconUsers, IconFileText, IconLogout, IconSearch, IconChevronDown,
-  IconTools, IconQrcode, IconSun, IconMoon, IconHelpCircle, IconMenu2, IconX, IconMapPin, IconTextSize, IconReportAnalytics
+  IconTools, IconQrcode, IconSun, IconMoon, IconHelpCircle, IconMenu2, IconMapPin, IconTextSize, IconReportAnalytics
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -334,9 +334,6 @@ export default function Layout({ children }) {
       <aside className="sidebar" id="app-sidebar">
         <div className="sidebar-logo">
           <span className="dot" />MEDI<span>HUB</span>
-          <button className="icon-btn nav-close" onClick={() => setNavOpen(false)} aria-label="Close navigation">
-            <IconX size={18} stroke={1.8} />
-          </button>
         </div>
         <nav
           style={{ display: 'flex', flexDirection: 'column', gap: 0 }}
