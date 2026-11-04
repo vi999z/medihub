@@ -1603,3 +1603,11 @@ html[data-text-size="xlarge"] .main-content { zoom: 1.25; }
 .report-panel__dates input { flex: 1; min-width: 0; }
 .report-panel__formats { display: flex; flex-wrap: wrap; gap: 8px; }
 .report-panel__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+/* Filter toggle: show clearly when it is switched on */
+.filter-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--flat-accent, var(--primary)); cursor: pointer; flex: none; }
+.flat-dashboard .filter-toggle { user-select: none; font-weight: 500; }
+.flat-dashboard .filter-toggle:has(input:checked) { background: var(--flat-accent-solid); border-color: var(--flat-accent-solid); color: #fff; box-shadow: var(--flat-shadow-primary); }
+.flat-dashboard .filter-toggle:has(input:checked):hover { color: #fff; background: var(--flat-accent-solid); }
+.flat-dashboard .filter-toggle:has(input:checked) input { accent-color: #fff; }
+.filter-toggle:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
