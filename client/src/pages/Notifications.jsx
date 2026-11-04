@@ -27,6 +27,8 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [severity, setSeverity] = useState('all');
+  const [type, setType] = useState('all');
   const [error, setError] = useState('');
 
   async function fetchAll() {
@@ -49,16 +51,21 @@ export default function Notifications() {
     const term = search.trim().toLowerCase();
     return notifications.filter((n) => {
       if (unreadOnly && n.is_read) return false;
+      if (severity !== 'all' && n.severity !== severity) return false;
+      if (type !== 'all' && n.type !== type) return false;
       if (!term) return true;
       return [n.message, n.type, n.severity].some((value) => String(value || '').toLowerCase().includes(term));
     });
-  }, [notifications, search, unreadOnly]);
+  }, [notifications, search, unreadOnly, severity, type]);
+  const types = useMemo(() => [...new Set(notifications.map((n) => n.type).filter(Boolean))].sort(), [notifications]);
 
-  const filtersActive = Boolean(search) || unreadOnly;
+  const filtersActive = Boolean(search) || unreadOnly || severity !== 'all' || type !== 'all';
 
   function clearFilters() {
     setSearch('');
     setUnreadOnly(false);
+    setSeverity('all');
+    setType('all');
   }
 
   function refreshCaches() {
@@ -127,6 +134,20 @@ export default function Notifications() {
                 <X size={14} />
               </button>
             )}
+          </div>
+          <div className="field filter-select">
+            <select value={severity} onChange={(e) => setSeverity(e.target.value)} aria-label="Filter by severity">
+              <option value="all">All severities</option>
+              <option value="critical">Critical</option>
+              <option value="warning">Warning</option>
+              <option value="info">Info</option>
+            </select>
+          </div>
+          <div className="field filter-select">
+            <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Filter by type">
+              <option value="all">All types</option>
+              {types.map((t) => <option key={t} value={t}>{typeLabel(t)}</option>)}
+            </select>
           </div>
           <label className="filter-toggle">
             <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />
