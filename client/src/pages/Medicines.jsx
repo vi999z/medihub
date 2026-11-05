@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus, Pencil, Trash2, RefreshCw, Search, X,
-  Upload, QrCode, Download, Pill, PillBottle, Droplet, Syringe, Camera
+  Upload, QrCode, Download, Camera, Image as ImageIcon
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api, { resolveFileUrl } from '../api/axios';
@@ -19,6 +19,10 @@ import PageHeader from '../components/PageHeader';
 import ReportExportModal from '../components/ReportExportModal';
 import useBranches from '../hooks/useBranches';
 import ReceiveStockModal from '../components/ReceiveStockModal';
+import Pagination from '../components/Pagination';
+import RowAction from '../components/RowAction';
+import TableSkeleton from '../components/TableSkeleton';
+import usePagination from '../hooks/usePagination';
 import StockMovementModal from '../components/StockMovementModal';
 import { shrinkImage } from '../utils/image';
 import { errorMessage } from '../utils/errors';
@@ -87,16 +91,6 @@ function stockStateOf(medicine) {
 // (server/models/reportModel.js:getNeedsAttention buckets, same as Dashboard).
 const STOCK_FLAT_CLS = { out: 'red', low: 'amber', expiring: 'orange', healthy: 'green' };
 
-// No photo field exists on medicines — a generic icon by dosage form gives
-// each card a quick visual cue instead of a repeated placeholder.
-function iconForDosageForm(dosageForm) {
-  const form = String(dosageForm || '').toLowerCase();
-  if (form.includes('syrup') || form.includes('liquid') || form.includes('suspension')) return Droplet;
-  if (form.includes('injection')) return Syringe;
-  if (form.includes('tablet') || form.includes('capsule')) return Pill;
-  return PillBottle;
-}
-
 function expiryLabel(medicine) {
   if (!medicine.nearest_expiry) return null;
   const days = daysUntil(medicine.nearest_expiry);
@@ -142,6 +136,7 @@ export default function Medicines() {
   const [editingBatch, setEditingBatch] = useState(null);
   const [batchError, setBatchError] = useState('');
   const [qrTarget, setQrTarget] = useState(null);
+  const [photoMedicine, setPhotoMedicine] = useState(null);
   const [showExport, setShowExport] = useState(false);
   const [newCategory, setNewCategory] = useState(false);
   const { names: branchNames } = useBranches();
@@ -374,6 +369,10 @@ export default function Medicines() {
       return sign * String(a.name || '').localeCompare(String(b.name || ''));
     });
   }, [medicinesWithStatus, search, activeCategory, stockFilter, branchFilter, prescriptionOnly, sortBy]);
+
+  const pager = usePagination(visibleMedicines, {
+    resetKey: [search, activeCategory, stockFilter, branchFilter, prescriptionOnly, sortBy].join('|'),
+  });
 
   const filtersActive = search || activeCategory !== 'All' || stockFilter !== 'all' || branchFilter !== 'all' || prescriptionOnly;
 
@@ -816,82 +815,91 @@ export default function Medicines() {
         <div className="flat-table-header">
           <span className="flat-table-title">Catalog</span>
         </div>
-        <div style={{ padding: 16 }}>
-          {error && (
-            <div className="flat-empty">
-              Unable to load medicines — {error}
-              <div style={{ marginTop: 10 }}>
-                <button type="button" className="flat-action-btn" onClick={fetchMedicines}>Retry</button>
-              </div>
+        {error && (
+          <div className="flat-empty">
+            Unable to load medicines — {error}
+            <div style={{ marginTop: 10 }}>
+              <button type="button" className="flat-action-btn" onClick={fetchMedicines}>Retry</button>
             </div>
-          )}
-          {!error && !loading && visibleMedicines.length === 0 && (
-            <div className="flat-empty">No medicines match the current filters.</div>
-          )}
-          {!error && loading && (
-            <div className="flat-card-grid">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="flat-card flat-item-card flat-item-card--photo-layout">
-                  <div className="flat-item-photo skeleton" style={{ border: 'none', borderRadius: '7px 7px 0 0' }} />
-                  <div className="flat-item-card__body">
-                    <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
-                    <div className="skeleton" style={{ height: 12, width: '50%' }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {!error && !loading && visibleMedicines.length > 0 && (
-            <div className="flat-card-grid">
-              {visibleMedicines.map((m) => {
-                const state = stockStateOf(m);
-                const expiry = expiryLabel(m);
-                const Icon = iconForDosageForm(m.dosage_form);
-                return (
-                  <div key={m.id} className={`flat-card flat-item-card flat-item-card--photo-layout flat-item-card--${STOCK_FLAT_CLS[state.key]}`} onClick={() => openDetail(m)}>
-                    <div className="flat-item-photo">
-                      {m.image_url ? <img src={resolveFileUrl(m.image_url)} alt="" /> : <Icon size={32} />}
-                      <span className={`flat-status-label flat-status-label--badge ${STOCK_FLAT_CLS[state.key]}`}>{state.label}</span>
-                    </div>
-                    <div className="flat-item-card__body">
-                      <div className="flat-med-name">{m.name}</div>
-                      <div className="flat-med-meta">
-                        {m.generic_name || '—'}
-                        {m.requires_prescription ? ' · Rx' : ''}
-                      </div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <span className="flat-tag">{categoryOf(m)}</span>
-                        <span className="flat-tag">{m.branch || 'QMC'}</span>
-                      </div>
-                      <div className="flat-item-row">
-                        <span>Stock</span>
-                        <strong>{m.total_stock ?? 0} {m.unit}</strong>
-                      </div>
-                      <div className="flat-item-row">
-                        <span>Expires</span>
-                        <strong>{expiry ? expiry.label : '—'}</strong>
-                      </div>
-                      <div className="flat-item-card__actions">
-                        <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); openEdit(m); }}>
-                          <Pencil size={13} /> Edit
-                        </button>
-                        <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); setQrTarget({ kind: 'medicine', id: m.id, title: m.name, subtitle: [m.strength, m.branch].filter(Boolean).join(' · ') }); }} title="Show this medicine's QR code">
-                          <QrCode size={13} /> QR
-                        </button>
-                        {(user.role === 'admin' || user.role === 'pharmacist') && (
-                          <button type="button" className="flat-action-btn" onClick={(e) => { e.stopPropagation(); handleDelete(m); }}>
-                            <Trash2 size={13} /> Delete
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
+        {!error && !loading && visibleMedicines.length === 0 && (
+          <div className="flat-empty">No medicines match the current filters.</div>
+        )}
+        {!error && (loading || visibleMedicines.length > 0) && (
+          <div className="flat-table-scroll">
+            <table className="flat-table flat-table--responsive">
+              <thead>
+                <tr>
+                  <th>Medicine</th>
+                  <th>Photo</th>
+                  <th>Category</th>
+                  <th>Branch</th>
+                  <th className="flat-col-right">Stock</th>
+                  <th>Expires</th>
+                  <th>Status</th>
+                  <th className="flat-col-right flat-table-actions">Actions</th>
+                </tr>
+              </thead>
+              {loading ? <TableSkeleton cols={8} rows={8} /> : (
+                <tbody>
+                  {pager.pageItems.map((m) => {
+                    const state = stockStateOf(m);
+                    const expiry = expiryLabel(m);
+                    return (
+                      <tr key={m.id} data-clickable="true" onClick={() => openDetail(m)}>
+                        <td data-label="Medicine" className="flat-table-primary">
+                          {/* No handler of its own: the click reaches the row. This gives keyboard users a way to open it. */}
+                          <button type="button" className="flat-table-name">{m.name}</button>
+                          <div className="flat-med-meta">
+                            {[m.generic_name, m.strength, m.requires_prescription ? 'Rx' : null].filter(Boolean).join(' · ') || '—'}
+                          </div>
+                        </td>
+                        <td data-label="Photo">
+                          {m.image_url ? (
+                            <button type="button" className="flat-table-link flat-table-photo-link" onClick={(e) => { e.stopPropagation(); setPhotoMedicine(m); }}>
+                              <ImageIcon size={14} /> View
+                            </button>
+                          ) : <span className="flat-table-muted">—</span>}
+                        </td>
+                        <td data-label="Category">{categoryOf(m)}</td>
+                        <td data-label="Branch">{m.branch || 'QMC'}</td>
+                        <td data-label="Stock" className="flat-col-right flat-col-nowrap">{m.total_stock ?? 0} {m.unit}</td>
+                        <td data-label="Expires" className="flat-col-nowrap">{expiry ? expiry.label : '—'}</td>
+                        <td data-label="Status" className="flat-col-nowrap">
+                          <span className={`flat-status-label ${STOCK_FLAT_CLS[state.key]}`}>{state.label}</span>
+                        </td>
+                        <td className="flat-table-actions" onClick={(e) => e.stopPropagation()}>
+                          <div className="flat-table-actions__row">
+                            <RowAction icon={Pencil} label="Edit" onClick={() => openEdit(m)} />
+                            <RowAction icon={QrCode} label="QR" onClick={() => setQrTarget({ kind: 'medicine', id: m.id, title: m.name, subtitle: [m.strength, m.branch].filter(Boolean).join(' · ') })} />
+                            {(user.role === 'admin' || user.role === 'pharmacist') && (
+                              <RowAction icon={Trash2} label="Delete" onClick={() => handleDelete(m)} />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              )}
+            </table>
+          </div>
+        )}
+        {!error && !loading && <Pagination {...pager} itemLabel="medicines" />}
       </div>
+
+      <AnimatedModal isOpen={Boolean(photoMedicine)} onClose={() => setPhotoMedicine(null)} className="photo-modal">
+        {photoMedicine && (
+          <>
+            <div className="photo-modal__header">
+              <h2 style={{ margin: 0 }}>{photoMedicine.name}</h2>
+              <button type="button" className="btn-icon" onClick={() => setPhotoMedicine(null)} title="Close" aria-label="Close photo"><X size={18} /></button>
+            </div>
+            <img className="photo-modal__image" src={resolveFileUrl(photoMedicine.image_url)} alt={photoMedicine.name} />
+          </>
+        )}
+      </AnimatedModal>
 
       {/* Medicine detail modal with integrated batches */}
       <AnimatedModal isOpen={Boolean(detailMedicine)} onClose={closeDetail} className="medicine-detail-modal">

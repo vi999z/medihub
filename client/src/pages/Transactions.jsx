@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, X, ArrowDownLeft, ArrowUpRight, RefreshCw, Trash2, PackagePlus, Download } from 'lucide-react';
+import { Plus, Search, X, Download } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
@@ -8,6 +8,9 @@ import StockMovementModal from '../components/StockMovementModal';
 import ReportExportModal from '../components/ReportExportModal';
 import { localDateKey } from '../utils/date';
 import PageHeader from '../components/PageHeader';
+import Pagination from '../components/Pagination';
+import TableSkeleton from '../components/TableSkeleton';
+import usePagination from '../hooks/usePagination';
 import { errorMessage } from '../utils/errors';
 import { useBranchFilter } from '../context/BranchContext';
 import useBranches from '../hooks/useBranches';
@@ -21,16 +24,14 @@ const TYPE_FILTERS = [
   { value: 'return', label: 'Return' },
 ];
 
-function transactionConfig(type) {
-  if (type === 'stock_in') return { cls: 'safe', Icon: PackagePlus, label: 'Stock in' };
-  if (type === 'sale') return { cls: 'critical', Icon: ArrowDownLeft, label: 'Sale' };
-  if (type === 'disposal') return { cls: 'critical', Icon: Trash2, label: 'Disposal' };
-  if (type === 'return') return { cls: 'safe', Icon: ArrowUpRight, label: 'Return' };
-  return { cls: 'warning', Icon: RefreshCw, label: 'Adjustment' };
-}
-
-// Maps transaction type severity onto the flat design system's palette.
-const TX_FLAT_CLS = { critical: 'red', warning: 'amber', safe: 'green' };
+// Transaction type onto the flat design system's palette.
+const TYPE_CONFIG = {
+  stock_in: { cls: 'green', label: 'Stock in' },
+  sale: { cls: 'red', label: 'Sale' },
+  disposal: { cls: 'red', label: 'Disposal' },
+  return: { cls: 'green', label: 'Return' },
+};
+const ADJUSTMENT_CONFIG = { cls: 'amber', label: 'Adjustment' };
 
 const PAGE_LIMIT = 500;
 
@@ -94,6 +95,8 @@ export default function Transactions() {
         .some((value) => String(value || '').toLowerCase().includes(term));
     });
   }, [transactions, search, typeFilter, dateFilter, branchFilter]);
+
+  const pager = usePagination(visibleTransactions, { resetKey: [search, typeFilter, dateFilter, branchFilter].join('|') });
 
   const filtersActive = Boolean(search) || typeFilter !== 'all' || Boolean(dateFilter) || branchFilter !== 'all';
 
@@ -207,62 +210,66 @@ export default function Transactions() {
             )}
           </span>
         </div>
-        <div style={{ padding: 16 }}>
-          {error && (
-            <div className="flat-empty">
-              Unable to load transactions — {error}
-              <div style={{ marginTop: 10 }}>
-                <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
-              </div>
+        {error && (
+          <div className="flat-empty">
+            Unable to load transactions — {error}
+            <div style={{ marginTop: 10 }}>
+              <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
             </div>
-          )}
+          </div>
+        )}
 
-          {!error && loading && (
-            <div className="flat-card-grid">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="flat-card flat-item-card">
-                  <div className="flat-item-icon skeleton" style={{ border: 'none' }} />
-                  <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
-                  <div className="skeleton" style={{ height: 12, width: '50%' }} />
-                </div>
-              ))}
-            </div>
-          )}
+        {!error && !loading && visibleTransactions.length === 0 && (
+          <div className="flat-empty">{transactions.length === 0 ? 'No stock movements recorded yet.' : 'No movements match the current filters.'}</div>
+        )}
 
-          {!error && !loading && visibleTransactions.length === 0 && (
-            <div className="flat-empty">{transactions.length === 0 ? 'No stock movements recorded yet.' : 'No movements match the current filters.'}</div>
-          )}
-
-          {!error && !loading && visibleTransactions.length > 0 && (
-            <div className="flat-card-grid">
-              {visibleTransactions.map((t) => {
-                const isIncrease = t.quantity > 0;
-                const config = transactionConfig(t.transaction_type);
-                const TypeIcon = config.Icon;
-                return (
-                  <div key={t.id} className={`flat-card flat-item-card flat-item-card--${TX_FLAT_CLS[config.cls]}`} style={{ cursor: 'default' }}>
-                    <div className="flat-item-card__top">
-                      <div className="flat-item-icon"><TypeIcon size={20} /></div>
-                      <span className={`flat-status-label ${TX_FLAT_CLS[config.cls]}`}>{config.label}</span>
-                    </div>
-                    <div className="flat-med-name">{t.medicine_name}</div>
-                    <div className="flat-med-meta">{t.user_name} · {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                    <span className="flat-tag">Batch {t.batch_number}</span>
-                    <div className="flat-item-row">
-                      <span>Quantity</span>
-                      <strong className={`flat-status-label ${isIncrease ? 'green' : 'red'}`}>{isIncrease ? '+' : ''}{t.quantity}</strong>
-                    </div>
-                    <div className="flat-item-row">
-                      <span>Date</span>
-                      <strong>{new Date(t.created_at).toLocaleDateString()}</strong>
-                    </div>
-                    {t.reason && <div className="flat-med-meta">Reason: {t.reason}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        {!error && (loading || visibleTransactions.length > 0) && (
+          <div className="flat-table-scroll">
+            <table className="flat-table flat-table--responsive">
+              <thead>
+                <tr>
+                  <th>Medicine</th>
+                  <th>Type</th>
+                  <th>Batch no.</th>
+                  <th>Branch</th>
+                  <th className="flat-col-right">Quantity</th>
+                  <th>Recorded by</th>
+                  <th>Date</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              {loading ? <TableSkeleton cols={8} rows={8} /> : (
+                <tbody>
+                  {pager.pageItems.map((t) => {
+                    const config = TYPE_CONFIG[t.transaction_type] || ADJUSTMENT_CONFIG;
+                    const created = new Date(t.created_at);
+                    return (
+                      <tr key={t.id}>
+                        <td data-label="Medicine" className="flat-table-primary">
+                          <div className="flat-med-name">{t.medicine_name}</div>
+                        </td>
+                        <td data-label="Type" className="flat-col-nowrap">
+                          <span className={`flat-status-label ${config.cls}`}>{config.label}</span>
+                        </td>
+                        <td data-label="Batch no." className="flat-col-nowrap">{t.batch_number}</td>
+                        <td data-label="Branch">{t.branch || '—'}</td>
+                        <td data-label="Quantity" className="flat-col-right">
+                          <span className={`flat-qty ${t.quantity > 0 ? 'in' : 'out'}`}>{t.quantity > 0 ? '+' : ''}{t.quantity}</span>
+                        </td>
+                        <td data-label="Recorded by">{t.user_name}</td>
+                        <td data-label="Date" className="flat-col-nowrap">
+                          {created.toLocaleDateString()} {created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td data-label="Reason" className="flat-table-reason">{t.reason || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              )}
+            </table>
+          </div>
+        )}
+        {!error && !loading && <Pagination {...pager} itemLabel="movements" />}
       </div>
       <ReportExportModal
         isOpen={showExport}

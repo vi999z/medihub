@@ -263,10 +263,10 @@ input, select, textarea { font-family: var(--font-body); }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
-.app-shell { display: flex; height: 100%; overflow: hidden; background: var(--color-page); padding: 0; gap: 0; }
+.app-shell { --sidebar-width: 280px; display: flex; height: 100%; overflow: hidden; background: var(--color-page); padding: 0; gap: 0; }
 
 .sidebar {
-  width: 280px;
+  width: var(--sidebar-width);
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column; padding: 28px 20px;
@@ -320,7 +320,15 @@ input, select, textarea { font-family: var(--font-body); }
 .shell-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--color-surface-elevated); }
 
 /* Drawer-only chrome — shown by the ≤900px block below */
-.nav-toggle, .sidebar-backdrop, .mobile-only { display: none; }
+.sidebar-backdrop, .mobile-only { display: none; }
+.nav-toggle { margin-right: 8px; margin-left: -8px; }
+
+/* Desktop only: the topbar's menu button hides the sidebar so the page gets the
+   full width. Narrow screens use the drawer in the ≤900px block instead. */
+@media (min-width: 901px) {
+  .sidebar { transition: margin-left 0.2s ease, visibility 0.2s; }
+  .sidebar-hidden .sidebar { margin-left: calc(-1 * var(--sidebar-width)); visibility: hidden; }
+}
 
 .topbar {
   height: 76px; flex-shrink: 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; background: var(--surface); z-index: 30;
@@ -401,7 +409,8 @@ input, select, textarea { font-family: var(--font-body); }
 .main-content::-webkit-scrollbar-thumb:hover { background: var(--steel) !important; }
 
 @media (max-width: 1024px) {
-  .sidebar { width: 200px; padding: 20px 16px; }
+  .app-shell { --sidebar-width: 200px; }
+  .sidebar { padding: 20px 16px; }
   .main-content { padding: 20px 16px; }
   .topbar { padding: 0 20px; height: 70px; }
   .page-header { flex-direction: column; align-items: flex-start; }
@@ -1314,8 +1323,8 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-table tbody tr[data-clickable] { cursor: pointer; }
 .flat-table tbody tr[data-clickable]:hover td { background: color-mix(in srgb, var(--flat-accent) 8%, var(--flat-bg)); }
 
-/* Generic flat card grid — used by the Medicines, Batches, Suppliers and
-   Transactions catalogs so every list page shares one visual system. */
+/* Generic flat card grid — used by the card-based lists (Alerts, Audit Log,
+   Suppliers…) so they share one visual system. */
 .flat-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 16px; }
 .flat-item-card {
   padding: 18px 18px 18px 16px; display: flex; flex-direction: column; gap: 8px; cursor: pointer;
@@ -1380,22 +1389,6 @@ input, select, textarea { font-family: var(--font-body); }
 .flat-item-row strong { font-weight: 600; }
 .flat-item-card__actions { display: flex; gap: 8px; margin-top: 8px; }
 .flat-item-card__actions .flat-action-btn { flex: 1; justify-content: center; }
-
-/* Product-card photo layout — used only by the Medicines catalog grid, where
-   the photo is the focal point (unlike Suppliers/Batches/Transactions, which
-   keep the small side-by-side icon + status row above). The card's own
-   padding is disabled so the photo can bleed to its edges; __body carries
-   the padding/gap that .flat-item-card normally provides directly. */
-.flat-item-card--photo-layout { padding: 0; }
-.flat-item-card__body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
-.flat-item-photo {
-  position: relative; width: 100%; aspect-ratio: 1 / 1;
-  background: transparent; border-radius: 7px 7px 0 0;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--flat-accent); overflow: hidden;
-}
-.flat-item-photo img { width: 100%; height: 100%; object-fit: cover; }
-.flat-status-label--badge { position: absolute; top: 10px; left: 10px; box-shadow: var(--flat-shadow); }
 
 /* Bottom row: 7-day sales chart + top sellers */
 .flat-bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -1611,3 +1604,128 @@ html[data-text-size="xlarge"] .main-content { zoom: 1.25; }
 .flat-dashboard .filter-toggle:has(input:checked):hover { color: #fff; background: var(--flat-accent-solid); }
 .flat-dashboard .filter-toggle:has(input:checked) input { accent-color: #fff; }
 .filter-toggle:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Data tables (Medicines, Batches, Transactions): a full table on desktop, a
+   stacked list on phones. Each <td> carries its column name in data-label. */
+.flat-table-scroll { overflow-x: auto; }
+.flat-table--responsive td, .flat-table--responsive th { padding-left: 14px; padding-right: 14px; }
+.flat-table--responsive td:first-child, .flat-table--responsive th:first-child { padding-left: 20px; }
+.flat-table--responsive td:last-child, .flat-table--responsive th:last-child { padding-right: 20px; }
+.flat-table--responsive th, .flat-col-nowrap { white-space: nowrap; }
+.flat-table-primary { min-width: 180px; }
+.flat-table-primary .flat-med-name { font-weight: 600; }
+.flat-table-name {
+  background: none; border: none; padding: 0; font: inherit; font-size: 15px; font-weight: 600;
+  color: var(--flat-text); text-align: left; cursor: pointer;
+}
+.flat-table-name:hover { color: var(--flat-accent); text-decoration: underline; }
+.flat-table-photo-link { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.flat-table-muted { color: var(--flat-text-muted); }
+.flat-table-reason { min-width: 140px; max-width: 280px; overflow-wrap: anywhere; }
+.flat-table-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.flat-table-tags .flat-tag { margin: 0; }
+.flat-qty { font-weight: 600; white-space: nowrap; }
+.flat-qty.in { color: var(--flat-green); }
+.flat-qty.out { color: var(--flat-red); }
+/* Stays reachable when a narrow window makes the table scroll sideways. */
+.flat-table-actions { position: sticky; right: 0; background: var(--flat-surface); }
+.flat-table-actions__row { display: flex; justify-content: flex-end; gap: 6px; }
+.row-action { width: 34px; height: 34px; padding: 0; justify-content: center; flex-shrink: 0; }
+.row-action span { display: none; }
+
+@media (max-width: 1200px) {
+  .flat-table--responsive td, .flat-table--responsive th { padding-left: 10px; padding-right: 10px; }
+  .flat-table--responsive td:first-child, .flat-table--responsive th:first-child { padding-left: 16px; }
+  .flat-table--responsive td:last-child, .flat-table--responsive th:last-child { padding-right: 16px; }
+  .flat-table-primary { min-width: 150px; }
+  .flat-table-actions { box-shadow: -1px 0 0 var(--flat-border); }
+}
+
+@media (max-width: 768px) {
+  .flat-table--responsive,
+  .flat-table--responsive tbody,
+  .flat-table--responsive tr,
+  .flat-table--responsive td { display: block; width: 100%; }
+  .flat-table--responsive thead { display: none; }
+  .flat-table--responsive tbody tr { padding: 12px 16px; border-bottom: 1px solid var(--flat-border); }
+  .flat-table--responsive tbody tr:last-child { border-bottom: none; }
+  .flat-table--responsive tbody tr:nth-child(even) { background: var(--flat-bg); }
+  .flat-table.flat-table--responsive tbody tr[data-clickable]:hover td { background: transparent; }
+  .flat-table.flat-table--responsive td {
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    height: auto; padding: 5px 0; border-bottom: none; text-align: right;
+  }
+  .flat-table--responsive td::before {
+    content: attr(data-label); flex-shrink: 0; font-size: 13px; color: var(--flat-text-muted); text-align: left;
+  }
+  .flat-table.flat-table--responsive td.flat-table-primary { display: block; padding: 0 0 6px; text-align: left; }
+  .flat-table--responsive td.flat-table-primary::before,
+  .flat-table--responsive td.flat-table-actions::before { display: none; }
+  .flat-table-reason { max-width: none; }
+  .flat-table.flat-table--responsive td.flat-table-actions { display: block; position: static; padding-top: 10px; background: transparent; box-shadow: none; }
+  .flat-table-actions__row { justify-content: stretch; flex-wrap: wrap; gap: 8px; }
+  .row-action { flex: 1 1 auto; width: auto; height: 40px; padding: 0 10px; white-space: nowrap; }
+  .row-action span { display: inline; }
+}
+
+/* List pagination */
+.pagination {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; padding: 12px 20px;
+  border-top: 1px solid var(--flat-border); font-size: 13px; color: var(--flat-text-muted);
+}
+.pagination__summary { margin-right: auto; }
+.pagination__size { display: inline-flex; align-items: center; gap: 8px; }
+.pagination__size select {
+  height: 34px; padding: 0 8px; border: 1px solid var(--flat-border-strong); border-radius: 8px;
+  background: var(--flat-surface); color: var(--flat-text); font: inherit; cursor: pointer;
+}
+.pagination__nav, .pagination__pages { display: inline-flex; align-items: center; gap: 4px; }
+.pagination__btn {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; padding: 0 6px;
+  border: 1px solid var(--flat-border-strong); border-radius: 8px; background: var(--flat-bg);
+  color: var(--flat-text); font: inherit; font-weight: 500; cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.pagination__btn:hover:not(:disabled) { border-color: var(--flat-accent); color: var(--flat-accent); }
+.pagination__btn:focus-visible { outline: 2px solid var(--flat-accent); outline-offset: 1px; }
+.pagination__btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.pagination__btn[aria-current='page'],
+.pagination__btn[aria-current='page']:hover { background: var(--flat-accent-solid); border-color: var(--flat-accent-solid); color: #fff; }
+.pagination__gap { min-width: 20px; text-align: center; }
+.pagination__compact { display: none; }
+
+@media (max-width: 768px) {
+  .pagination { padding: 12px 16px; justify-content: space-between; }
+  .pagination__summary { margin-right: 0; }
+  .pagination__nav { width: 100%; justify-content: space-between; }
+  .pagination__pages { display: none; }
+  .pagination__compact { display: inline; color: var(--flat-text); font-weight: 500; }
+  .pagination__btn { min-width: 64px; height: 40px; }
+}
+
+/* Medicine photo dialog */
+.modal-content.photo-modal { max-width: 560px; padding: 16px 20px 20px; }
+.photo-modal__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.photo-modal__image { display: block; width: 100%; max-height: 70vh; object-fit: contain; border-radius: 10px; background: var(--flat-bg); }
+
+/* AI chat: shown while waiting for a reply, so the message clearly went through */
+.ai-typing { display: flex; align-items: flex-start; gap: 12px; }
+.ai-typing__avatar {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-secondary); color: var(--color-secondary-foreground);
+}
+.ai-typing__bubble {
+  display: inline-flex; align-items: center; gap: 5px; padding: 15px 16px; border-radius: 12px;
+  background: var(--color-assistant-bubble); border: 1px solid var(--flat-border);
+}
+.ai-typing__bubble span {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--flat-text-muted);
+  animation: ai-typing-dot 1.2s ease-in-out infinite;
+}
+.ai-typing__bubble span:nth-child(2) { animation-delay: 0.15s; }
+.ai-typing__bubble span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ai-typing-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}

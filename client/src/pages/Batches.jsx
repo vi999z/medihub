@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Pencil, Search, X, QrCode, Package, Download, Link2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, Search, X, QrCode, Download, Link2 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -13,6 +13,10 @@ import PageHeader from '../components/PageHeader';
 import useBranches from '../hooks/useBranches';
 import ReceiveStockModal from '../components/ReceiveStockModal';
 import ReportExportModal from '../components/ReportExportModal';
+import Pagination from '../components/Pagination';
+import RowAction from '../components/RowAction';
+import TableSkeleton from '../components/TableSkeleton';
+import usePagination from '../hooks/usePagination';
 import { errorMessage } from '../utils/errors';
 import { useBranchFilter } from '../context/BranchContext';
 
@@ -82,6 +86,8 @@ export default function Batches() {
         .some((value) => String(value || '').toLowerCase().includes(term));
     });
   }, [batches, search, statusFilter, branchFilter]);
+
+  const pager = usePagination(visibleBatches, { resetKey: [search, statusFilter, branchFilter].join('|') });
 
   const filtersActive = Boolean(search) || statusFilter !== 'all' || branchFilter !== 'all';
 
@@ -252,76 +258,72 @@ export default function Batches() {
         <div className="flat-table-header">
           <span className="flat-table-title">Batches</span>
         </div>
-        <div style={{ padding: 16 }}>
-          {error && (
-            <div className="flat-empty">
-              Unable to load batches — {error}
-              <div style={{ marginTop: 10 }}>
-                <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
-              </div>
+        {error && (
+          <div className="flat-empty">
+            Unable to load batches — {error}
+            <div style={{ marginTop: 10 }}>
+              <button type="button" className="flat-action-btn" onClick={fetchAll}>Retry</button>
             </div>
-          )}
+          </div>
+        )}
 
-          {!error && loading && (
-            <div className="flat-card-grid">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="flat-card flat-item-card">
-                  <div className="flat-item-icon skeleton" style={{ border: 'none' }} />
-                  <div className="skeleton" style={{ height: 16, width: '70%', margin: '4px 0' }} />
-                  <div className="skeleton" style={{ height: 12, width: '50%' }} />
-                </div>
-              ))}
-            </div>
-          )}
+        {!error && !loading && visibleBatches.length === 0 && (
+          <div className="flat-empty">{batches.length === 0 ? 'No batches recorded yet.' : 'No batches match the current filters.'}</div>
+        )}
 
-          {!error && !loading && visibleBatches.length === 0 && (
-            <div className="flat-empty">{batches.length === 0 ? 'No batches recorded yet.' : 'No batches match the current filters.'}</div>
-          )}
-
-          {!error && !loading && visibleBatches.length > 0 && (
-            <div className="flat-card-grid">
-              {visibleBatches.map((b) => {
-                const pill = batchStatus(b);
-                return (
-                  <div key={b.id} className={`flat-card flat-item-card flat-item-card--${pill.cls}`} style={{ cursor: 'default' }}>
-                    <div className="flat-item-card__top">
-                      <div className="flat-item-icon"><Package size={22} /></div>
-                      <span className={`flat-status-label ${pill.cls}`}>{pill.label}</span>
-                    </div>
-                    <div className="flat-med-name">{b.medicine_name}</div>
-                    <div className="flat-med-meta">{b.supplier_name || 'No supplier listed'}</div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <span className="flat-tag">Batch {b.batch_number}</span>
-                      <span className="flat-tag">{b.branch}</span>
-                      {!b.linked && <span className="flat-tag" title="Not counted in any medicine stock until it is linked">Not linked</span>}
-                    </div>
-                    <div className="flat-item-row">
-                      <span>Remaining</span>
-                      <strong>{b.quantity_remaining}</strong>
-                    </div>
-                    <div className="flat-item-row">
-                      <span>Expiry</span>
-                      <strong>{new Date(b.expiry_date).toLocaleDateString()}</strong>
-                    </div>
-                    <div className="flat-item-card__actions">
-                      <button type="button" className="flat-action-btn" onClick={() => openEdit(b)}>
-                        <Pencil size={13} /> Edit
-                      </button>
-                      <button type="button" className="flat-action-btn" onClick={() => setQrBatch(b)}>
-                        <QrCode size={13} /> QR
-                      </button>
-                      {!b.linked && (
-                        <button type="button" className="flat-btn-primary" onClick={() => openLink(b)}>
-                          <Link2 size={13} /> Link to medicine
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        {!error && (loading || visibleBatches.length > 0) && (
+          <div className="flat-table-scroll">
+            <table className="flat-table flat-table--responsive">
+              <thead>
+                <tr>
+                  <th>Medicine</th>
+                  <th>Batch no.</th>
+                  <th>Supplier</th>
+                  <th>Branch</th>
+                  <th className="flat-col-right">Remaining</th>
+                  <th>Expiry</th>
+                  <th>Status</th>
+                  <th className="flat-col-right flat-table-actions">Actions</th>
+                </tr>
+              </thead>
+              {loading ? <TableSkeleton cols={8} rows={8} /> : (
+                <tbody>
+                  {pager.pageItems.map((b) => {
+                    const pill = batchStatus(b);
+                    return (
+                      <tr key={b.id}>
+                        <td data-label="Medicine" className="flat-table-primary">
+                          <div className="flat-med-name">{b.medicine_name}</div>
+                          {!b.linked && (
+                            <div className="flat-table-tags">
+                              <span className="flat-tag" title="Not counted in any medicine stock until it is linked">Not linked</span>
+                            </div>
+                          )}
+                        </td>
+                        <td data-label="Batch no." className="flat-col-nowrap">{b.batch_number}</td>
+                        <td data-label="Supplier">{b.supplier_name || '—'}</td>
+                        <td data-label="Branch">{b.branch}</td>
+                        <td data-label="Remaining" className="flat-col-right">{b.quantity_remaining}</td>
+                        <td data-label="Expiry" className="flat-col-nowrap">{new Date(b.expiry_date).toLocaleDateString()}</td>
+                        <td data-label="Status" className="flat-col-nowrap">
+                          <span className={`flat-status-label ${pill.cls}`}>{pill.label}</span>
+                        </td>
+                        <td className="flat-table-actions">
+                          <div className="flat-table-actions__row">
+                            <RowAction icon={Pencil} label="Edit" onClick={() => openEdit(b)} />
+                            <RowAction icon={QrCode} label="QR" onClick={() => setQrBatch(b)} />
+                            {!b.linked && <RowAction icon={Link2} label="Link to medicine" primary onClick={() => openLink(b)} />}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              )}
+            </table>
+          </div>
+        )}
+        {!error && !loading && <Pagination {...pager} itemLabel="batches" />}
       </div>
 
       <AnimatedModal isOpen={Boolean(linkBatch)} onClose={() => setLinkBatch(null)}>

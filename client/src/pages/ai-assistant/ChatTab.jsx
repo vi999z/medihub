@@ -183,7 +183,7 @@ export default function ChatTab() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, loading]);
 
   // Load conversation info and saved conversations on mount
   useEffect(() => {
@@ -386,18 +386,16 @@ export default function ChatTab() {
 
   async function getHealthReport() {
     setLoading(true);
+    setMessages(prev => [...prev, { role: 'user', content: 'Generate pharmacy health report', timestamp: new Date() }]);
     try {
       const res = await api.get('/ai/health-report');
       const healthReport = res.data.health_report;
-      setMessages(prev => [...prev,
-        { role: 'user', content: 'Generate pharmacy health report', timestamp: new Date() },
-        {
-          role: 'assistant',
-          content: healthReport,
-          timestamp: new Date(),
-          isHealthReport: true
-        }
-      ]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: healthReport,
+        timestamp: new Date(),
+        isHealthReport: true
+      }]);
     } catch (err) {
       addToast('Failed to generate health report', 'error');
     } finally {
@@ -643,6 +641,12 @@ export default function ChatTab() {
               )}
             </div>
           ))}
+          {loading && (
+            <div className="ai-typing" role="status" aria-label="MediHub AI is typing">
+              <div className="ai-typing__avatar"><IconRobot size={18} /></div>
+              <div className="ai-typing__bubble" aria-hidden="true"><span /><span /><span /></div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 

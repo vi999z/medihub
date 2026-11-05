@@ -5,6 +5,8 @@ import { useToast } from '../context/ToastContext';
 import ReportExportModal from '../components/ReportExportModal';
 import { NOTIFICATIONS_CHANGED_EVENT } from '../utils/events';
 import PageHeader from '../components/PageHeader';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 import { errorMessage } from '../utils/errors';
 
 const UNREAD_URL = '/notifications?unread=true';
@@ -57,6 +59,10 @@ export default function Notifications() {
       return [n.message, n.type, n.severity].some((value) => String(value || '').toLowerCase().includes(term));
     });
   }, [notifications, search, unreadOnly, severity, type]);
+  const pager = usePagination(visibleNotifications, {
+    pageSize: 12,
+    resetKey: [search, unreadOnly, severity, type].join('|'),
+  });
   const types = useMemo(() => [...new Set(notifications.map((n) => n.type).filter(Boolean))].sort(), [notifications]);
 
   const filtersActive = Boolean(search) || unreadOnly || severity !== 'all' || type !== 'all';
@@ -194,7 +200,7 @@ export default function Notifications() {
 
           {!error && !loading && visibleNotifications.length > 0 && (
             <div className="flat-card-grid">
-              {visibleNotifications.map((n) => {
+              {pager.pageItems.map((n) => {
                 const cfg = severityConfig(n.severity);
                 const SevIcon = cfg.Icon;
                 return (
@@ -226,6 +232,7 @@ export default function Notifications() {
             </div>
           )}
         </div>
+        {!error && !loading && <Pagination {...pager} pageSizeOptions={[12, 24, 48]} itemLabel="alerts" />}
       </div>
       <ReportExportModal
         isOpen={showExport}

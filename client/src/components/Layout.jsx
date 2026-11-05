@@ -32,6 +32,7 @@ const NAV_GROUP_SECONDARY = [
   { to: '/maintenance', label: 'Maintenance', icon: IconTools, adminOnly: true },
 ];
 const ALL_ITEMS = [...NAV_GROUP_PRIMARY, ...NAV_GROUP_SECONDARY];
+const SIDEBAR_HIDDEN_KEY = 'medihub_sidebar_hidden';
 
 const HELP_BY_PAGE = {
   '/dashboard': ['See sales today, stock levels and what needs attention at a glance.', 'Use the branch, category and date filters at the top.', 'Click a stock box (out of stock, low, expiring, healthy) to filter the list below.'],
@@ -64,7 +65,7 @@ function initials(name = '') {
   return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 }
 
-function TopBar({ pageTitle, onOpenNav }) {
+function TopBar({ pageTitle, onToggleNav }) {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
@@ -158,8 +159,8 @@ function TopBar({ pageTitle, onOpenNav }) {
 
   return (
     <header className="topbar">
-      {/* Only visible on narrow screens, where the sidebar becomes a drawer */}
-      <button className="icon-btn nav-toggle" onClick={onOpenNav} aria-label="Open navigation">
+      {/* Hides/shows the sidebar on desktop; opens the drawer on narrow screens */}
+      <button className="icon-btn nav-toggle" onClick={onToggleNav} aria-label="Toggle menu" aria-controls="app-sidebar" title="Show or hide the menu">
         <IconMenu2 size={20} stroke={1.8} />
       </button>
       <div className={`breadcrumb-group${pageTitle ? '' : ' breadcrumb-group--date-only'}`}>
@@ -315,6 +316,20 @@ export default function Layout({ children }) {
   const [navOpenPath, setNavOpenPath] = useState(null);
   const navOpen = navOpenPath === location.pathname;
   const setNavOpen = (open) => setNavOpenPath(open ? location.pathname : null);
+  // Desktop preference to hide the sidebar, remembered between visits.
+  const [sidebarHidden, setSidebarHidden] = useState(() => {
+    try { return localStorage.getItem(SIDEBAR_HIDDEN_KEY) === 'true'; } catch { return false; }
+  });
+
+  function toggleNav() {
+    if (window.matchMedia('(max-width: 900px)').matches) {
+      setNavOpen(true);
+      return;
+    }
+    const next = !sidebarHidden;
+    setSidebarHidden(next);
+    try { localStorage.setItem(SIDEBAR_HIDDEN_KEY, String(next)); } catch { /* storage unavailable */ }
+  }
 
   useEffect(() => {
     const title = pageTitle === 'MediHub' ? 'MediHub' : `${pageTitle} · MediHub`;
@@ -329,7 +344,7 @@ export default function Layout({ children }) {
   }, [navOpen]);
 
   return (
-    <div className={`app-shell${navOpen ? ' nav-open' : ''}`}>
+    <div className={`app-shell${navOpen ? ' nav-open' : ''}${sidebarHidden ? ' sidebar-hidden' : ''}`}>
       <div className="sidebar-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />
       <aside className="sidebar" id="app-sidebar">
         <div className="sidebar-logo">
@@ -359,7 +374,7 @@ export default function Layout({ children }) {
         </nav>
       </aside>
       <div className="shell-main">
-        <TopBar pageTitle={pageTitle} onOpenNav={() => setNavOpen(true)} />
+        <TopBar pageTitle={pageTitle} onToggleNav={toggleNav} />
         <ConnectionBanner />
         <main className="main-content" style={{ position: 'relative' }}>
           {children}

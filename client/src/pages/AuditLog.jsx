@@ -3,12 +3,16 @@ import { Search, X, RefreshCw, FileText } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import PageHeader from '../components/PageHeader';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 import { errorMessage } from '../utils/errors';
 
 // Maps the action verb (first word of e.g. "create_medicine") onto the flat
 // design system's palette; anything unlisted gets the neutral card.
-const PAGE_SIZE = 100;
 const ACTION_FLAT_CLS = { create: 'green', login: 'green', update: 'amber', export: 'amber', delete: 'red', ai: 'accent' };
+
+// The server's maximum; the pages below are cut from this client-side.
+const FETCH_LIMIT = 2000;
 
 function actionLabel(action = '') {
   return action.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -20,11 +24,10 @@ export default function AuditLog() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
-  const [limit, setLimit] = useState(PAGE_SIZE);
 
   async function fetchAll() {
     try {
-      const res = await api.get(`/audit-logs?limit=${limit}`);
+      const res = await api.get(`/audit-logs?limit=${FETCH_LIMIT}`);
       setLogs(res.data || []);
       setError('');
     } catch (err) {
@@ -34,8 +37,7 @@ export default function AuditLog() {
     }
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchAll(); }, [limit]);
+  useEffect(() => { fetchAll(); }, []);
 
   async function handleRefresh() {
     await fetchAll();
@@ -47,6 +49,8 @@ export default function AuditLog() {
     if (!term) return logs;
     return logs.filter((l) => [l.user_name, l.action, l.details].some((value) => String(value || '').toLowerCase().includes(term)));
   }, [logs, search]);
+
+  const pager = usePagination(visibleLogs, { pageSize: 12, resetKey: search });
 
   return (
     <div className="flat-dashboard">
@@ -110,7 +114,7 @@ export default function AuditLog() {
 
           {!error && !loading && visibleLogs.length > 0 && (
             <div className="flat-card-grid">
-              {visibleLogs.map((l) => {
+              {pager.pageItems.map((l) => {
                 const tone = ACTION_FLAT_CLS[String(l.action || '').split('_')[0].toLowerCase()];
                 const created = new Date(l.created_at);
                 return (
@@ -136,12 +140,8 @@ export default function AuditLog() {
               })}
             </div>
           )}
-          {!error && !loading && logs.length >= limit && limit < 2000 && (
-            <div style={{ textAlign: 'center', marginTop: 16 }}>
-              <button type="button" className="flat-action-btn" onClick={() => setLimit((n) => n + PAGE_SIZE)}>Load more</button>
-            </div>
-          )}
         </div>
+        {!error && !loading && <Pagination {...pager} pageSizeOptions={[12, 24, 48]} itemLabel="entries" />}
       </div>
     </div>
   );
